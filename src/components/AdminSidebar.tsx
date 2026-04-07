@@ -1,4 +1,4 @@
-import { Building2, ClipboardList, LayoutDashboard } from "lucide-react";
+import { Building2, ClipboardList, LayoutDashboard, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
@@ -11,8 +11,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
+  SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
 
 const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -30,49 +32,63 @@ export function AdminSidebar() {
       <SidebarHeader className="p-4">
         {!collapsed ? (
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
               <Building2 className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-foreground">AdminPanel</p>
+              <p className="text-sm font-bold text-foreground tracking-tight">AdminPanel</p>
               <p className="text-xs text-muted-foreground">Hantera företag</p>
             </div>
           </div>
         ) : (
           <div className="flex justify-center">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
               <Building2 className="h-5 w-5 text-primary-foreground" />
             </div>
           </div>
         )}
       </SidebarHeader>
-      <SidebarContent>
+      <Separator className="bg-border/50" />
+      <SidebarContent className="pt-2">
         <SidebarGroup>
-          <SidebarGroupLabel>Meny</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-muted-foreground/70 text-[11px] uppercase tracking-wider font-semibold">
+            Meny
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location.pathname === item.url}
-                  >
-                    <NavLink
-                      to={item.url}
-                      end
-                      className="hover:bg-accent"
-                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                    >
-                      <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {menuItems.map((item) => {
+                const active = location.pathname === item.url;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={active}>
+                      <NavLink
+                        to={item.url}
+                        end
+                        className={`rounded-lg transition-all duration-150 ${
+                          active
+                            ? "bg-primary/15 text-primary font-semibold"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        }`}
+                        activeClassName=""
+                      >
+                        <item.icon className={`mr-2.5 h-4 w-4 ${active ? "text-primary" : ""}`} />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="p-3">
+        <Separator className="bg-border/50 mb-3" />
+        <SidebarMenuButton className="text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg">
+          <LogOut className="mr-2.5 h-4 w-4" />
+          {!collapsed && <span className="text-sm">Logga ut</span>}
+        </SidebarMenuButton>
+      </SidebarFooter>
     </Sidebar>
   );
 }
