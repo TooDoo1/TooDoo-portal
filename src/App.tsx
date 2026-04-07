@@ -7,6 +7,7 @@ import { AdminLayout } from "@/components/AdminLayout";
 import Index from "./pages/Index";
 import Companies from "./pages/Companies";
 import Pending from "./pages/Pending";
+import CategoryPage from "./pages/CategoryPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/companies" element={<Companies />} />
             <Route path="/pending" element={<Pending />} />
+            <Route path="/category/:name" element={<CategoryPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AdminLayout>
