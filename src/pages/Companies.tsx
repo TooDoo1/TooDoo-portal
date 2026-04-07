@@ -32,7 +32,7 @@ export default function Companies() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Företag</h1>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Företag</h1>
         <p className="text-muted-foreground mt-1">Hantera alla aktiva företag i systemet</p>
       </div>
 
@@ -43,15 +43,15 @@ export default function Companies() {
             placeholder="Sök företag..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="pl-9 bg-card border-border text-foreground placeholder:text-muted-foreground"
           />
         </div>
         <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <Filter className="mr-2 h-4 w-4" />
+          <SelectTrigger className="w-full sm:w-[180px] bg-card border-border text-foreground">
+            <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-popover border-border">
             {categories.map((cat) => (
               <SelectItem key={cat} value={cat}>{cat}</SelectItem>
             ))}
@@ -60,9 +60,9 @@ export default function Companies() {
       </div>
 
       {filtered.length === 0 ? (
-        <Card>
+        <Card className="bg-card border-border">
           <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-            <Building2Icon className="h-12 w-12 mb-4 opacity-40" />
+            <EmptyIcon className="h-12 w-12 mb-4 opacity-40" />
             <p className="text-lg font-medium">Inga företag hittades</p>
             <p className="text-sm">Försök ändra dina sökkriterier</p>
           </CardContent>
@@ -70,7 +70,7 @@ export default function Companies() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((company) => (
-            <Card key={company.id} className="card-hover">
+            <Card key={company.id} className="card-hover bg-card border-border">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -84,14 +84,23 @@ export default function Companies() {
                 </div>
                 <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
                   <span>Gick med: {new Date(company.joinedAt).toLocaleDateString("sv-SE")}</span>
-                  <span className="text-xs bg-secondary px-2 py-0.5 rounded-full">{company.category}</span>
+                  <span className="text-xs bg-secondary/80 text-secondary-foreground px-2.5 py-0.5 rounded-full">{company.category}</span>
                 </div>
                 <div className="mt-4 flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1" onClick={() => toast.info(`Visar detaljer för ${company.name}`)}>
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground"
+                    onClick={() => toast.info(`Visar detaljer för ${company.name}`)}
+                  >
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
                     Visa detaljer
                   </Button>
-                  <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => setDeleteTarget(company)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-border text-destructive hover:bg-destructive/10 hover:border-destructive/30"
+                    onClick={() => setDeleteTarget(company)}
+                  >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -114,7 +123,7 @@ export default function Companies() {
   );
 }
 
-function Building2Icon(props: React.SVGProps<SVGSVGElement>) {
+function EmptyIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
