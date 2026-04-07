@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Search, Filter, Eye, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -84,7 +85,7 @@ export default function Companies() {
                 </div>
                 <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
                   <span>Gick med: {new Date(company.joinedAt).toLocaleDateString("sv-SE")}</span>
-                  <span className="text-xs bg-secondary/80 text-secondary-foreground px-2.5 py-0.5 rounded-full">{company.category}</span>
+                  <Link to={`/category/${encodeURIComponent(company.category)}`} className="text-xs bg-accent/15 text-accent hover:bg-accent/25 px-2.5 py-0.5 rounded-full transition-colors cursor-pointer">{company.category}</Link>
                 </div>
                 <div className="mt-4 flex gap-2">
                   <Button
