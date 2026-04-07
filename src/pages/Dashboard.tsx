@@ -1,6 +1,7 @@
-import { Building2, Clock, CheckCircle, TrendingUp, ArrowUpRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Building2, Clock, CheckCircle, TrendingUp, ArrowUpRight, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { activeCompanies, pendingCompanies } from "@/data/dummy-data";
+import { activeCompanies, pendingCompanies, categories } from "@/data/dummy-data";
 
 const stats = [
   { label: "Aktiva företag", value: activeCompanies.length, icon: Building2, trend: "+2 denna vecka", color: "bg-accent/15 text-accent" },
@@ -8,6 +9,16 @@ const stats = [
   { label: "Godkända", value: 4, icon: CheckCircle, trend: "Denna månad", color: "bg-success/15 text-success" },
   { label: "Tillväxt", value: "+12%", icon: TrendingUp, trend: "vs förra månaden", color: "bg-primary/15 text-primary" },
 ];
+
+const allCompanies = [...activeCompanies, ...pendingCompanies];
+const categoryData = categories
+  .filter((c) => c !== "Alla")
+  .map((cat) => ({
+    name: cat,
+    total: allCompanies.filter((c) => c.category === cat).length,
+    active: activeCompanies.filter((c) => c.category === cat).length,
+    pending: pendingCompanies.filter((c) => c.category === cat).length,
+  }));
 
 export default function Dashboard() {
   return (
@@ -37,6 +48,31 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Category cards */}
+      <div>
+        <h2 className="text-lg font-semibold text-foreground mb-4">Kategorier</h2>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {categoryData.map((cat) => (
+            <Link key={cat.name} to={`/category/${encodeURIComponent(cat.name)}`}>
+              <Card className="card-hover bg-card border-border group cursor-pointer">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-foreground">{cat.name}</p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                      <span>{cat.active} aktiva</span>
+                      {cat.pending > 0 && (
+                        <span className="text-warning">{cat.pending} väntande</span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-accent transition-colors" />
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
       </div>
 
       <Card className="bg-card border-border">
