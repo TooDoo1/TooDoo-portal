@@ -54,7 +54,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
 export function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
 
-  if (location.pathname === "/" || location.pathname === "/login") {
+  if (location.pathname === "/" || location.pathname === "/login" || location.pathname === "/registration") {
     return <>{children}</>;
   }
 

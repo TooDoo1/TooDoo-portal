@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ArrowRight, Eye, EyeOff } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -23,8 +23,9 @@ const shootingStars = [
 	{ top: "92%", left: "100%", delay: "-6.6s", duration: "6.3s" },
 ];
 
-export default function LoggIn() {
+export default function Registration() {
 	const [showPassword, setShowPassword] = useState(false);
+	const navigate = useNavigate();
 
 	return (
 		<div className="relative min-h-screen overflow-hidden bg-background text-foreground">
@@ -42,7 +43,7 @@ export default function LoggIn() {
 								left: star.left,
 								background: `linear-gradient(90deg, transparent, ${color})`,
 								boxShadow: `0 0 14px ${color}`,
-								animation: `login-shooting-star ${star.duration} linear ${star.delay} infinite`,
+								animation: `registration-shooting-star ${star.duration} linear ${star.delay} infinite`,
 							}}
 						/>
 					);
@@ -50,7 +51,7 @@ export default function LoggIn() {
 			</div>
 
 			<style>{`
-				@keyframes login-shooting-star {
+				@keyframes registration-shooting-star {
 					0% {
 						transform: translate3d(0, 0, 0) rotate(145deg);
 						opacity: 0;
@@ -68,25 +69,39 @@ export default function LoggIn() {
 				}
 			`}</style>
 
-			<Link
-				to="/admin"
-				className="fixed left-4 top-4 z-20 flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl"
-			>
-				<img src="/Icon.jpg" alt="Admin" className="h-10 w-10 object-cover" />
-			</Link>
+			<div className="fixed left-4 top-4 z-50 flex items-center gap-3">
+				<div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl">
+					<img src="/Icon.jpg" alt="Registration icon" className="h-10 w-10 object-cover" />
+				</div>
 
-			<div className="relative z-20 mx-auto flex w-full max-w-6xl flex-col px-6 pt-12 pb-6">
+				<button
+					type="button"
+					onClick={() => navigate("/")}
+					className="group relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-secondary"
+					aria-label="Tillbaka till inloggning"
+				>
+					<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
+						<ArrowLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
+					</span>
+					<span className="pointer-events-none absolute left-4 right-4 z-0 h-[1px] origin-left scale-x-0 rounded-full bg-foreground transition-transform duration-300 group-hover:scale-x-100" />
+					<span className="pointer-events-none relative z-10 ml-1 whitespace-nowrap transition-all duration-300 group-hover:translate-x-2 group-hover:opacity-0">
+						Tillbaka
+					</span>
+				</button>
+			</div>
+
+			<div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col px-6 pt-12 pb-6">
 				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
 					<div className="relative z-10">
-						<h1 className="text-3xl font-bold tracking-tight">Logga in:</h1>
-						<p className="mt-1 text-sm text-muted-foreground">Logga in för att skapa erbjudanden och redigera företags information.</p>
+						<h1 className="text-3xl font-bold tracking-tight">Registrera dig</h1>
+						<p className="mt-1 text-sm text-muted-foreground">Skapa ett konto för att börja använda tjänsten.</p>
 
-						<div className="mt-2 space-y-5">
+						<div className="mt-6 space-y-5">
 							<div className="space-y-2">
 								<label htmlFor="email" className="text-sm font-semibold text-foreground">E-post</label>
 								<Input
 									id="email"
-									placeholder=" Din e-postadress"
+									placeholder="Din e-postadress"
 									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
 							</div>
@@ -97,7 +112,7 @@ export default function LoggIn() {
 									<Input
 										id="password"
 										type={showPassword ? "text" : "password"}
-										placeholder="Lösenord"
+										placeholder="Välj ett lösenord"
 										className="h-11 bg-background border-border pr-10 text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 									/>
 									<button
@@ -112,24 +127,12 @@ export default function LoggIn() {
 							</div>
 
 							<Button asChild className="h-11 w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold">
-								<Link to="/admin" className="inline-flex items-center justify-center gap-2">
-									Logga in
+								<Link to="" className="inline-flex items-center justify-center gap-2">
+									Registrera dig
 									<ArrowRight className="h-4 w-4" />
 								</Link>
 							</Button>
 						</div>
-					</div>
-				</div>
-
-				<div className="relative mx-auto mt-4 w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
-					<div className="relative z-10">
-						<Button className="h-11 w-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90">
-							Fortsätt med Google
-						</Button>
-
-						<p className="mt-4 text-center text-sm text-muted-foreground">
-							Har du inget konto? <Link to="/registration" className="font-semibold text-accent underline">Registrera dig här!</Link>
-						</p>
 					</div>
 				</div>
 			</div>

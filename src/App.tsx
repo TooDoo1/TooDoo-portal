@@ -9,6 +9,7 @@ import Companies from "./pages/Companies";
 import Pending from "./pages/Pending";
 import CategoryPage from "./pages/CategoryPage";
 import LoggIn from "./pages/LoggIn";
+import Registration from "./pages/Registration";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/pending" element={<Pending />} />
             <Route path="/category/:name" element={<CategoryPage />} />
             <Route path="/login" element={<LoggIn />} />
+            <Route path="/registration" element={<Registration />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AdminLayout>
