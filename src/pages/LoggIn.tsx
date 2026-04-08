@@ -111,12 +111,18 @@ export default function LoggIn() {
 								</div>
 							</div>
 
-							<Button asChild className="h-11 w-full bg-accent hover:bg-accent/90 text-accent-foreground font-semibold">
-								<Link to="/admin" className="inline-flex items-center justify-center gap-2">
+							<Link
+								to="/admin"
+								className="group relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90"
+							>
+								<span className="pointer-events-none mr-1 relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-2">
 									Logga in
-									<ArrowRight className="h-4 w-4" />
-								</Link>
-							</Button>
+								</span>
+								<span className="pointer-events-none absolute right-12 z-0 h-[1px] w-14 origin-right mr-28 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-9" />
+								<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
+									<ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-10" />
+								</span>
+							</Link>
 						</div>
 					</div>
 				</div>
