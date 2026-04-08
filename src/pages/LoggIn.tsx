@@ -72,7 +72,7 @@ export default function LoggIn() {
 				to="/admin"
 				className="fixed left-4 top-4 z-20 flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl"
 			>
-				<img src="/Icon.jpg" alt="Admin" className="h-10 w-10 object-cover -scale-x-100" />
+				<img src="/Icon.jpg" alt="Admin" className="h-10 w-10 object-cover" />
 			</Link>
 
 			<div className="relative z-20 mx-auto flex w-full max-w-6xl flex-col px-6 pt-12 pb-6">
