@@ -8,6 +8,12 @@ import Index from "./pages/Index";
 import Companies from "./pages/Companies";
 import Pending from "./pages/Pending";
 import CategoryPage from "./pages/CategoryPage";
+import LoggIn from "./pages/LoggIn";
+import Registration from "./pages/Registration";
+import CompanyDashboard from "./pages/CompanyDashboard";
+import CompanyOffers from "./pages/CompanyOffers";
+import CompanyVerification from "./pages/CompanyVerification";
+import CompanyAccount from "./pages/CompanyAccount";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,10 +26,17 @@ const App = () => (
       <BrowserRouter>
         <AdminLayout>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<LoggIn />} />
+            <Route path="/admin" element={<Index />} />
             <Route path="/companies" element={<Companies />} />
             <Route path="/pending" element={<Pending />} />
             <Route path="/category/:name" element={<CategoryPage />} />
+            <Route path="/company" element={<CompanyDashboard />} />
+            <Route path="/company/offers" element={<CompanyOffers />} />
+            <Route path="/company/verification" element={<CompanyVerification />} />
+            <Route path="/company/account" element={<CompanyAccount />} />
+            <Route path="/login" element={<LoggIn />} />
+            <Route path="/registration" element={<Registration />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AdminLayout>
