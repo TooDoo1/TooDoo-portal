@@ -99,7 +99,7 @@ export default function Companies() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="border-border text-destructive hover:bg-destructive/10 hover:border-destructive/30"
+                    className="border-[#ff3b30] bg-[#ff3b30] text-white hover:bg-[#e5362c] hover:border-[#e5362c]"
                     onClick={() => setDeleteTarget(company)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />

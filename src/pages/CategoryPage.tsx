@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Check, Trash2, Mail, Calendar, Tag, User, Building2, Eye, X } from "lucide-react";
+import { ArrowLeft, Check, Trash2, Mail, Calendar, Tag, User, Building2, Eye, X, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
@@ -23,8 +24,12 @@ export default function CategoryPage() {
   const [pending, setPending] = useState<Company[]>(
     pendingCompanies.filter((c) => c.category === categoryName)
   );
+  const [search, setSearch] = useState("");
   const [dialogState, setDialogState] = useState<DialogAction | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+
+  const filteredActive = active.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase()));
+  const filteredPending = pending.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase()));
 
   const handleAction = () => {
     if (!dialogState) return;
@@ -66,12 +71,22 @@ export default function CategoryPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Company list */}
         <div className="lg:col-span-2 space-y-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Sök företag..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 bg-card border-border text-foreground placeholder:text-muted-foreground"
+            />
+          </div>
+
           {/* Active */}
-          {active.length > 0 && (
+          {filteredActive.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Aktiva företag ({active.length})</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Aktiva företag ({filteredActive.length})</h2>
               <div className="space-y-3">
-                {active.map((company) => (
+                {filteredActive.map((company) => (
                   <Card
                     key={company.id}
                     className={`card-hover bg-card border-border cursor-pointer transition-all ${selectedCompany?.id === company.id ? "ring-2 ring-accent border-accent/50" : ""}`}
@@ -91,7 +106,7 @@ export default function CategoryPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            className="h-8 w-8 border-[#ff3b30] bg-[#ff3b30] text-white hover:bg-[#e5362c] hover:border-[#e5362c]"
                             onClick={(e) => { e.stopPropagation(); setDialogState({ company, action: "remove" }); }}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -106,11 +121,11 @@ export default function CategoryPage() {
           )}
 
           {/* Pending */}
-          {pending.length > 0 && (
+          {filteredPending.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Väntande ({pending.length})</h2>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Väntande ({filteredPending.length})</h2>
               <div className="space-y-3">
-                {pending.map((company) => (
+                {filteredPending.map((company) => (
                   <Card
                     key={company.id}
                     className={`card-hover bg-card border-border cursor-pointer transition-all ${selectedCompany?.id === company.id ? "ring-2 ring-accent border-accent/50" : ""}`}
@@ -137,7 +152,7 @@ export default function CategoryPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            className="h-8 w-8 border-[#ff3b30] bg-[#ff3b30] text-white hover:bg-[#e5362c] hover:border-[#e5362c]"
                             onClick={(e) => { e.stopPropagation(); setDialogState({ company, action: "remove" }); }}
                           >
                             <X className="h-4 w-4" />
@@ -151,14 +166,18 @@ export default function CategoryPage() {
             </div>
           )}
 
-          {allCompanies.length === 0 && (
+          {filteredActive.length === 0 && filteredPending.length === 0 && (
             <Card className="bg-card border-border">
               <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                 <Building2 className="h-12 w-12 mb-4 opacity-40" />
-                <p className="text-lg font-medium">Inga företag i denna kategori</p>
-                <Button variant="outline" className="mt-4 border-border" onClick={() => navigate("/companies")}>
-                  Tillbaka till alla företag
-                </Button>
+                <p className="text-lg font-medium">{search ? "Inga företag hittades" : "Inga företag i denna kategori"}</p>
+                {search ? (
+                  <p className="text-sm mt-2">Försök ändra dina sökkriterier</p>
+                ) : (
+                  <Button variant="outline" className="mt-4 border-border" onClick={() => navigate("/companies")}>
+                    Tillbaka till alla företag
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}

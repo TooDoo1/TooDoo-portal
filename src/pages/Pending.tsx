@@ -1,18 +1,28 @@
 import { useState } from "react";
-import { Check, X, Clock } from "lucide-react";
+import { Check, X, Clock, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { pendingCompanies, type Company } from "@/data/dummy-data";
+import { pendingCompanies, categories, type Company } from "@/data/dummy-data";
 import { toast } from "sonner";
 
 type ActionType = "approve" | "deny";
 
 export default function Pending() {
   const [companies, setCompanies] = useState<Company[]>(pendingCompanies);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("Alla");
   const [dialogState, setDialogState] = useState<{ company: Company; action: ActionType } | null>(null);
+
+  const filtered = companies.filter((c) => {
+    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
+    const matchCategory = category === "Alla" || c.category === category;
+    return matchSearch && matchCategory;
+  });
 
   const handleAction = () => {
     if (!dialogState) return;
@@ -33,17 +43,40 @@ export default function Pending() {
         <p className="text-muted-foreground mt-1">Granska och hantera företag som ansökt om att gå med</p>
       </div>
 
-      {companies.length === 0 ? (
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Sök företag..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 bg-card border-border text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
+        <Select value={category} onValueChange={setCategory}>
+          <SelectTrigger className="w-full sm:w-[180px] bg-card border-border text-foreground">
+            <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-popover border-border">
+            {categories.map((cat) => (
+              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {filtered.length === 0 ? (
         <Card className="bg-card border-border">
           <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <Clock className="h-12 w-12 mb-4 opacity-40" />
-            <p className="text-lg font-medium">Inga väntande företag</p>
-            <p className="text-sm">Alla ansökningar har behandlats</p>
+            <p className="text-lg font-medium">{search || category !== "Alla" ? "Inga företag hittades" : "Inga väntande företag"}</p>
+            <p className="text-sm">{search || category !== "Alla" ? "Försök ändra dina sökkriterier" : "Alla ansökningar har behandlats"}</p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
-          {companies.map((company) => (
+          {filtered.map((company) => (
             <Card key={company.id} className="card-hover bg-card border-border">
               <CardContent className="p-5">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -53,6 +86,9 @@ export default function Pending() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-foreground">{company.name}</p>
                         <StatusBadge status="pending" />
+                        <span className="text-xs bg-accent/15 text-accent px-2.5 py-0.5 rounded-full font-medium">
+                          {company.category}
+                        </span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-0.5">{company.contactPerson} · {company.email}</p>
                       <p className="text-sm text-foreground/70 mt-2 leading-relaxed">{company.description}</p>
@@ -73,7 +109,7 @@ export default function Pending() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="flex-1 sm:flex-none border-border text-destructive hover:bg-destructive/10 hover:border-destructive/30"
+                      className="flex-1 sm:flex-none border-[#ff3b30] bg-[#ff3b30] text-white hover:bg-[#e5362c] hover:border-[#e5362c]"
                       onClick={() => setDialogState({ company, action: "deny" })}
                     >
                       <X className="mr-1.5 h-3.5 w-3.5" />

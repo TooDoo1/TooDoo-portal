@@ -32,8 +32,8 @@ export function AdminSidebar() {
       <SidebarHeader className="p-4">
         {!collapsed ? (
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-              <Building2 className="h-5 w-5 text-primary-foreground" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden">
+              <img src="/Icon.jpg" alt="AdminPanel Logo" className="h-10 w-10 object-cover" />
             </div>
             <div>
               <p className="text-sm font-bold text-foreground tracking-tight">AdminPanel</p>
@@ -42,8 +42,8 @@ export function AdminSidebar() {
           </div>
         ) : (
           <div className="flex justify-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-              <Building2 className="h-5 w-5 text-primary-foreground" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden">
+              <img src="/Icon.jpg" alt="AdminPanel Logo" className="h-10 w-10 object-cover" />
             </div>
           </div>
         )}
@@ -71,7 +71,7 @@ export function AdminSidebar() {
                         }`}
                         activeClassName=""
                       >
-                        <item.icon className={`mr-2.5 h-4 w-4 ${active ? "text-primary" : ""}`} />
+                        <item.icon className={`mr-2.5 h-4 w-4 ${active ? "text-[#061A47]" : ""}`} />
                         {!collapsed && <span>{item.title}</span>}
                       </NavLink>
                     </SidebarMenuButton>
