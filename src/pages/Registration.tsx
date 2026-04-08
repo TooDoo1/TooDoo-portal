@@ -335,7 +335,7 @@ export default function Registration() {
 							</div>
 						</div>
 
-					<button className="group relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
+					<button onClick={() => navigate("/company")} className="group relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
 						<span className="pointer-events-none relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-2">
 							Registrera dig
 						</span>
