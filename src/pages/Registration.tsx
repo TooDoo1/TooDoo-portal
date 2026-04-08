@@ -193,6 +193,14 @@ export default function Registration() {
 								placeholder="Din e-postadress"
 								className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 							/>
+							<div className="space-y-2 pt-2">
+								<label htmlFor="phonenumber" className="text-lg font-semibold text-foreground">Telefonnummer:</label>
+								<Input
+									id="phonenumber"
+									placeholder="Ditt telefonnummer"
+									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+								/>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -217,6 +225,14 @@ export default function Registration() {
 									placeholder="Berätta på en mer detaljerad nivå om ditt företag och vad ni gör"
 									onChange={() => handleTextareaResize(longDescRef)}
 									className="resize-none overflow-hidden bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+								/>
+							</div>
+							<div className="space-y-2">
+								<label htmlFor="website" className="ml-0.5 text-sm font-semibold text-muted-foreground">Hemsida:</label>
+								<Input
+									id="website"
+									placeholder="Ange hemsida"
+									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
 							</div>
 						</div>
