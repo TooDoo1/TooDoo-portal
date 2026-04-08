@@ -78,15 +78,15 @@ export default function LoggIn() {
 			<div className="relative z-20 mx-auto flex w-full max-w-6xl flex-col px-6 pt-12 pb-6">
 				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
 					<div className="relative z-10">
-						<h1 className="text-3xl font-bold tracking-tight">Logga in</h1>
-						<p className="mt-1 text-sm text-muted-foreground">Sakra dina erbjudanden genom att logga in pa ditt konto.</p>
+						<h1 className="text-3xl font-bold tracking-tight">Logga in:</h1>
+						<p className="mt-1 text-sm text-muted-foreground">Logga in för att skapa erbjudanden och redigera företags information.</p>
 
-						<div className="mt-6 space-y-5">
+						<div className="mt-2 space-y-5">
 							<div className="space-y-2">
 								<label htmlFor="email" className="text-sm font-semibold text-foreground">E-post</label>
 								<Input
 									id="email"
-									placeholder="din.epost@foretag.se"
+									placeholder=" Din e-postadress"
 									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
 							</div>
@@ -97,7 +97,7 @@ export default function LoggIn() {
 									<Input
 										id="password"
 										type={showPassword ? "text" : "password"}
-										placeholder="Skriv ditt losenord"
+										placeholder="Lösenord"
 										className="h-11 bg-background border-border pr-10 text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 									/>
 									<button
@@ -124,11 +124,11 @@ export default function LoggIn() {
 				<div className="relative mx-auto mt-4 w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
 					<div className="relative z-10">
 						<Button className="h-11 w-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90">
-							Fortsatt med Google
+							Fortsätt med Google
 						</Button>
 
 						<p className="mt-4 text-center text-sm text-muted-foreground">
-							Har du inget konto? <a href="#" className="font-semibold text-accent underline">Registrera dig har</a>
+							Har du inget konto? <a href="#" className="font-semibold text-accent underline">Registrera dig här!</a>
 						</p>
 					</div>
 				</div>
