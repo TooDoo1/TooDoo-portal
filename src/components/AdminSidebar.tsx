@@ -1,6 +1,6 @@
 import { Building2, ClipboardList, LayoutDashboard, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -17,7 +17,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 
 const menuItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Företag", url: "/companies", icon: Building2 },
   { title: "Väntande företag", url: "/pending", icon: ClipboardList },
 ];
@@ -26,6 +26,7 @@ export function AdminSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const navigate = useNavigate();
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
@@ -84,7 +85,10 @@ export function AdminSidebar() {
       </SidebarContent>
       <SidebarFooter className="p-3">
         <Separator className="bg-border/50 mb-3" />
-        <SidebarMenuButton className="text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg">
+        <SidebarMenuButton
+          className="text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg"
+          onClick={() => navigate("/")}
+        >
           <LogOut className="mr-2.5 h-4 w-4" />
           {!collapsed && <span className="text-sm">Logga ut</span>}
         </SidebarMenuButton>

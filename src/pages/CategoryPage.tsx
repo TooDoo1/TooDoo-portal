@@ -247,7 +247,7 @@ export default function CategoryPage() {
                   )}
                   <Button
                     variant="outline"
-                    className="border-border text-destructive hover:bg-destructive/10 hover:border-destructive/30"
+                    className="border-[#ff3b30] bg-[#ff3b30] text-white hover:bg-[#e5362c] hover:border-[#e5362c]"
                     onClick={() => setDialogState({ company: selectedCompany, action: "remove" })}
                   >
                     <Trash2 className="mr-1.5 h-4 w-4" />

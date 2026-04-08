@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Companies from "./pages/Companies";
 import Pending from "./pages/Pending";
 import CategoryPage from "./pages/CategoryPage";
+import LoggIn from "./pages/LoggIn";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,10 +21,12 @@ const App = () => (
       <BrowserRouter>
         <AdminLayout>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<LoggIn />} />
+            <Route path="/admin" element={<Index />} />
             <Route path="/companies" element={<Companies />} />
             <Route path="/pending" element={<Pending />} />
             <Route path="/category/:name" element={<CategoryPage />} />
+            <Route path="/login" element={<LoggIn />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AdminLayout>
