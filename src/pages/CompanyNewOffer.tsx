@@ -71,6 +71,28 @@ export default function CompanyNewOffer() {
 
   return (
     <div className="space-y-6">
+      <style>{`
+        @media (max-width: 492px) and (max-height: 672px) {
+          .no-hover-motion,
+          .no-hover-motion * {
+            transition-duration: 0ms !important;
+          }
+
+          .no-hover-motion.group:hover .anim-back-arrow,
+          .no-hover-motion.group:hover .anim-back-text {
+            transform: none !important;
+            opacity: 1 !important;
+          }
+
+          .no-hover-motion.group:hover .anim-back-line {
+            transform: scaleX(0) !important;
+          }
+
+          .anim-back-line {
+            display: none !important;
+          }
+        }
+      `}</style>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Nytt erbjudande</h1>
@@ -79,14 +101,14 @@ export default function CompanyNewOffer() {
         <button
           type="button"
           onClick={() => navigate("/company/offers")}
-          className="group relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent"
+          className="group no-hover-motion relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent"
           aria-label="Tillbaka till erbjudanden"
         >
           <span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
-            <ArrowLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
+            <ArrowLeft className="anim-back-arrow h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
           </span>
-          <span className="pointer-events-none absolute left-4 right-4 z-0 h-[1px] origin-left scale-x-0 rounded-full bg-foreground transition-transform duration-300 group-hover:scale-x-100" />
-          <span className="pointer-events-none relative z-10 ml-1 whitespace-nowrap transition-all duration-300 group-hover:translate-x-2 group-hover:opacity-0">
+          <span className="anim-back-line pointer-events-none absolute left-4 right-4 z-0 h-[1px] origin-left scale-x-0 rounded-full bg-foreground transition-transform duration-300 group-hover:scale-x-100" />
+          <span className="anim-back-text pointer-events-none relative z-10 ml-1 whitespace-nowrap transition-all duration-300 group-hover:translate-x-2 group-hover:opacity-0">
             Tillbaka
           </span>
         </button>
