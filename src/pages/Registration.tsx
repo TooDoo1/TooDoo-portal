@@ -285,7 +285,7 @@ export default function Registration() {
 									<PopoverContent className="w-[--radix-popover-trigger-width] border-border bg-popover p-0" align="start">
 										<Command>
 											<CommandInput placeholder="Sök företag..." />
-											<CommandList className="[scrollbar-width:thin] [scrollbar-color:hsl(var(--accent))_hsl(var(--popover))] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-popover [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-accent/80 [&::-webkit-scrollbar-thumb:hover]:bg-accent">
+											<CommandList>
 												<CommandEmpty>Inga företag hittades.</CommandEmpty>
 												<CommandGroup>
 													{companyOptions.map((option) => (

@@ -225,7 +225,7 @@ export default function CompanyVerification() {
                   placeholder="Sök kod..."
                   className="mb-2 h-10 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
                 />
-                <div className="max-h-32 space-y-1 overflow-auto pr-1 text-xs text-foreground [scrollbar-width:thin] [scrollbar-color:hsl(var(--accent))_hsl(var(--popover))] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-popover [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-accent/80 [&::-webkit-scrollbar-thumb:hover]:bg-accent">
+                <div className="max-h-32 space-y-1 overflow-auto pr-1 text-xs text-foreground">
                   {visibleCodes.map((code) => (
                     <div key={code} className="rounded-sm bg-muted/40 px-2 py-1 font-mono">
                       {code}
