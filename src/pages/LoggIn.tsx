@@ -66,6 +66,24 @@ export default function LoggIn() {
 						opacity: 0;
 					}
 				}
+
+				@media (max-width: 492px) and (max-height: 672px) {
+					.no-hover-motion,
+					.no-hover-motion * {
+						transition-duration: 0ms !important;
+					}
+
+					.no-hover-motion.group:hover .anim-login-arrow,
+					.no-hover-motion.group:hover .anim-login-text,
+					.no-hover-motion.group:hover .anim-login-line {
+						transform: none !important;
+						opacity: 1 !important;
+					}
+
+					.anim-login-line {
+						display: none !important;
+					}
+				}
 			`}</style>
 
 			<Link
@@ -113,14 +131,14 @@ export default function LoggIn() {
 
 							<Link
 								to="/admin"
-								className="group relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90"
+								className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90"
 							>
-								<span className="pointer-events-none mr-1 relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-2">
+								<span className="anim-login-text pointer-events-none mr-1 relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-2">
 									Logga in
 								</span>
-								<span className="pointer-events-none absolute right-12 z-0 h-[1px] w-14 origin-right mr-28 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-9" />
+								<span className="anim-login-line pointer-events-none absolute right-12 z-0 h-[1px] w-14 origin-right mr-28 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-9" />
 								<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
-									<ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-10" />
+									<ArrowRight className="anim-login-arrow h-4 w-4 transition-transform duration-300 group-hover:translate-x-10" />
 								</span>
 							</Link>
 						</div>

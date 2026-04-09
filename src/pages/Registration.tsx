@@ -157,6 +157,31 @@ export default function Registration() {
 						opacity: 0;
 					}
 				}
+
+				@media (max-width: 492px) and (max-height: 672px) {
+					.no-hover-motion,
+					.no-hover-motion * {
+						transition-duration: 0ms !important;
+					}
+
+					.no-hover-motion.group:hover .anim-back-arrow,
+					.no-hover-motion.group:hover .anim-submit-arrow,
+					.no-hover-motion.group:hover .anim-back-text,
+					.no-hover-motion.group:hover .anim-submit-text,
+					.no-hover-motion.group:hover .anim-submit-line {
+						transform: none !important;
+						opacity: 1 !important;
+					}
+
+					.no-hover-motion.group:hover .anim-back-line {
+						transform: scaleX(0) !important;
+					}
+
+					.anim-back-line,
+					.anim-submit-line {
+						display: none !important;
+					}
+				}
 			`}</style>
 
 			<div className="fixed left-4 top-4 z-50 flex items-center gap-3">
@@ -167,14 +192,14 @@ export default function Registration() {
 				<button
 					type="button"
 					onClick={() => navigate("/")}
-					className="group relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent"
+					className="group no-hover-motion relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent"
 					aria-label="Tillbaka till inloggning"
 				>
 					<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
-						<ArrowLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
+						<ArrowLeft className="anim-back-arrow h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
 					</span>
-					<span className="pointer-events-none absolute left-4 right-4 z-0 h-[1px] origin-left scale-x-0 rounded-full bg-foreground transition-transform duration-300 group-hover:scale-x-100" />
-					<span className="pointer-events-none relative z-10 ml-1 whitespace-nowrap transition-all duration-300 group-hover:translate-x-2 group-hover:opacity-0">
+					<span className="anim-back-line pointer-events-none absolute left-4 right-4 z-0 h-[1px] origin-left scale-x-0 rounded-full bg-foreground transition-transform duration-300 group-hover:scale-x-100" />
+					<span className="anim-back-text pointer-events-none relative z-10 ml-1 whitespace-nowrap transition-all duration-300 group-hover:translate-x-2 group-hover:opacity-0">
 						Tillbaka
 					</span>
 				</button>
@@ -260,7 +285,7 @@ export default function Registration() {
 									<PopoverContent className="w-[--radix-popover-trigger-width] border-border bg-popover p-0" align="start">
 										<Command>
 											<CommandInput placeholder="Sök företag..." />
-											<CommandList className="[scrollbar-width:thin] [scrollbar-color:hsl(var(--accent))_hsl(var(--popover))] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-popover [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-accent/80 [&::-webkit-scrollbar-thumb:hover]:bg-accent">
+											<CommandList>
 												<CommandEmpty>Inga företag hittades.</CommandEmpty>
 												<CommandGroup>
 													{companyOptions.map((option) => (
@@ -351,13 +376,13 @@ export default function Registration() {
 							</div>
 						</div>
 
-					<button onClick={() => navigate("/company")} className="group relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
-						<span className="pointer-events-none relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-2">
+					<button onClick={() => navigate("/company")} className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
+						<span className="anim-submit-text pointer-events-none relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-2">
 							Registrera dig
 						</span>
-						<span className="pointer-events-none absolute right-12 z-0 h-[1px] w-14 origin-right mr-24 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-10" />
+						<span className="anim-submit-line pointer-events-none absolute right-12 z-0 h-[1px] w-14 origin-right mr-24 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-10" />
 						<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
-							<ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-10" />
+							<ArrowRight className="anim-submit-arrow h-4 w-4 transition-transform duration-300 group-hover:translate-x-10" />
 						</span>
 					</button>
 					</div>
