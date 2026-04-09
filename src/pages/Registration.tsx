@@ -183,7 +183,7 @@ export default function Registration() {
 			<div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 pt-12 pb-6">
 				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
 					<div className="relative z-10">
-						<h1 className="text-3xl font-bold tracking-tight">Registrera dig</h1>
+						<h1 className="text-3xl font-bold tracking-tight">Registrera dig:</h1>
 						<p className="mt-1 text-sm text-muted-foreground">Skapa ett konto för att börja använda tjänsten.</p>
 
 						<div className="mt-6 space-y-2">
@@ -193,6 +193,14 @@ export default function Registration() {
 								placeholder="Din e-postadress"
 								className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 							/>
+							<div className="space-y-2 pt-2">
+								<label htmlFor="phonenumber" className="text-lg font-semibold text-foreground">Telefonnummer:</label>
+								<Input
+									id="phonenumber"
+									placeholder="Ditt telefonnummer"
+									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+								/>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -217,6 +225,14 @@ export default function Registration() {
 									placeholder="Berätta på en mer detaljerad nivå om ditt företag och vad ni gör"
 									onChange={() => handleTextareaResize(longDescRef)}
 									className="resize-none overflow-hidden bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+								/>
+							</div>
+							<div className="space-y-2">
+								<label htmlFor="website" className="ml-0.5 text-sm font-semibold text-muted-foreground">Hemsida:</label>
+								<Input
+									id="website"
+									placeholder="Ange hemsida"
+									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
 							</div>
 						</div>

@@ -12,6 +12,7 @@ import LoggIn from "./pages/LoggIn";
 import Registration from "./pages/Registration";
 import CompanyDashboard from "./pages/CompanyDashboard";
 import CompanyOffers from "./pages/CompanyOffers";
+import CompanyNewOffer from "./pages/CompanyNewOffer.tsx";
 import CompanyVerification from "./pages/CompanyVerification";
 import CompanyAccount from "./pages/CompanyAccount";
 import NotFound from "./pages/NotFound";
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/category/:name" element={<CategoryPage />} />
             <Route path="/company" element={<CompanyDashboard />} />
             <Route path="/company/offers" element={<CompanyOffers />} />
+            <Route path="/company/offers/new" element={<CompanyNewOffer />} />
             <Route path="/company/verification" element={<CompanyVerification />} />
             <Route path="/company/account" element={<CompanyAccount />} />
             <Route path="/login" element={<LoggIn />} />
