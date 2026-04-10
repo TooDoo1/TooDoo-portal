@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -22,9 +22,30 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const queryClient = new QueryClient();
 
 function RouteLoadingFallback() {
+  const [showLoader, setShowLoader] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setShowLoader(true);
+    }, 100);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  if (!showLoader) {
+    return <div className="min-h-[40vh]" aria-hidden="true" />;
+  }
+
   return (
-    <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
-      Laddar sida...
+    <div className="flex min-h-[40vh] items-center justify-center">
+      <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
+        <div
+          className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-accent"
+          role="status"
+          aria-label="Laddar"
+        />
+        <span>Laddar sida...</span>
+      </div>
     </div>
   );
 }
