@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { createOrder, getBusinessId } from "@/lib/api";
 
 type OfferForm = {
   title: string;
@@ -28,6 +29,7 @@ export default function CompanyNewOffer() {
   const navigate = useNavigate();
   const [statusOpen, setStatusOpen] = useState(false);
   const [expiresOpen, setExpiresOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const today = new Date();
   const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
   const [form, setForm] = useState<OfferForm>({
@@ -57,7 +59,7 @@ export default function CompanyNewOffer() {
     { value: "active", label: "Aktiv" },
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!form.title || !form.description || !form.category) {
@@ -65,8 +67,38 @@ export default function CompanyNewOffer() {
       return;
     }
 
-    toast.success("Erbjudande skapat (mock). Du kan koppla detta till API senare.");
-    navigate("/company/offers");
+    const businessId = getBusinessId();
+    if (!businessId) {
+      toast.error("Saknar businessId. Registrera/logga in igen.");
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const validToIso = form.expiresAt ? new Date(`${form.expiresAt}T23:59:59`).toISOString() : nowIso;
+
+    setIsSubmitting(true);
+    try {
+      await createOrder({
+        title: form.title,
+        description: [form.description, form.detailedDescription].filter(Boolean).join("\n\n"),
+        price: Number(form.discountedPrice || 0),
+        originalPrice: form.originalPrice ? Number(form.originalPrice) : undefined,
+        orderTimeFrom: nowIso,
+        orderTimeTo: validToIso,
+        validFrom: nowIso,
+        validTo: validToIso,
+        maxRedemptions: form.claimsTotal ? Number(form.claimsTotal) : undefined,
+        businessId,
+      });
+
+      toast.success("Erbjudande skapat.");
+      navigate("/company/offers");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte skapa erbjudandet.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -342,9 +374,9 @@ export default function CompanyNewOffer() {
               <Button type="button" variant="outline" onClick={() => navigate("/company/offers")}>
                 Avbryt
               </Button>
-              <Button type="submit" className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90">
+              <Button type="submit" disabled={isSubmitting} className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90">
                 <PlusCircle className="h-4 w-4" />
-                Skapa erbjudande
+                {isSubmitting ? "Skapar..." : "Skapa erbjudande"}
               </Button>
             </div>
           </form>

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { companyOffers } from "@/data/dummy-data";
+import { listOrders, validateClaim, type Order } from "@/lib/api";
 import { toast } from "sonner";
 
 function createCouponCode(offerId: string, index: number) {
@@ -16,23 +16,42 @@ function createCouponCode(offerId: string, index: number) {
 }
 
 export default function CompanyVerification() {
+  const [orders, setOrders] = useState<Order[]>([]);
   const [manualCode, setManualCode] = useState("");
   const [codeSearch, setCodeSearch] = useState("");
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const activeCoupons = useMemo(
-    () => companyOffers.filter((offer) => offer.status === "active"),
-    []
-  );
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await listOrders();
+        setOrders(data);
+      } catch {
+        setOrders([]);
+      }
+    };
+
+    void load();
+  }, []);
+
+  const activeCoupons = useMemo(() => {
+    const now = Date.now();
+    return orders.filter((offer) => new Date(offer.validTo).getTime() > now);
+  }, [orders]);
 
   const offersWithCodes = useMemo(
     () =>
       activeCoupons.map((offer) => ({
         ...offer,
-        couponCodes: Array.from({ length: offer.claimsTotal }, (_, index) => createCouponCode(offer.id, index)),
+        title: offer.title,
+        claimsClaimed: 0,
+        claimsUsed: 0,
+        claimsTotal: Number(offer.maxRedemptions ?? 0),
+        couponCodes: Array.from({ length: Number(offer.maxRedemptions ?? 0) }, (_, index) => createCouponCode(offer.id, index)),
       })),
     [activeCoupons]
   );
@@ -89,20 +108,35 @@ export default function CompanyVerification() {
     setCameraActive(false);
   };
 
-  const handleManualVerify = () => {
+  const handleManualVerify = async () => {
     const code = manualCode.trim().toUpperCase();
     if (!code) {
       toast.error("Ange en kod för verifiering.");
       return;
     }
 
-    if (!allCouponCodes.has(code)) {
-      toast.error("Kupongkod hittades inte bland aktiva kuponger.");
-      return;
-    }
+    setVerifyLoading(true);
+    try {
+      const response = await validateClaim(code);
 
-    toast.success(`Kod ${code} verifierad (mock).`);
-    setManualCode("");
+      if (!response.ok) {
+        toast.error(response.reason || "Koden kunde inte valideras.");
+        return;
+      }
+
+      const title = response.order?.title;
+      toast.success(title ? `Kod verifierad for ${title}.` : `Kod ${code} verifierad.`);
+      setManualCode("");
+    } catch (error) {
+      if (!allCouponCodes.has(code)) {
+        toast.error("Kupongkod hittades inte bland aktiva kuponger.");
+      } else {
+        const message = error instanceof Error ? error.message : "Verifiering misslyckades.";
+        toast.error(message);
+      }
+    } finally {
+      setVerifyLoading(false);
+    }
   };
 
   return (
@@ -170,8 +204,8 @@ export default function CompanyVerification() {
               placeholder="Exempel: TOO-2026-AB12"
               className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
             />
-            <Button className="h-11 bg-accent text-accent-foreground hover:bg-accent/90" onClick={handleManualVerify}>
-              Verifiera kod
+            <Button className="h-11 bg-accent text-accent-foreground hover:bg-accent/90" onClick={handleManualVerify} disabled={verifyLoading}>
+              {verifyLoading ? "Verifierar..." : "Verifiera kod"}
             </Button>
           </div>
         </CardContent>

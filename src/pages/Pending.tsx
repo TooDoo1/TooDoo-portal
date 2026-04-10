@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, X, Clock, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,22 +7,66 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { pendingCompanies, categories, type Company } from "@/data/dummy-data";
+import { listCategories, listOrders, type Order } from "@/lib/api";
 import { toast } from "sonner";
 
 type ActionType = "approve" | "deny";
 
+type Company = {
+  id: string;
+  name: string;
+  email: string;
+  category: string;
+  contactPerson?: string;
+  description?: string;
+  appliedAt?: string;
+};
+
 export default function Pending() {
-  const [companies, setCompanies] = useState<Company[]>(pendingCompanies);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [categories, setCategories] = useState<string[]>(["Alla"]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
   const [dialogState, setDialogState] = useState<{ company: Company; action: ActionType } | null>(null);
 
-  const filtered = companies.filter((c) => {
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [orders, categoryRows] = await Promise.all([listOrders(), listCategories()]);
+
+        const uniqueBusinesses = Array.from(
+          orders.reduce<Map<string, Company>>((map, order: Order) => {
+            if (!map.has(order.businessId)) {
+              map.set(order.businessId, {
+                id: order.businessId,
+                name: `Business ${order.businessId.slice(0, 6)}`,
+                email: "okand@business.local",
+                category: String(order.categoryName ?? "Okategoriserad"),
+                contactPerson: "Kontaktperson saknas",
+                description: String(order.description ?? "Ingen beskrivning"),
+                appliedAt: order.validFrom || new Date().toISOString(),
+              });
+            }
+            return map;
+          }, new Map()),
+        ).map((entry) => entry[1]);
+
+        setCompanies(uniqueBusinesses);
+        setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
+      } catch {
+        setCompanies([]);
+        setCategories(["Alla"]);
+      }
+    };
+
+    void load();
+  }, []);
+
+  const filtered = useMemo(() => companies.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
     const matchCategory = category === "Alla" || c.category === category;
     return matchSearch && matchCategory;
-  });
+  }), [companies, search, category]);
 
   const handleAction = () => {
     if (!dialogState) return;
@@ -71,7 +115,7 @@ export default function Pending() {
           <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <Clock className="h-12 w-12 mb-4 opacity-40" />
             <p className="text-lg font-medium">{search || category !== "Alla" ? "Inga företag hittades" : "Inga väntande företag"}</p>
-            <p className="text-sm">{search || category !== "Alla" ? "Försök ändra dina sökkriterier" : "Alla ansökningar har behandlats"}</p>
+            <p className="text-sm">{search || category !== "Alla" ? "Försök ändra dina sökkriterier" : "Backend saknar lista för väntande företag just nu"}</p>
           </CardContent>
         </Card>
       ) : (

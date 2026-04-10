@@ -1,14 +1,63 @@
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Eye, MousePointer, Clock } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, MousePointer, Clock, QrCode } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { companyOffers, type Offer } from "@/data/dummy-data";
+import { claimOrder, listOrders, type Order } from "@/lib/api";
 import { toast } from "sonner";
 
 type FilterStatus = "all" | "active" | "draft" | "archived";
+
+type Offer = {
+  id: string;
+  companyId: string;
+  title: string;
+  description: string;
+  detailedDescription: string;
+  category: string;
+  status: "active" | "draft" | "archived";
+  createdAt: string;
+  expiresAt: string;
+  views: number;
+  clicks: number;
+  claimsClaimed: number;
+  claimsUsed: number;
+  claimsTotal: number;
+  originalPrice: number;
+  discountedPrice: number;
+};
+
+const parsePrice = (value: number | string | null | undefined) => {
+  const num = Number(value ?? 0);
+  return Number.isFinite(num) ? num : 0;
+};
+
+const mapOrderToOffer = (order: Order): Offer => {
+  const claimsTotal = typeof order.maxRedemptions === "number" ? order.maxRedemptions : 100;
+  const price = parsePrice(order.price);
+  const originalPrice = parsePrice(order.originalPrice);
+
+  return {
+    id: order.id,
+    companyId: order.businessId,
+    title: order.title,
+    description: order.description,
+    detailedDescription: order.description,
+    category: typeof order.categoryName === "string" ? order.categoryName : "Okategoriserad",
+    status: "active",
+    createdAt: order.orderTimeFrom || order.validFrom,
+    expiresAt: order.validTo,
+    views: 0,
+    clicks: 0,
+    claimsClaimed: 0,
+    claimsUsed: 0,
+    claimsTotal,
+    originalPrice,
+    discountedPrice: price,
+  };
+};
 
 function CountdownTimer({ expiresAt }: { expiresAt: string }) {
   const [timeLeft, setTimeLeft] = useState("");
@@ -53,10 +102,24 @@ function CountdownTimer({ expiresAt }: { expiresAt: string }) {
 
 export default function CompanyOffers() {
   const navigate = useNavigate();
-  const [offers, setOffers] = useState<Offer[]>(companyOffers);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [claimLoading, setClaimLoading] = useState<Record<string, boolean>>({});
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const orders = await listOrders();
+        setOffers(orders.map(mapOrderToOffer));
+      } catch {
+        setOffers([]);
+      }
+    };
+
+    void fetchOrders();
+  }, []);
 
   const filteredOffers = offers.filter((offer) => {
     if (filterStatus === "all") return true;
@@ -67,6 +130,25 @@ export default function CompanyOffers() {
     setOffers(offers.filter((o) => o.id !== offer.id));
     toast.success(`Erbjudandet "${offer.title}" har tagits bort.`);
     if (selectedOffer?.id === offer.id) setSelectedOffer(null);
+  };
+
+  const handleClaimOffer = async (offerId: string) => {
+    setClaimLoading((prev) => ({ ...prev, [offerId]: true }));
+    try {
+      const response = await claimOrder(offerId);
+
+      if (!response.ok) {
+        toast.error(response.reason || "Kunde inte claima erbjudandet.");
+        return;
+      }
+
+      toast.success(response.qrCode?.code ? `QR-kod skapad: ${response.qrCode.code}` : "Erbjudande claimat.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Claim misslyckades.";
+      toast.error(message);
+    } finally {
+      setClaimLoading((prev) => ({ ...prev, [offerId]: false }));
+    }
   };
 
   const toggleDescription = (offerId: string) => {
@@ -300,6 +382,19 @@ export default function CompanyOffers() {
                     {/* Actions */}
                     <div className="flex items-center justify-between gap-3 pt-2">
                       <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="bg-success hover:bg-success/85 text-success-foreground gap-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleClaimOffer(offer.id);
+                          }}
+                          disabled={!!claimLoading[offer.id]}
+                        >
+                          <QrCode className="h-4 w-4" />
+                          {claimLoading[offer.id] ? "Skapar..." : "Claim"}
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
