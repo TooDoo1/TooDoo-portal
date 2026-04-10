@@ -3,7 +3,7 @@ import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { loginUser, setAuthToken } from "@/lib/api";
+import { getUserByEmail, loginUser, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
 import { toast } from "sonner";
 
 const shootingStars = [
@@ -25,6 +25,19 @@ const shootingStars = [
 	{ top: "92%", left: "100%", delay: "-6.6s", duration: "6.3s" },
 ];
 
+function getJwtRole(token: string): string | null {
+	try {
+		const payload = token.split(".")[1];
+		if (!payload) return null;
+		const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+		const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+		const decoded = JSON.parse(atob(padded)) as { role?: unknown };
+		return typeof decoded.role === "string" ? decoded.role : null;
+	} catch {
+		return null;
+	}
+}
+
 export default function LoggIn() {
 	const [showPassword, setShowPassword] = useState(false);
 	const [email, setEmail] = useState("");
@@ -42,10 +55,21 @@ export default function LoggIn() {
 
 		setIsSubmitting(true);
 		try {
-			const response = await loginUser({ email: email.trim(), password });
+			const trimmedEmail = email.trim();
+			const response = await loginUser({ email: trimmedEmail, password });
 			setAuthToken(response.token);
+			const user = await getUserByEmail(trimmedEmail);
+			const role = typeof user.role === "string" ? user.role : getJwtRole(response.token);
+			setAuthEmail(trimmedEmail);
+			if (role) {
+				setAuthRole(role);
+			}
 			toast.success("Inloggning lyckades.");
-			navigate("/company");
+			if (role?.toLowerCase() === "admin") {
+				navigate("/admin");
+			} else {
+				navigate("/company");
+			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Kunde inte logga in.";
 			toast.error(message);
@@ -114,12 +138,9 @@ export default function LoggIn() {
 				}
 			`}</style>
 
-			<Link
-				to="/admin"
-				className="fixed left-4 top-4 z-20 flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl"
-			>
-				<img src="/Icon.jpg" alt="Admin" className="h-10 w-10 object-cover" />
-			</Link>
+			<div className="fixed left-4 top-4 z-20 flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl">
+				<img src="/Icon.jpg" alt="Login" className="h-10 w-10 object-cover" />
+			</div>
 
 			<div className="relative z-20 mx-auto flex w-full max-w-6xl flex-col px-6 pt-12 pb-6">
 				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
@@ -129,7 +150,7 @@ export default function LoggIn() {
 
 						<form className="mt-2 space-y-5" onSubmit={handleLogin}>
 							<div className="space-y-2">
-								<label htmlFor="email" className="text-sm font-semibold text-foreground">E-post</label>
+								<label htmlFor="email" className="text-sm font-semibold text-foreground">E-post:</label>
 								<Input
 									id="email"
 									value={email}
@@ -140,7 +161,7 @@ export default function LoggIn() {
 							</div>
 
 							<div className="space-y-2">
-								<label htmlFor="password" className="text-sm font-semibold text-foreground">Lösenord</label>
+								<label htmlFor="password" className="text-sm font-semibold text-foreground">Lösenord:</label>
 								<div className="relative">
 									<Input
 										id="password"
@@ -185,7 +206,10 @@ export default function LoggIn() {
 						</Button>
 
 						<p className="mt-4 text-center text-sm text-muted-foreground">
-							Har du inget konto? <Link to="/registration" className="font-semibold text-accent underline">Registrera dig här!</Link>
+							Har du inte ditt företag registrerat? <Link to="/registration" className="font-semibold text-accent underline">Registrera ditt företag!</Link>
+						</p>
+						<p className="mt-2 text-center text-sm text-muted-foreground">
+							Skapa managerkonto? <Link to="/manager-registration" className="font-semibold text-accent underline">Manager registrering</Link>
 						</p>
 					</div>
 				</div>

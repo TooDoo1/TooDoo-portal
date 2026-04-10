@@ -80,7 +80,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
   const isCompanyRoute = location.pathname.startsWith("/company");
 
-  if (location.pathname === "/" || location.pathname === "/login" || location.pathname === "/registration") {
+  if (
+    location.pathname === "/" ||
+    location.pathname === "/login" ||
+    location.pathname === "/registration" ||
+    location.pathname === "/manager-registration"
+  ) {
     return <>{children}</>;
   }
 

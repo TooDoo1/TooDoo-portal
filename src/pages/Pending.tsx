@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { listCategories, listOrders, type Order } from "@/lib/api";
+import { getAuthEmail, getAuthRole, getUserByEmail, listBusinesses, listCategories, updateBusinessStatus } from "@/lib/api";
 import { toast } from "sonner";
 
 type ActionType = "approve" | "deny";
@@ -17,10 +17,28 @@ type Company = {
   name: string;
   email: string;
   category: string;
-  contactPerson?: string;
   description?: string;
   appliedAt?: string;
 };
+
+async function hasAdminAccess() {
+  const storedRole = getAuthRole();
+  if (typeof storedRole === "string" && storedRole.toLowerCase() === "admin") {
+    return true;
+  }
+
+  const email = getAuthEmail();
+  if (!email) {
+    return false;
+  }
+
+  try {
+    const user = await getUserByEmail(email);
+    return typeof user.role === "string" && user.role.toLowerCase() === "admin";
+  } catch {
+    return false;
+  }
+}
 
 export default function Pending() {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -32,26 +50,18 @@ export default function Pending() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [orders, categoryRows] = await Promise.all([listOrders(), listCategories()]);
+        const [businessRows, categoryRows] = await Promise.all([listBusinesses("PENDING"), listCategories()]);
 
-        const uniqueBusinesses = Array.from(
-          orders.reduce<Map<string, Company>>((map, order: Order) => {
-            if (!map.has(order.businessId)) {
-              map.set(order.businessId, {
-                id: order.businessId,
-                name: `Business ${order.businessId.slice(0, 6)}`,
-                email: "okand@business.local",
-                category: String(order.categoryName ?? "Okategoriserad"),
-                contactPerson: "Kontaktperson saknas",
-                description: String(order.description ?? "Ingen beskrivning"),
-                appliedAt: order.validFrom || new Date().toISOString(),
-              });
-            }
-            return map;
-          }, new Map()),
-        ).map((entry) => entry[1]);
-
-        setCompanies(uniqueBusinesses);
+        setCompanies(
+          businessRows.map((business) => ({
+            id: business.id,
+            name: business.name,
+            email: business.contactEmail,
+            category: String(business.categoryName ?? "Okategoriserad"),
+            description: business.description,
+            appliedAt: business.createdAt || new Date().toISOString(),
+          })),
+        );
         setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
       } catch {
         setCompanies([]);
@@ -68,15 +78,39 @@ export default function Pending() {
     return matchSearch && matchCategory;
   }), [companies, search, category]);
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (!dialogState) return;
     const { company, action } = dialogState;
-    setCompanies((prev) => prev.filter((c) => c.id !== company.id));
-    if (action === "approve") {
-      toast.success(`${company.name} har godkänts!`);
-    } else {
-      toast.error(`${company.name} har nekats.`);
+
+    try {
+      const isAdmin = await hasAdminAccess();
+
+      if (isAdmin) {
+        await updateBusinessStatus(company.id, action === "approve" ? "APPROVED" : "REJECTED");
+        setCompanies((prev) => prev.filter((c) => c.id !== company.id));
+        toast.success(action === "approve" ? `${company.name} har godkänts!` : `${company.name} har nekats.`);
+      } else {
+        toast.error("Saknar admin-behörighet. Du kan inte uppdatera företagsstatus.");
+        setDialogState(null);
+        return;
+      }
+
+      const managerRegistrationLink = `${window.location.origin}/manager-registration?email=${encodeURIComponent(company.email)}&businessId=${encodeURIComponent(company.id)}`;
+      const subject =
+        action === "approve"
+          ? "Ditt företag blev godkänt"
+          : "Förfrågan nekades";
+      const body =
+        action === "approve"
+          ? `Ditt företag blev godkännt. Skapa ditt manager konto här: ${managerRegistrationLink}`
+          : "Förfrågan nekades. Ta kontakt med admin för mer information.";
+
+      window.location.href = `mailto:${encodeURIComponent(company.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte uppdatera företagsstatus.";
+      toast.error(message);
     }
+
     setDialogState(null);
   };
 
@@ -134,7 +168,7 @@ export default function Pending() {
                           {company.category}
                         </span>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-0.5">{company.contactPerson} · {company.email}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5">{company.email}</p>
                       <p className="text-sm text-foreground/70 mt-2 leading-relaxed">{company.description}</p>
                       <p className="text-xs text-muted-foreground mt-2">
                         Ansökte: {new Date(company.appliedAt!).toLocaleDateString("sv-SE")}

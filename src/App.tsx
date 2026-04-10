@@ -12,6 +12,7 @@ const Pending = lazy(() => import("./pages/Pending"));
 const CategoryPage = lazy(() => import("./pages/CategoryPage"));
 const LoggIn = lazy(() => import("./pages/LoggIn"));
 const Registration = lazy(() => import("./pages/Registration"));
+const ManagerRegistration = lazy(() => import("./pages/ManagerRegistration"));
 const CompanyDashboard = lazy(() => import("./pages/CompanyDashboard"));
 const CompanyOffers = lazy(() => import("./pages/CompanyOffers"));
 const CompanyNewOffer = lazy(() => import("./pages/CompanyNewOffer"));
@@ -71,6 +72,7 @@ const App = () => (
               <Route path="/company/account" element={<CompanyAccount />} />
               <Route path="/login" element={<LoggIn />} />
               <Route path="/registration" element={<Registration />} />
+              <Route path="/manager-registration" element={<ManagerRegistration />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

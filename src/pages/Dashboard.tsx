@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Building2, Clock, CheckCircle, TrendingUp, ArrowUpRight, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { listCategories, listOrders, type Order } from "@/lib/api";
+import { listBusinesses, listCategories, listOrders, type Order } from "@/lib/api";
 
 type CategoryCard = {
   name: string;
@@ -12,16 +12,23 @@ type CategoryCard = {
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [pendingBusinessIds, setPendingBusinessIds] = useState<string[]>([]);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [ordersData, categoriesData] = await Promise.all([listOrders(), listCategories()]);
+        const [ordersData, categoriesData, pendingBusinesses] = await Promise.all([
+          listOrders(),
+          listCategories(),
+          listBusinesses("PENDING"),
+        ]);
         setOrders(ordersData);
         setCategories(categoriesData.map((category) => category.name));
+        setPendingBusinessIds(Array.from(new Set(pendingBusinesses.map((business) => business.id))));
       } catch {
         setOrders([]);
         setCategories([]);
+        setPendingBusinessIds([]);
       }
     };
 
@@ -37,9 +44,11 @@ export default function Dashboard() {
     return orders.filter((order) => new Date(order.validTo).getTime() > now).length;
   }, [orders]);
 
+  const pendingBusinessCount = useMemo(() => pendingBusinessIds.length, [pendingBusinessIds]);
+
   const stats = [
     { label: "Aktiva företag", value: uniqueBusinesses, icon: Building2, trend: "Från live orders", color: "bg-accent/15 text-accent" },
-    { label: "Väntande", value: 0, icon: Clock, trend: "Ingen endpoint ännu", color: "bg-warning/15 text-warning" },
+    { label: "Väntande", value: pendingBusinessCount, icon: Clock, trend: "Unika företag med status PENDING", color: "bg-warning/15 text-warning" },
     { label: "Aktiva erbjudanden", value: activeOrderCount, icon: CheckCircle, trend: "Giltiga just nu", color: "bg-success/15 text-success" },
     { label: "Tillväxt", value: "-", icon: TrendingUp, trend: "Kräver historikdata", color: "bg-primary/15 text-primary" },
   ];

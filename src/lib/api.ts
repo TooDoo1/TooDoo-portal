@@ -3,6 +3,8 @@ const API_BASE_URL =
   "https://toodoo-backend-ejml.onrender.com";
 
 const TOKEN_STORAGE_KEY = "toodoo_jwt";
+const USER_EMAIL_STORAGE_KEY = "toodoo_user_email";
+const USER_ROLE_STORAGE_KEY = "toodoo_user_role";
 const BUSINESS_ID_STORAGE_KEY = "toodoo_business_id";
 
 type ApiErrorShape = {
@@ -85,6 +87,27 @@ export function clearAuthToken() {
   localStorage.removeItem(TOKEN_STORAGE_KEY);
 }
 
+export function getAuthEmail() {
+  return localStorage.getItem(USER_EMAIL_STORAGE_KEY);
+}
+
+export function setAuthEmail(email: string) {
+  localStorage.setItem(USER_EMAIL_STORAGE_KEY, email);
+}
+
+export function getAuthRole() {
+  return localStorage.getItem(USER_ROLE_STORAGE_KEY);
+}
+
+export function setAuthRole(role: string) {
+  localStorage.setItem(USER_ROLE_STORAGE_KEY, role);
+}
+
+export function clearAuthIdentity() {
+  localStorage.removeItem(USER_EMAIL_STORAGE_KEY);
+  localStorage.removeItem(USER_ROLE_STORAGE_KEY);
+}
+
 export function getBusinessId() {
   return localStorage.getItem(BUSINESS_ID_STORAGE_KEY);
 }
@@ -99,7 +122,10 @@ export type Category = { id: string; name: string; icon?: string | null };
 export type RegisterRequest = {
   email: string;
   password: string;
-  name?: string;
+  gender?: string;
+  firstName?: string;
+  lastName?: string;
+  businessId?: string;
 };
 
 export type LoginRequest = {
@@ -109,6 +135,20 @@ export type LoginRequest = {
 
 export type LoginResponse = {
   token: string;
+};
+
+export type User = {
+  id: string;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  gender?: string | null;
+  role?: string | null;
+  businessId?: string | null;
+};
+
+export type UpdateUserRequest = {
+  businessId?: string | null;
 };
 
 export type CreateCategoryRequest = {
@@ -125,6 +165,24 @@ export type CreateBusinessRequest = {
   address: string;
   city: string;
   categoryId: string;
+};
+
+export type BusinessStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export type Business = {
+  id: string;
+  name: string;
+  description: string;
+  contactEmail: string;
+  contactPhone: string;
+  website?: string | null;
+  address: string;
+  city: string;
+  categoryId: string;
+  categoryName?: string;
+  status?: BusinessStatus;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type Order = {
@@ -197,6 +255,21 @@ export async function loginUser(body: LoginRequest) {
   });
 }
 
+export async function getUserByEmail(email: string) {
+  return apiRequest<User>(`/user/${encodeURIComponent(email)}`, { method: "GET" }, true);
+}
+
+export async function updateUserByEmail(email: string, body: UpdateUserRequest) {
+  return apiRequest<User>(
+    `/user/${encodeURIComponent(email)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
+    },
+    true,
+  );
+}
+
 export async function listCategories(name?: string) {
   const query = name ? `?name=${encodeURIComponent(name)}` : "";
   return apiRequest<Category[]>(`/category${query}`, { method: "GET" });
@@ -214,6 +287,22 @@ export async function createBusiness(body: CreateBusinessRequest) {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export async function listBusinesses(status?: BusinessStatus) {
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiRequest<Business[]>(`/business${query}`, { method: "GET" });
+}
+
+export async function updateBusinessStatus(id: string, status: BusinessStatus) {
+  return apiRequest<Business>(
+    `/business/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    },
+    true,
+  );
 }
 
 export async function createOrder(body: CreateOrderRequest) {
