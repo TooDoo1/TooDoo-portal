@@ -147,8 +147,8 @@ export type User = {
   businessId?: string | null;
 };
 
-export type UpdateUserRequest = {
-  businessId?: string | null;
+export type AssignManagerBusinessRequest = {
+  businessId: string;
 };
 
 export type CreateCategoryRequest = {
@@ -165,6 +165,18 @@ export type CreateBusinessRequest = {
   address: string;
   city: string;
   categoryId: string;
+};
+
+export type UpdateBusinessRequest = {
+  name?: string;
+  description?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  website?: string | null;
+  address?: string;
+  city?: string;
+  categoryId?: string;
+  status?: BusinessStatus;
 };
 
 export type BusinessStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -259,11 +271,11 @@ export async function getUserByEmail(email: string) {
   return apiRequest<User>(`/user/${encodeURIComponent(email)}`, { method: "GET" }, true);
 }
 
-export async function updateUserByEmail(email: string, body: UpdateUserRequest) {
+export async function assignBusinessToManager(email: string, body: AssignManagerBusinessRequest) {
   return apiRequest<User>(
-    `/user/${encodeURIComponent(email)}`,
+    `/user/manager/${encodeURIComponent(email)}/assign-business`,
     {
-      method: "PUT",
+      method: "POST",
       body: JSON.stringify(body),
     },
     true,
@@ -300,6 +312,17 @@ export async function updateBusinessStatus(id: string, status: BusinessStatus) {
     {
       method: "PUT",
       body: JSON.stringify({ status }),
+    },
+    true,
+  );
+}
+
+export async function updateBusiness(id: string, body: UpdateBusinessRequest) {
+  return apiRequest<Business>(
+    `/business/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
     },
     true,
   );

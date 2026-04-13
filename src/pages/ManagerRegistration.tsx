@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
-import { getUserByEmail, loginUser, registerUser, setAuthEmail, setAuthRole, setAuthToken, setBusinessId, updateUserByEmail } from "@/lib/api";
+import { assignBusinessToManager, getUserByEmail, loginUser, registerUser, setAuthEmail, setAuthRole, setAuthToken, setBusinessId } from "@/lib/api";
 import { toast } from "sonner";
 
 const shootingStars = [
@@ -78,7 +78,7 @@ export default function ManagerRegistration() {
 
         const currentUser = await getUserByEmail(trimmedEmail);
         if (currentUser.businessId !== businessId) {
-          await updateUserByEmail(trimmedEmail, { businessId });
+          await assignBusinessToManager(trimmedEmail, { businessId });
         }
         setBusinessId(businessId);
       };
