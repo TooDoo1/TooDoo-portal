@@ -159,9 +159,13 @@ export default function CompanyNewOffer() {
 
     setIsSubmitting(true);
     try {
+      const detailedDescription = form.detailedDescription.trim();
+      const description = [form.description.trim(), detailedDescription].filter(Boolean).join("\n\n");
+
       await createOrder({
         title: form.title.trim(),
-        description: [form.description.trim(), form.detailedDescription.trim()].filter(Boolean).join("\n\n"),
+        description,
+        detailedDescription: detailedDescription || undefined,
         price,
         originalPrice,
         orderTimeFrom: orderTimeFromIso,

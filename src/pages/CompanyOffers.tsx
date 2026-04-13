@@ -40,6 +40,20 @@ const mapOrderToOffer = (order: Order): Offer => {
   const claimsTotal = typeof order.maxRedemptions === "number" ? order.maxRedemptions : 100;
   const price = parsePrice(order.price);
   const originalPrice = parsePrice(order.originalPrice);
+  const rawDescription = typeof order.description === "string" ? order.description : "";
+  const rawDetailedDescription = typeof order.detailedDescription === "string" ? order.detailedDescription.trim() : "";
+
+  // Backward compatibility: older orders stored short + detailed text in description separated by a blank line.
+  let shortDescription = rawDescription.trim();
+  let detailedDescription = rawDetailedDescription;
+  if (!detailedDescription) {
+    const parts = rawDescription.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      shortDescription = parts[0];
+      detailedDescription = parts.slice(1).join("\n\n");
+    }
+  }
+
   const now = Date.now();
   const startTime = new Date(order.orderTimeFrom || order.validFrom || 0).getTime();
   const endTime = new Date(order.orderTimeTo || order.validTo || 0).getTime();
@@ -55,8 +69,8 @@ const mapOrderToOffer = (order: Order): Offer => {
     id: order.id,
     companyId: order.businessId,
     title: order.title,
-    description: order.description,
-    detailedDescription: order.description,
+    description: shortDescription,
+    detailedDescription,
     category: typeof order.categoryName === "string" ? order.categoryName : "Okategoriserad",
     status,
     createdAt: order.orderTimeFrom || order.validFrom,
@@ -331,6 +345,7 @@ export default function CompanyOffers() {
             const availableClaims = offer.claimsTotal - offer.claimsClaimed;
             const claimedNotUsed = Math.max(offer.claimsClaimed - offer.claimsUsed, 0);
             const earnings = offer.claimsUsed * offer.discountedPrice;
+            const hasDetailedDescription = offer.detailedDescription.trim().length > 0;
 
             return (
               <Card
@@ -350,19 +365,24 @@ export default function CompanyOffers() {
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {offer.description}{" "}
-                          <button
-                            type="button"
-                            className="font-medium text-accent hover:text-accent/80"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleDescription(offer.id);
-                            }}
-                          >
-                            {expandedDescriptions[offer.id] ? "Mindre" : "Mer"}
-                          </button>
+                          {offer.description}
+                          {hasDetailedDescription ? (
+                            <>
+                              {" "}
+                              <button
+                                type="button"
+                                className="font-medium text-accent hover:text-accent/80"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleDescription(offer.id);
+                                }}
+                              >
+                                {expandedDescriptions[offer.id] ? "Mindre" : "Mer"}
+                              </button>
+                            </>
+                          ) : null}
                         </p>
-                        {expandedDescriptions[offer.id] && (
+                        {hasDetailedDescription && expandedDescriptions[offer.id] && (
                           <p className="mt-2 text-sm text-muted-foreground">{offer.detailedDescription}</p>
                         )}
                       </div>

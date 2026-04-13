@@ -206,6 +206,7 @@ export type Order = {
   id: string;
   title: string;
   description: string;
+  detailedDescription?: string;
   price: number | string;
   originalPrice?: number | string | null;
   orderTimeFrom: string;
@@ -220,6 +221,7 @@ export type Order = {
 export type CreateOrderRequest = {
   title: string;
   description: string;
+  detailedDescription?: string;
   price: number;
   originalPrice?: number;
   orderTimeFrom: string;
