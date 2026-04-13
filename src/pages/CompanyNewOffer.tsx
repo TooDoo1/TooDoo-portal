@@ -1,16 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, CalendarDays, ChevronDown, ChevronUp, PlusCircle } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { createOrder, getBusinessId } from "@/lib/api";
+import { createOrder, getBusinessId, getOrderById, updateOrder } from "@/lib/api";
 
 type OfferForm = {
   title: string;
@@ -28,9 +29,12 @@ type OfferForm = {
 
 export default function CompanyNewOffer() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [startOpen, setStartOpen] = useState(false);
   const [expiresOpen, setExpiresOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingOffer, setIsLoadingOffer] = useState(false);
+  const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const today = new Date();
   const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
   const [form, setForm] = useState<OfferForm>({
@@ -46,6 +50,57 @@ export default function CompanyNewOffer() {
     couponLifetimeUnit: "minutes",
     expiresAt: "",
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const orderId = params.get("editId")?.trim() ?? "";
+    if (!orderId) {
+      return;
+    }
+
+    setEditOrderId(orderId);
+    setIsLoadingOffer(true);
+
+    const loadOrder = async () => {
+      try {
+        const order = await getOrderById(orderId);
+        const rawDescription = typeof order.description === "string" ? order.description : "";
+        const rawDetailedDescription = typeof order.detailedDescription === "string" ? order.detailedDescription.trim() : "";
+        const descriptionParts = rawDescription.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+        const shortDescription = descriptionParts.length > 1 ? descriptionParts[0] : rawDescription.trim();
+        const detailedDescription = rawDetailedDescription || (descriptionParts.length > 1 ? descriptionParts.slice(1).join("\n\n") : "");
+
+        const orderTimeFrom = order.orderTimeFrom || order.validFrom || "";
+        const orderTimeTo = order.orderTimeTo || order.validTo || "";
+        const couponLifetimeMs = new Date(order.validTo).getTime() - new Date(orderTimeFrom).getTime();
+        const couponLifetimeMinutes = Number.isFinite(couponLifetimeMs) && couponLifetimeMs > 0
+          ? Math.max(1, Math.round(couponLifetimeMs / (60 * 1000)))
+          : 60;
+
+        setForm({
+          title: order.title ?? "",
+          description: shortDescription,
+          detailedDescription,
+          category: typeof order.categoryName === "string" ? order.categoryName : "",
+          startAt: orderTimeFrom ? format(new Date(orderTimeFrom), "yyyy-MM-dd") : "",
+          originalPrice: typeof order.originalPrice === "number" || typeof order.originalPrice === "string" ? String(order.originalPrice) : "",
+          discountedPrice: typeof order.price === "number" || typeof order.price === "string" ? String(order.price) : "",
+          claimsTotal: typeof order.maxRedemptions === "number" ? String(order.maxRedemptions) : "",
+          couponLifetimeMinutes: String(couponLifetimeMinutes),
+          couponLifetimeUnit: "minutes",
+          expiresAt: orderTimeTo ? format(new Date(orderTimeTo), "yyyy-MM-dd") : "",
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Kunde inte läsa erbjudandet.";
+        toast.error(message);
+        navigate("/company/offers");
+      } finally {
+        setIsLoadingOffer(false);
+      }
+    };
+
+    void loadOrder();
+  }, [location.search, navigate]);
   const startDateForEndPicker = form.startAt ? new Date(form.startAt) : null;
   const expiresMinDate = startDateForEndPicker && !Number.isNaN(startDateForEndPicker.getTime())
     ? startDateForEndPicker
@@ -161,8 +216,7 @@ export default function CompanyNewOffer() {
     try {
       const detailedDescription = form.detailedDescription.trim();
       const description = [form.description.trim(), detailedDescription].filter(Boolean).join("\n\n");
-
-      await createOrder({
+      const payload = {
         title: form.title.trim(),
         description,
         detailedDescription: detailedDescription || undefined,
@@ -174,9 +228,16 @@ export default function CompanyNewOffer() {
         validTo: couponValidToIso,
         maxRedemptions,
         businessId,
-      });
+      };
 
-      toast.success("Erbjudande skapat.");
+      if (editOrderId) {
+        await updateOrder(editOrderId, payload);
+        toast.success("Erbjudande uppdaterat.");
+      } else {
+        await createOrder(payload);
+        toast.success("Erbjudande skapat.");
+      }
+
       navigate("/company/offers");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte skapa erbjudandet.";
@@ -212,8 +273,12 @@ export default function CompanyNewOffer() {
       `}</style>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Nytt erbjudande</h1>
-          <p className="mt-1 text-muted-foreground">Skapa ett nytt erbjudande som visas i er kampanjlista.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            {editOrderId ? "Redigera erbjudande" : "Nytt erbjudande"}
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            {editOrderId ? "Ändra erbjudandet och spara uppdateringarna." : "Skapa ett nytt erbjudande som visas i er kampanjlista."}
+          </p>
         </div>
         <button
           type="button"
@@ -406,15 +471,19 @@ export default function CompanyNewOffer() {
                     </button>
                   </div>
                 </div>
-                  <select
+                  <Select
                     value={form.couponLifetimeUnit}
-                    onChange={(e) => onChange("couponLifetimeUnit", e.target.value as OfferForm["couponLifetimeUnit"])}
-                    className="h-11 rounded-md border border-border bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    onValueChange={(value) => onChange("couponLifetimeUnit", value as OfferForm["couponLifetimeUnit"])}
                   >
-                    <option value="minutes">Minuter</option>
-                    <option value="hours">Timmar</option>
-                    <option value="days">Dagar</option>
-                  </select>
+                    <SelectTrigger className="h-11 border-border bg-background text-foreground">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="border-border bg-popover text-popover-foreground">
+                      <SelectItem value="minutes">Minuter</SelectItem>
+                      <SelectItem value="hours">Timmar</SelectItem>
+                      <SelectItem value="days">Dagar</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -518,7 +587,7 @@ export default function CompanyNewOffer() {
               </Button>
               <Button type="submit" disabled={isSubmitting} className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90">
                 <PlusCircle className="h-4 w-4" />
-                {isSubmitting ? "Skapar..." : "Skapa erbjudande"}
+                {isSubmitting ? (editOrderId ? "Sparar..." : "Skapar...") : editOrderId ? "Spara ändringar" : "Skapa erbjudande"}
               </Button>
             </div>
           </form>

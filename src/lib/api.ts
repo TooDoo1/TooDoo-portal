@@ -349,6 +349,13 @@ export async function createOrder(body: CreateOrderRequest) {
   });
 }
 
+export async function updateOrder(orderId: string, body: CreateOrderRequest) {
+  return apiRequest<Order>(`/orders/${encodeURIComponent(orderId)}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function listOrders(categoryName?: string) {
   const query = categoryName ? `?categoryName=${encodeURIComponent(categoryName)}` : "";
   return apiRequest<Order[]>(`/orders${query}`, { method: "GET" });

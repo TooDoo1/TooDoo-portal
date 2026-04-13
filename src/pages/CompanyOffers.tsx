@@ -462,7 +462,7 @@ export default function CompanyOffers() {
                           className="bg-accent hover:bg-accent/80 text-white gap-2"
                           onClick={(e) => {
                             e.stopPropagation();
-                            toast.info("Redigering kommer snart!");
+                            navigate(`/company/offers/new?editId=${encodeURIComponent(offer.id)}`);
                           }}
                         >
                           <Edit className="h-4 w-4" />
