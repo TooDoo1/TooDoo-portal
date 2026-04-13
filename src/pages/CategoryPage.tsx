@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Check, Trash2, Mail, Calendar, Tag, User, Building2, Eye, X, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft, Trash2, Mail, Calendar, Tag, Building2, Eye, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,47 +8,74 @@ import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { activeCompanies, pendingCompanies, type Company } from "@/data/dummy-data";
+import { listOrders, type Order } from "@/lib/api";
 import { toast } from "sonner";
 
-type DialogAction = { company: Company; action: "approve" | "remove" };
+type Company = {
+  id: string;
+  name: string;
+  email: string;
+  category: string;
+  status: "active";
+  joinedAt: string;
+};
+
+type DialogAction = { company: Company; action: "remove" };
 
 export default function CategoryPage() {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
   const categoryName = decodeURIComponent(name || "");
 
-  const [active, setActive] = useState<Company[]>(
-    activeCompanies.filter((c) => c.category === categoryName)
-  );
-  const [pending, setPending] = useState<Company[]>(
-    pendingCompanies.filter((c) => c.category === categoryName)
-  );
+  const [active, setActive] = useState<Company[]>([]);
   const [search, setSearch] = useState("");
   const [dialogState, setDialogState] = useState<DialogAction | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
 
-  const filteredActive = active.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase()));
-  const filteredPending = pending.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase()));
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const orders = await listOrders(categoryName);
+        const businesses = Array.from(
+          orders.reduce<Map<string, Company>>((map, order: Order) => {
+            if (!map.has(order.businessId)) {
+              map.set(order.businessId, {
+                id: order.businessId,
+                name: `Business ${order.businessId.slice(0, 6)}`,
+                email: "okand@business.local",
+                category: categoryName,
+                status: "active",
+                joinedAt: order.validFrom || new Date().toISOString(),
+              });
+            }
+            return map;
+          }, new Map()),
+        ).map((entry) => entry[1]);
+
+        setActive(businesses);
+      } catch {
+        setActive([]);
+      }
+    };
+
+    void load();
+  }, [categoryName]);
+
+  const filteredActive = useMemo(
+    () => active.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase())),
+    [active, search],
+  );
 
   const handleAction = () => {
     if (!dialogState) return;
-    const { company, action } = dialogState;
-
-    if (action === "approve") {
-      setPending((prev) => prev.filter((c) => c.id !== company.id));
-      setActive((prev) => [...prev, { ...company, status: "active", joinedAt: new Date().toISOString().split("T")[0] }]);
-      toast.success(`${company.name} har godkänts och flyttats till aktiva!`);
-    } else {
-      setActive((prev) => prev.filter((c) => c.id !== company.id));
-      setPending((prev) => prev.filter((c) => c.id !== company.id));
-      toast.success(`${company.name} har tagits bort.`);
-    }
+    const { company } = dialogState;
+    setActive((prev) => prev.filter((c) => c.id !== company.id));
+    toast.success(`${company.name} har tagits bort.`);
     setDialogState(null);
     if (selectedCompany?.id === company.id) setSelectedCompany(null);
   };
 
-  const allCompanies = [...active, ...pending];
+  const allCompanies = [...active];
 
   return (
     <div className="space-y-6">
@@ -95,7 +122,7 @@ export default function CategoryPage() {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <CompanyAvatar name={company.name} logo={company.logo} />
+                          <CompanyAvatar name={company.name} />
                           <div>
                             <p className="font-semibold text-foreground">{company.name}</p>
                             <p className="text-sm text-muted-foreground">{company.email}</p>
@@ -120,53 +147,7 @@ export default function CategoryPage() {
             </div>
           )}
 
-          {/* Pending */}
-          {filteredPending.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Väntande ({filteredPending.length})</h2>
-              <div className="space-y-3">
-                {filteredPending.map((company) => (
-                  <Card
-                    key={company.id}
-                    className={`card-hover bg-card border-border cursor-pointer transition-all ${selectedCompany?.id === company.id ? "ring-2 ring-accent border-accent/50" : ""}`}
-                    onClick={() => setSelectedCompany(company)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <CompanyAvatar name={company.name} />
-                          <div>
-                            <p className="font-semibold text-foreground">{company.name}</p>
-                            <p className="text-sm text-muted-foreground">{company.contactPerson} · {company.email}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <StatusBadge status="pending" />
-                          <Button
-                            size="sm"
-                            className="h-8 bg-success hover:bg-success/90 text-success-foreground"
-                            onClick={(e) => { e.stopPropagation(); setDialogState({ company, action: "approve" }); }}
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 border-[#ff3b30] bg-[#ff3b30] text-white hover:bg-[#e5362c] hover:border-[#e5362c]"
-                            onClick={(e) => { e.stopPropagation(); setDialogState({ company, action: "remove" }); }}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {filteredActive.length === 0 && filteredPending.length === 0 && (
+          {filteredActive.length === 0 && (
             <Card className="bg-card border-border">
               <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                 <Building2 className="h-12 w-12 mb-4 opacity-40" />
@@ -189,7 +170,7 @@ export default function CategoryPage() {
             <Card className="bg-card border-border sticky top-20">
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-center gap-3">
-                  <CompanyAvatar name={selectedCompany.name} logo={selectedCompany.logo} />
+                  <CompanyAvatar name={selectedCompany.name} />
                   <div>
                     <p className="font-bold text-foreground text-lg">{selectedCompany.name}</p>
                     <StatusBadge status={selectedCompany.status} />
@@ -203,12 +184,10 @@ export default function CategoryPage() {
                     <Mail className="h-4 w-4" />
                     <span className="text-foreground/80">{selectedCompany.email}</span>
                   </div>
-                  {selectedCompany.contactPerson && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <User className="h-4 w-4" />
-                      <span className="text-foreground/80">{selectedCompany.contactPerson}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Tag className="h-4 w-4" />
+                    <span className="text-foreground/80">Active via live order</span>
+                  </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Tag className="h-4 w-4" />
                     <span className="text-foreground/80">{selectedCompany.category}</span>
@@ -216,35 +195,14 @@ export default function CategoryPage() {
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Calendar className="h-4 w-4" />
                     <span className="text-foreground/80">
-                      {selectedCompany.status === "pending"
-                        ? `Ansökte: ${new Date(selectedCompany.appliedAt!).toLocaleDateString("sv-SE")}`
-                        : `Gick med: ${new Date(selectedCompany.joinedAt).toLocaleDateString("sv-SE")}`}
+                      {`Gick med: ${new Date(selectedCompany.joinedAt).toLocaleDateString("sv-SE")}`}
                     </span>
                   </div>
                 </div>
 
-                {selectedCompany.description && (
-                  <>
-                    <Separator className="bg-border/50" />
-                    <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Beskrivning</p>
-                      <p className="text-sm text-foreground/70 leading-relaxed">{selectedCompany.description}</p>
-                    </div>
-                  </>
-                )}
-
                 <Separator className="bg-border/50" />
 
                 <div className="flex flex-col gap-2">
-                  {selectedCompany.status === "pending" && (
-                    <Button
-                      className="bg-success hover:bg-success/90 text-success-foreground"
-                      onClick={() => setDialogState({ company: selectedCompany, action: "approve" })}
-                    >
-                      <Check className="mr-1.5 h-4 w-4" />
-                      Godkänn företag
-                    </Button>
-                  )}
                   <Button
                     variant="outline"
                     className="border-[#ff3b30] bg-[#ff3b30] text-white hover:bg-[#e5362c] hover:border-[#e5362c]"
@@ -271,15 +229,11 @@ export default function CategoryPage() {
       <ConfirmDialog
         open={!!dialogState}
         onOpenChange={(open) => !open && setDialogState(null)}
-        title={dialogState?.action === "approve" ? "Godkänn företag" : "Ta bort företag"}
-        description={
-          dialogState?.action === "approve"
-            ? `Är du säker på att du vill godkänna ${dialogState?.company.name}?`
-            : `Är du säker på att du vill ta bort ${dialogState?.company.name}?`
-        }
-        confirmLabel={dialogState?.action === "approve" ? "Godkänn" : "Ta bort"}
+        title="Ta bort företag"
+        description={`Är du säker på att du vill ta bort ${dialogState?.company.name}?`}
+        confirmLabel="Ta bort"
         onConfirm={handleAction}
-        variant={dialogState?.action === "remove" ? "destructive" : "default"}
+        variant="destructive"
       />
     </div>
   );

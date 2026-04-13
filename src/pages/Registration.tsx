@@ -1,12 +1,17 @@
-import { useState, useRef } from "react";
-import { ArrowLeft, ArrowRight, Check, Eye, EyeOff } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState, useRef } from "react";
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import {
+	createBusiness,
+	listCategories,
+	setBusinessId,
+} from "@/lib/api";
+import { toast } from "sonner";
 
 const shootingStars = [
 	{ top: "0%", left: "6%", delay: "-0.2s", duration: "5.1s" },
@@ -28,12 +33,14 @@ const shootingStars = [
 ];
 
 export default function Registration() {
-	const [showPassword, setShowPassword] = useState(false);
-	const [showPasswordRepeat, setShowPasswordRepeat] = useState(false);
 	const [company, setCompany] = useState("");
 	const [companyOpen, setCompanyOpen] = useState(false);
+	const [categoryOpen, setCategoryOpen] = useState(false);
+	const [categoryId, setCategoryId] = useState("");
+	const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
+	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 	const navigate = useNavigate();
-	const shortDescRef = useRef<HTMLTextAreaElement>(null);
 	const longDescRef = useRef<HTMLTextAreaElement>(null);
 	const companyOptions = [
 		{ value: "toodoo-ab", label: "TooDoo AB" },
@@ -97,24 +104,82 @@ export default function Registration() {
 		}
 	};
 
-	const togglePassword = () => {
-		setShowPassword((prev) => {
-			const next = !prev;
-			if (next) {
-				setShowPasswordRepeat(false);
+	useEffect(() => {
+		const loadCategories = async () => {
+			try {
+				const categories = await listCategories();
+				setCategoryOptions(categories.map((c) => ({ id: c.id, name: c.name })));
+				setCategoryId((prev) => prev || categories[0]?.id || "");
+			} catch (error) {
+				setCategoryOptions([]);
 			}
-			return next;
-		});
-	};
+		};
 
-	const togglePasswordRepeat = () => {
-		setShowPasswordRepeat((prev) => {
-			const next = !prev;
-			if (next) {
-				setShowPassword(false);
+		void loadCategories();
+	}, []);
+
+	const handleRegister = async () => {
+		const email = (document.getElementById("email") as HTMLInputElement | null)?.value.trim() ?? "";
+		const phone = (document.getElementById("phonenumber") as HTMLInputElement | null)?.value.trim() ?? "";
+		const website = (document.getElementById("website") as HTMLInputElement | null)?.value.trim() ?? "";
+		const city = (document.getElementById("companyCity") as HTMLInputElement | null)?.value.trim() ?? "";
+		const address = (document.getElementById("companyAddress") as HTMLInputElement | null)?.value.trim() ?? "";
+		const longDescription = longDescRef.current?.value.trim() ?? "";
+		const companyName = companyOptions.find((option) => option.value === company)?.label || "Annat företag";
+
+		let normalizedWebsite: string | undefined;
+		if (website) {
+			try {
+				const websiteWithProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(website)
+					? website
+					: `https://${website}`;
+				const parsedWebsite = new URL(websiteWithProtocol);
+				if (parsedWebsite.protocol !== "http:" && parsedWebsite.protocol !== "https:") {
+					throw new Error("Invalid protocol");
+				}
+				normalizedWebsite = parsedWebsite.toString();
+			} catch {
+				toast.error("Hemsida måste vara en giltig URL, till exempel https://example.com.");
+				return;
 			}
-			return next;
-		});
+		}
+
+		if (!email || !phone || !city || !address || !companyName || !longDescription || !categoryId) {
+			toast.error("Fyll i e-post, telefon, stad, adress, företag, kategori och lång beskrivning.");
+			return;
+		}
+
+		setIsSubmitting(true);
+		try {
+			const businessResponse = await createBusiness({
+				name: companyName,
+				description: longDescription,
+				contactEmail: email,
+				contactPhone: phone,
+				website: normalizedWebsite,
+				address,
+				city,
+				categoryId: categoryId,
+			});
+
+			const businessId =
+				typeof businessResponse.id === "string"
+					? businessResponse.id
+					: typeof (businessResponse as { business?: { id?: string } }).business?.id === "string"
+						? (businessResponse as { business: { id: string } }).business.id
+						: null;
+
+			if (businessId) {
+				setBusinessId(businessId);
+			}
+
+			setShowSuccessPopup(true);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Kunde inte slutföra registreringen.";
+			toast.error(message);
+		} finally {
+			setIsSubmitting(false);
+		}
 	};
 
 	return (
@@ -232,16 +297,48 @@ export default function Registration() {
 
 				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
 					<div className="relative z-10 space-y-4">
-						<label className="text-lg font-semibold text-foreground">Beskrivning:</label>
+						<label className="text-lg font-semibold text-foreground">Beskrivning och kategori:</label>
 						<div className="space-y-4">
 							<div className="space-y-2">
-								<label className="ml-0.5 text-sm font-semibold text-muted-foreground">Kort beskrivning:</label>
-								<Textarea
-									ref={shortDescRef}
-									placeholder="Berätta lite om ditt företag och vad ni gör"
-									onChange={() => handleTextareaResize(shortDescRef)}
-									className="resize-none overflow-hidden bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-								/>
+								<label htmlFor="category" className="ml-0.5 text-sm font-semibold text-muted-foreground">Kategori:</label>
+								<Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+									<PopoverTrigger asChild>
+										<button
+											id="category"
+											type="button"
+											role="combobox"
+											aria-expanded={categoryOpen}
+											className="h-11 w-full rounded-md border border-border bg-background px-3 text-left text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+										>
+											{categoryId ? categoryOptions.find((option) => option.id === categoryId)?.name : "Välj kategori"}
+										</button>
+									</PopoverTrigger>
+									<PopoverContent className="w-[--radix-popover-trigger-width] border-border bg-popover p-0" align="start">
+										<Command>
+											<CommandInput placeholder="Sök kategori..." />
+											<CommandList>
+												<CommandEmpty>Inga kategorier hittades.</CommandEmpty>
+												<CommandGroup>
+													{categoryOptions.map((option) => (
+														<CommandItem
+															key={option.id}
+															value={option.name}
+															onSelect={() => {
+																setCategoryId(option.id);
+																setCategoryOpen(false);
+															}}
+														>
+															<Check
+																className={cn("mr-2 h-4 w-4", categoryId === option.id ? "opacity-100" : "opacity-0")}
+															/>
+															{option.name}
+														</CommandItem>
+													))}
+												</CommandGroup>
+											</CommandList>
+										</Command>
+									</PopoverContent>
+								</Popover>
 							</div>
 							<div className="space-y-2">
 								<label className="ml-0.5 text-sm font-semibold text-muted-foreground">Lång beskrivning:</label>
@@ -333,54 +430,13 @@ export default function Registration() {
 
 				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
 					<div className="relative z-10 space-y-4">
-						<label className="text-lg font-semibold text-foreground">Lösenord:</label>
-						<div className="space-y-4">
-							<div className="space-y-2">
-								<label htmlFor="password" className="ml-0.5 text-sm font-semibold text-muted-foreground">Skriv ett lösenord:</label>
-								<div className="relative">
-									<Input
-										id="password"
-										type={showPassword ? "text" : "password"}
-										placeholder="Välj ett lösenord"
-										className="h-11 bg-background border-border pr-10 text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-									/>
-									<button
-										type="button"
-										onClick={togglePassword}
-										className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-										aria-label={showPassword ? "Dolj lösenord" : "Visa lösenord"}
-									>
-										{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-									</button>
-								</div>
-							</div>
+						<label className="text-lg font-semibold text-foreground">Slutför registrering:</label>
 
-							<div className="space-y-2">
-								<label htmlFor="passwordRepeat" className="ml-0.5 text-sm font-semibold text-muted-foreground">Bekräfta lösenord:</label>
-								<div className="relative">
-									<Input
-										id="passwordRepeat"
-										type={showPasswordRepeat ? "text" : "password"}
-										placeholder="Bekräfta lösenord"
-										className="h-11 bg-background border-border pr-10 text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-									/>
-									<button
-										type="button"
-										onClick={togglePasswordRepeat}
-										className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-										aria-label={showPasswordRepeat ? "Dolj lösenord" : "Visa lösenord"}
-									>
-										{showPasswordRepeat ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-									</button>
-								</div>
-							</div>
-						</div>
-
-					<button onClick={() => navigate("/company")} className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
-						<span className="anim-submit-text pointer-events-none relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-2">
-							Registrera dig
+					<button type="button" disabled={isSubmitting} onClick={handleRegister} className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
+						<span className="anim-submit-text pointer-events-none relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-4">
+							{isSubmitting ? "Registrerar" : "Registrera företag"}
 						</span>
-						<span className="anim-submit-line pointer-events-none absolute right-12 z-0 h-[1px] w-14 origin-right mr-24 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-10" />
+						<span className="anim-submit-line pointer-events-none absolute right-9 z-0 h-[1px] w-14 origin-right mr-24 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-10" />
 						<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
 							<ArrowRight className="anim-submit-arrow h-4 w-4 transition-transform duration-300 group-hover:translate-x-10" />
 						</span>
@@ -388,6 +444,26 @@ export default function Registration() {
 					</div>
 				</div>
 			</div>
+
+			{showSuccessPopup && (
+				<div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 px-4 backdrop-blur-sm">
+					<div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
+						<p className="text-sm text-foreground leading-relaxed">
+							Din förfrågan har blivit skickade till vår admin du kommer få ett mail till din e-post om hur din förfrågan gick och fortsatta steg.
+						</p>
+						<button
+							type="button"
+							onClick={() => {
+								setShowSuccessPopup(false);
+								navigate("/login");
+							}}
+							className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg bg-accent px-4 font-semibold text-accent-foreground transition-colors hover:bg-accent/90"
+						>
+							Tillbaka till logg in
+						</button>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

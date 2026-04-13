@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, X, Clock, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,32 +7,110 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { pendingCompanies, categories, type Company } from "@/data/dummy-data";
+import { getAuthEmail, getAuthRole, getUserByEmail, listBusinesses, listCategories, updateBusinessStatus } from "@/lib/api";
 import { toast } from "sonner";
 
 type ActionType = "approve" | "deny";
 
+type Company = {
+  id: string;
+  name: string;
+  email: string;
+  category: string;
+  description?: string;
+  appliedAt?: string;
+};
+
+async function hasAdminAccess() {
+  const storedRole = getAuthRole();
+  if (typeof storedRole === "string" && storedRole.toLowerCase() === "admin") {
+    return true;
+  }
+
+  const email = getAuthEmail();
+  if (!email) {
+    return false;
+  }
+
+  try {
+    const user = await getUserByEmail(email);
+    return typeof user.role === "string" && user.role.toLowerCase() === "admin";
+  } catch {
+    return false;
+  }
+}
+
 export default function Pending() {
-  const [companies, setCompanies] = useState<Company[]>(pendingCompanies);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [categories, setCategories] = useState<string[]>(["Alla"]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
   const [dialogState, setDialogState] = useState<{ company: Company; action: ActionType } | null>(null);
 
-  const filtered = companies.filter((c) => {
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [businessRows, categoryRows] = await Promise.all([listBusinesses("PENDING"), listCategories()]);
+
+        setCompanies(
+          businessRows.map((business) => ({
+            id: business.id,
+            name: business.name,
+            email: business.contactEmail,
+            category: String(business.categoryName ?? "Okategoriserad"),
+            description: business.description,
+            appliedAt: business.createdAt || new Date().toISOString(),
+          })),
+        );
+        setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
+      } catch {
+        setCompanies([]);
+        setCategories(["Alla"]);
+      }
+    };
+
+    void load();
+  }, []);
+
+  const filtered = useMemo(() => companies.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
     const matchCategory = category === "Alla" || c.category === category;
     return matchSearch && matchCategory;
-  });
+  }), [companies, search, category]);
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (!dialogState) return;
     const { company, action } = dialogState;
-    setCompanies((prev) => prev.filter((c) => c.id !== company.id));
-    if (action === "approve") {
-      toast.success(`${company.name} har godkänts!`);
-    } else {
-      toast.error(`${company.name} har nekats.`);
+
+    try {
+      const isAdmin = await hasAdminAccess();
+
+      if (isAdmin) {
+        await updateBusinessStatus(company.id, action === "approve" ? "APPROVED" : "REJECTED");
+        setCompanies((prev) => prev.filter((c) => c.id !== company.id));
+        toast.success(action === "approve" ? `${company.name} har godkänts!` : `${company.name} har nekats.`);
+      } else {
+        toast.error("Saknar admin-behörighet. Du kan inte uppdatera företagsstatus.");
+        setDialogState(null);
+        return;
+      }
+
+      const managerRegistrationLink = `${window.location.origin}/manager-registration?email=${encodeURIComponent(company.email)}&businessId=${encodeURIComponent(company.id)}`;
+      const subject =
+        action === "approve"
+          ? "Ditt företag blev godkänt"
+          : "Förfrågan nekades";
+      const body =
+        action === "approve"
+          ? `Ditt företag blev godkännt. Skapa ditt manager konto här: ${managerRegistrationLink}`
+          : "Förfrågan nekades. Ta kontakt med admin för mer information.";
+
+      window.location.href = `mailto:${encodeURIComponent(company.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte uppdatera företagsstatus.";
+      toast.error(message);
     }
+
     setDialogState(null);
   };
 
@@ -71,7 +149,7 @@ export default function Pending() {
           <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <Clock className="h-12 w-12 mb-4 opacity-40" />
             <p className="text-lg font-medium">{search || category !== "Alla" ? "Inga företag hittades" : "Inga väntande företag"}</p>
-            <p className="text-sm">{search || category !== "Alla" ? "Försök ändra dina sökkriterier" : "Alla ansökningar har behandlats"}</p>
+            <p className="text-sm">{search || category !== "Alla" ? "Försök ändra dina sökkriterier" : "Backend saknar lista för väntande företag just nu"}</p>
           </CardContent>
         </Card>
       ) : (
@@ -90,7 +168,7 @@ export default function Pending() {
                           {company.category}
                         </span>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-0.5">{company.contactPerson} · {company.email}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5">{company.email}</p>
                       <p className="text-sm text-foreground/70 mt-2 leading-relaxed">{company.description}</p>
                       <p className="text-xs text-muted-foreground mt-2">
                         Ansökte: {new Date(company.appliedAt!).toLocaleDateString("sv-SE")}

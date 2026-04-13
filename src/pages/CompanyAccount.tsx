@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Building2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { getAuthEmail, getBusinessId, getUserByEmail, listBusinesses, setBusinessId, updateBusiness } from "@/lib/api";
 import { toast } from "sonner";
 
 type CompanyAccountForm = {
@@ -35,20 +36,100 @@ const initialForm: CompanyAccountForm = {
 
 export default function CompanyAccount() {
   const [form, setForm] = useState<CompanyAccountForm>(initialForm);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [businessId, setActiveBusinessId] = useState<string | null>(null);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
 
   const updateField = (field: keyof CompanyAccountForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  useEffect(() => {
+    const loadBusiness = async () => {
+      setIsLoading(true);
+      try {
+        let resolvedBusinessId = getBusinessId();
+
+        if (!resolvedBusinessId) {
+          const authEmail = getAuthEmail();
+          if (authEmail) {
+            const user = await getUserByEmail(authEmail);
+            if (user.businessId) {
+              resolvedBusinessId = user.businessId;
+              setBusinessId(user.businessId);
+            }
+          }
+        }
+
+        if (!resolvedBusinessId) {
+          throw new Error("Saknar businessId. Registrera/logga in igen.");
+        }
+
+        const businesses = await listBusinesses();
+        const business = businesses.find((b) => b.id === resolvedBusinessId);
+
+        if (!business) {
+          throw new Error("Kunde inte hitta ditt företag.");
+        }
+
+        setActiveBusinessId(business.id);
+        setCategoryId(business.categoryId);
+        setForm({
+          companyName: business.name ?? "",
+          orgNumber: "",
+          contactName: "",
+          email: business.contactEmail ?? "",
+          phone: business.contactPhone ?? "",
+          website: business.website ?? "",
+          city: business.city ?? "",
+          address: business.address ?? "",
+          shortDescription: business.description ?? "",
+          longDescription: business.description ?? "",
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Kunde inte ladda kontoinformation.";
+        toast.error(message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadBusiness();
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.companyName.trim() || !form.email.trim() || !form.contactName.trim()) {
-      toast.error("Fyll i företagsnamn, kontaktperson och e-post.");
+    if (!form.companyName.trim() || !form.email.trim()) {
+      toast.error("Fyll i företagsnamn och e-post.");
       return;
     }
 
-    toast.success("Kontoinformation uppdaterad (mock).");
+    if (!businessId) {
+      toast.error("Saknar businessId. Registrera/logga in igen.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updateBusiness(businessId, {
+        name: form.companyName.trim(),
+        description: form.longDescription.trim() || form.shortDescription.trim(),
+        contactEmail: form.email.trim(),
+        contactPhone: form.phone.trim(),
+        website: form.website.trim() || null,
+        city: form.city.trim(),
+        address: form.address.trim(),
+        categoryId: categoryId ?? undefined,
+      });
+      toast.success("Kontoinformation uppdaterad.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte spara kontoinformation.";
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleReset = () => {
@@ -184,12 +265,12 @@ export default function CompanyAccount() {
         </Card>
 
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button type="button" variant="outline" onClick={handleReset}>
+          <Button type="button" variant="outline" onClick={handleReset} disabled={isLoading || isSaving}>
             Återställ
           </Button>
-          <Button type="submit" className="bg-accent text-accent-foreground hover:bg-accent/90">
+          <Button type="submit" className="bg-accent text-accent-foreground hover:bg-accent/90" disabled={isLoading || isSaving}>
             <Save className="mr-2 h-4 w-4" />
-            Spara ändringar
+            {isSaving ? "Sparar..." : "Spara ändringar"}
           </Button>
         </div>
       </form>
