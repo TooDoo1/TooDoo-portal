@@ -128,6 +128,11 @@ export type RegisterRequest = {
   businessId?: string;
 };
 
+export type RegisterManagerRequest = {
+  email: string;
+  password: string;
+};
+
 export type LoginRequest = {
   email: string;
   password: string;
@@ -260,6 +265,13 @@ export async function registerUser(body: RegisterRequest) {
   });
 }
 
+export async function registerManager(body: RegisterManagerRequest) {
+  return apiRequest<Record<string, unknown>>("/user/register/manager", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function loginUser(body: LoginRequest) {
   return apiRequest<LoginResponse>("/user/login", {
     method: "POST",
@@ -342,6 +354,10 @@ export async function listOrders(categoryName?: string) {
 
 export async function getOrderById(orderId: string) {
   return apiRequest<Order>(`/orders/${encodeURIComponent(orderId)}`, { method: "GET" });
+}
+
+export async function deleteOrder(orderId: string) {
+  return apiRequest<Record<string, unknown>>(`/orders/${encodeURIComponent(orderId)}`, { method: "DELETE" });
 }
 
 export async function claimOrder(orderId: string) {

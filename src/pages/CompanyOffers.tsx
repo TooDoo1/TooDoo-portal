@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { claimOrder, listOrders, type Order } from "@/lib/api";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { claimOrder, deleteOrder, getBusinessId, listOrders, type Order } from "@/lib/api";
 import { toast } from "sonner";
 
 type FilterStatus = "all" | "active" | "draft" | "archived";
@@ -19,6 +20,7 @@ type Offer = {
   category: string;
   status: "active" | "draft" | "archived";
   createdAt: string;
+  startsAt: string;
   expiresAt: string;
   views: number;
   clicks: number;
@@ -38,6 +40,16 @@ const mapOrderToOffer = (order: Order): Offer => {
   const claimsTotal = typeof order.maxRedemptions === "number" ? order.maxRedemptions : 100;
   const price = parsePrice(order.price);
   const originalPrice = parsePrice(order.originalPrice);
+  const now = Date.now();
+  const startTime = new Date(order.orderTimeFrom || order.validFrom || 0).getTime();
+  const endTime = new Date(order.orderTimeTo || order.validTo || 0).getTime();
+
+  const status: Offer["status"] =
+    Number.isFinite(endTime) && endTime > 0 && endTime <= now
+      ? "archived"
+      : Number.isFinite(startTime) && startTime > now
+        ? "draft"
+        : "active";
 
   return {
     id: order.id,
@@ -46,9 +58,10 @@ const mapOrderToOffer = (order: Order): Offer => {
     description: order.description,
     detailedDescription: order.description,
     category: typeof order.categoryName === "string" ? order.categoryName : "Okategoriserad",
-    status: "active",
+    status,
     createdAt: order.orderTimeFrom || order.validFrom,
-    expiresAt: order.validTo,
+    startsAt: order.orderTimeFrom || order.validFrom,
+    expiresAt: order.orderTimeTo || order.validTo,
     views: 0,
     clicks: 0,
     claimsClaimed: 0,
@@ -59,16 +72,21 @@ const mapOrderToOffer = (order: Order): Offer => {
   };
 };
 
-function CountdownTimer({ expiresAt }: { expiresAt: string }) {
+function CountdownTimer({ status, startsAt, expiresAt }: { status: Offer["status"]; startsAt: string; expiresAt: string }) {
   const [timeLeft, setTimeLeft] = useState("");
 
   useEffect(() => {
     const updateTimer = () => {
       const now = new Date().getTime();
-      const expireTime = new Date(expiresAt).getTime();
-      const difference = expireTime - now;
+      const targetTime = status === "draft" ? new Date(startsAt).getTime() : new Date(expiresAt).getTime();
+      const difference = targetTime - now;
 
       if (difference <= 0) {
+        if (status === "draft") {
+          setTimeLeft("Aktiv nu");
+          return;
+        }
+
         setTimeLeft("Utgångslöpt");
         return;
       }
@@ -90,7 +108,7 @@ function CountdownTimer({ expiresAt }: { expiresAt: string }) {
     const interval = setInterval(updateTimer, 60000); // Update every minute
 
     return () => clearInterval(interval);
-  }, [expiresAt]);
+  }, [status, startsAt, expiresAt]);
 
   return (
     <div className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
@@ -104,15 +122,29 @@ export default function CompanyOffers() {
   const navigate = useNavigate();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [claimLoading, setClaimLoading] = useState<Record<string, boolean>>({});
+  const [deleteLoading, setDeleteLoading] = useState<Record<string, boolean>>({});
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
+  const [offerToDelete, setOfferToDelete] = useState<Offer | null>(null);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const fetchOrders = async () => {
       try {
+        const businessId = getBusinessId();
         const orders = await listOrders();
-        setOffers(orders.map(mapOrderToOffer));
+
+        const filteredOrders = businessId
+          ? orders.filter((order) => order.businessId === businessId)
+          : orders;
+
+        const sortedOrders = [...filteredOrders].sort((a, b) => {
+          const aTime = new Date(a.orderTimeFrom || a.validFrom || 0).getTime();
+          const bTime = new Date(b.orderTimeFrom || b.validFrom || 0).getTime();
+          return bTime - aTime;
+        });
+
+        setOffers(sortedOrders.map(mapOrderToOffer));
       } catch {
         setOffers([]);
       }
@@ -126,10 +158,19 @@ export default function CompanyOffers() {
     return offer.status === filterStatus;
   });
 
-  const handleDeleteOffer = (offer: Offer) => {
-    setOffers(offers.filter((o) => o.id !== offer.id));
-    toast.success(`Erbjudandet "${offer.title}" har tagits bort.`);
-    if (selectedOffer?.id === offer.id) setSelectedOffer(null);
+  const handleDeleteOffer = async (offer: Offer) => {
+    setDeleteLoading((prev) => ({ ...prev, [offer.id]: true }));
+    try {
+      await deleteOrder(offer.id);
+      setOffers((prev) => prev.filter((o) => o.id !== offer.id));
+      toast.success(`Erbjudandet "${offer.title}" har tagits bort.`);
+      if (selectedOffer?.id === offer.id) setSelectedOffer(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte ta bort erbjudandet.";
+      toast.error(message);
+    } finally {
+      setDeleteLoading((prev) => ({ ...prev, [offer.id]: false }));
+    }
   };
 
   const handleClaimOffer = async (offerId: string) => {
@@ -326,7 +367,7 @@ export default function CompanyOffers() {
                         )}
                       </div>
                       <div className="flex-shrink-0 text-right space-y-2">
-                        <CountdownTimer expiresAt={offer.expiresAt} />
+                        <CountdownTimer status={offer.status} startsAt={offer.startsAt} expiresAt={offer.expiresAt} />
                         <div className="space-y-1">
                           <div className="text-xs text-muted-foreground">
                             <span className="line-through">
@@ -413,11 +454,12 @@ export default function CompanyOffers() {
                           className="bg-[#ff3b30] hover:bg-[#ff3b30]/70 text-white gap-2"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteOffer(offer);
+                            setOfferToDelete(offer);
                           }}
+                          disabled={!!deleteLoading[offer.id]}
                         >
                           <Trash2 className="h-4 w-4" />
-                          Ta bort
+                          {deleteLoading[offer.id] ? "Tar bort..." : "Ta bort"}
                         </Button>
                       </div>
                       <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-right">
@@ -432,6 +474,28 @@ export default function CompanyOffers() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!offerToDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setOfferToDelete(null);
+          }
+        }}
+        title="Ta bort erbjudande?"
+        description={offerToDelete ? `Detta tar bort \"${offerToDelete.title}\" permanent.` : "Detta tar bort erbjudandet permanent."}
+        confirmLabel="Ja, ta bort"
+        variant="destructive"
+        onConfirm={() => {
+          if (!offerToDelete) {
+            return;
+          }
+
+          const current = offerToDelete;
+          setOfferToDelete(null);
+          void handleDeleteOffer(current);
+        }}
+      />
     </div>
   );
 }

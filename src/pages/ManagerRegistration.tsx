@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
-import { assignBusinessToManager, getUserByEmail, loginUser, registerUser, setAuthEmail, setAuthRole, setAuthToken, setBusinessId } from "@/lib/api";
+import { assignBusinessToManager, getUserByEmail, loginUser, registerManager, setAuthEmail, setAuthRole, setAuthToken, setBusinessId } from "@/lib/api";
 import { toast } from "sonner";
 
 const shootingStars = [
@@ -100,13 +100,9 @@ export default function ManagerRegistration() {
       };
 
       try {
-        await registerUser({
+        await registerManager({
           email: trimmedEmail,
           password,
-          gender: "MALE",
-          firstName: "manager",
-          lastName: "manager",
-          businessId: businessId || undefined,
         });
 
         await finishLogin("Managerkonto skapat och kopplat till företaget.");
