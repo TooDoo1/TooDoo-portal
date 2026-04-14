@@ -188,7 +188,7 @@ export default function LoggIn() {
 								className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90"
 							>
 								<span className="anim-login-text pointer-events-none mr-1 relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-2">
-									{isSubmitting ? "Loggar in..." : "Logga in"}
+									{isSubmitting ? "Loggar in" : "Logga in"}
 								</span>
 								<span className="anim-login-line pointer-events-none absolute right-12 z-0 h-[1px] w-14 origin-right mr-28 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-9" />
 								<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
