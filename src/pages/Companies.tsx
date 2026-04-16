@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Search, Filter, Eye, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -8,20 +8,63 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/StatusBadge";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { activeCompanies, categories, type Company } from "@/data/dummy-data";
+import { listCategories, listOrders, type Order } from "@/lib/api";
 import { toast } from "sonner";
 
+type Company = {
+  id: string;
+  name: string;
+  email: string;
+  logo?: string;
+  status: "active";
+  joinedAt: string;
+  category: string;
+};
+
 export default function Companies() {
-  const [companies, setCompanies] = useState<Company[]>(activeCompanies);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [categories, setCategories] = useState<string[]>(["Alla"]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
 
-  const filtered = companies.filter((c) => {
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [orders, categoryRows] = await Promise.all([listOrders(), listCategories()]);
+
+        const uniqueBusinesses = Array.from(
+          orders.reduce<Map<string, Company>>((map, order: Order) => {
+            if (!map.has(order.businessId)) {
+              map.set(order.businessId, {
+                id: order.businessId,
+                name: `Business ${order.businessId.slice(0, 6)}`,
+                email: "okand@business.local",
+                status: "active",
+                joinedAt: order.validFrom || new Date().toISOString(),
+                category: String(order.categoryName ?? "Okategoriserad"),
+              });
+            }
+            return map;
+          }, new Map()),
+        ).map((entry) => entry[1]);
+
+        setCompanies(uniqueBusinesses);
+        setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
+      } catch {
+        setCompanies([]);
+        setCategories(["Alla"]);
+      }
+    };
+
+    void load();
+  }, []);
+
+  const filtered = useMemo(() => companies.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
     const matchCategory = category === "Alla" || c.category === category;
     return matchSearch && matchCategory;
-  });
+  }), [companies, search, category]);
 
   const handleDelete = () => {
     if (!deleteTarget) return;

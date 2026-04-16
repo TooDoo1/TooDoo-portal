@@ -1,4 +1,4 @@
-import { Building2, ClipboardList, LayoutDashboard, LogOut } from "lucide-react";
+import { BadgeCheck, LayoutDashboard, LogOut, Tags, UserRound } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -17,12 +17,13 @@ import {
 import { Separator } from "@/components/ui/separator";
 
 const menuItems = [
-  { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
-  { title: "Företag", url: "/companies", icon: Building2 },
-  { title: "Väntande företag", url: "/pending", icon: ClipboardList },
+  { title: "Dashboard", url: "/company", icon: LayoutDashboard },
+  { title: "Erbjudanden", url: "/company/offers", icon: Tags },
+  { title: "Verifiering", url: "/company/verification", icon: BadgeCheck },
+  { title: "Konto", url: "/company/account", icon: UserRound },
 ];
 
-export function AdminSidebar() {
+export function CompanySidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
@@ -34,17 +35,17 @@ export function AdminSidebar() {
         {!collapsed ? (
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden">
-              <img src="/Icon.jpg" alt="AdminPanel Logo" className="h-10 w-10 object-cover" />
+              <img src="/Icon.jpg" alt="CompanyPanel Logo" className="h-10 w-10 object-cover" />
             </div>
             <div>
-              <p className="text-sm font-bold text-foreground tracking-tight">AdminPanel</p>
-              <p className="text-xs text-muted-foreground">Hantera företag</p>
+              <p className="text-sm font-bold text-foreground tracking-tight">CompanyPanel</p>
+              <p className="text-xs text-muted-foreground">Hantera ditt konto</p>
             </div>
           </div>
         ) : (
           <div className="flex justify-center">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden">
-              <img src="/Icon.jpg" alt="AdminPanel Logo" className="h-10 w-10 object-cover" />
+              <img src="/Icon.jpg" alt="CompanyPanel Logo" className="h-10 w-10 object-cover" />
             </div>
           </div>
         )}

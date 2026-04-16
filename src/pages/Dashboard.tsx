@@ -1,26 +1,65 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Building2, Clock, CheckCircle, TrendingUp, ArrowUpRight, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { activeCompanies, pendingCompanies, categories } from "@/data/dummy-data";
+import { listBusinesses, listCategories, listOrders, type Order } from "@/lib/api";
 
-const stats = [
-  { label: "Aktiva företag", value: activeCompanies.length, icon: Building2, trend: "+2 denna vecka", color: "bg-accent/15 text-accent" },
-  { label: "Väntande", value: pendingCompanies.length, icon: Clock, trend: "3 nya idag", color: "bg-warning/15 text-warning" },
-  { label: "Godkända", value: 4, icon: CheckCircle, trend: "Denna månad", color: "bg-success/15 text-success" },
-  { label: "Tillväxt", value: "+12%", icon: TrendingUp, trend: "vs förra månaden", color: "bg-primary/15 text-primary" },
-];
-
-const allCompanies = [...activeCompanies, ...pendingCompanies];
-const categoryData = categories
-  .filter((c) => c !== "Alla")
-  .map((cat) => ({
-    name: cat,
-    total: allCompanies.filter((c) => c.category === cat).length,
-    active: activeCompanies.filter((c) => c.category === cat).length,
-    pending: pendingCompanies.filter((c) => c.category === cat).length,
-  }));
+type CategoryCard = {
+  name: string;
+  total: number;
+};
 
 export default function Dashboard() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [pendingBusinessIds, setPendingBusinessIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [ordersData, categoriesData, pendingBusinesses] = await Promise.all([
+          listOrders(),
+          listCategories(),
+          listBusinesses("PENDING"),
+        ]);
+        setOrders(ordersData);
+        setCategories(categoriesData.map((category) => category.name));
+        setPendingBusinessIds(Array.from(new Set(pendingBusinesses.map((business) => business.id))));
+      } catch {
+        setOrders([]);
+        setCategories([]);
+        setPendingBusinessIds([]);
+      }
+    };
+
+    void load();
+  }, []);
+
+  const uniqueBusinesses = useMemo(() => {
+    return new Set(orders.map((order) => order.businessId)).size;
+  }, [orders]);
+
+  const activeOrderCount = useMemo(() => {
+    const now = Date.now();
+    return orders.filter((order) => new Date(order.validTo).getTime() > now).length;
+  }, [orders]);
+
+  const pendingBusinessCount = useMemo(() => pendingBusinessIds.length, [pendingBusinessIds]);
+
+  const stats = [
+    { label: "Aktiva företag", value: uniqueBusinesses, icon: Building2, trend: "Från live orders", color: "bg-accent/15 text-accent" },
+    { label: "Väntande", value: pendingBusinessCount, icon: Clock, trend: "Unika företag med status PENDING", color: "bg-warning/15 text-warning" },
+    { label: "Aktiva erbjudanden", value: activeOrderCount, icon: CheckCircle, trend: "Giltiga just nu", color: "bg-success/15 text-success" },
+    { label: "Tillväxt", value: "-", icon: TrendingUp, trend: "Kräver historikdata", color: "bg-primary/15 text-primary" },
+  ];
+
+  const categoryData: CategoryCard[] = useMemo(() => {
+    return categories.map((name) => ({
+      name,
+      total: orders.filter((order) => String(order.categoryName ?? "") === name).length,
+    }));
+  }, [categories, orders]);
+
   return (
     <div className="space-y-8">
       <div>
@@ -61,10 +100,7 @@ export default function Dashboard() {
                   <div>
                     <p className="font-semibold text-foreground">{cat.name}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                      <span>{cat.active} aktiva</span>
-                      {cat.pending > 0 && (
-                        <span className="text-warning">{cat.pending} väntande</span>
-                      )}
+                      <span>{cat.total} erbjudanden</span>
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-accent transition-colors" />
@@ -80,9 +116,9 @@ export default function Dashboard() {
           <h2 className="text-lg font-semibold text-foreground mb-2">Senaste aktivitet</h2>
           <div className="space-y-3">
             {[
-              { text: "TechNova AB uppdaterade sin profil", time: "2 min sedan" },
-              { text: "StartUp Innovations skickade en ansökan", time: "1 timme sedan" },
-              { text: "GreenBuild Sverige lade till nytt erbjudande", time: "3 timmar sedan" },
+              { text: `${orders.length} orders hämtade från API`, time: "Nu" },
+              { text: `${categories.length} kategorier hämtade`, time: "Nu" },
+              { text: "Mock-data borttagen från dashboard", time: "Nu" },
             ].map((activity, i) => (
               <div key={i} className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0">
                 <span className="text-sm text-foreground/80">{activity.text}</span>
