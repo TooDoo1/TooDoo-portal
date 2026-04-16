@@ -227,7 +227,6 @@ export default function CompanyNewOffer() {
         validFrom: orderTimeFromIso,
         validTo: couponValidToIso,
         maxRedemptions,
-        businessId,
       };
 
       if (editOrderId) {

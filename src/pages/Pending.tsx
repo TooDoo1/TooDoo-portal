@@ -17,9 +17,17 @@ type Company = {
   name: string;
   email: string;
   category: string;
+  status: "pending" | "active" | "inactive";
   description?: string;
   appliedAt?: string;
 };
+
+function mapBusinessStatusToBadge(status: unknown): Company["status"] {
+  const normalized = typeof status === "string" ? status.toUpperCase() : "";
+  if (normalized === "APPROVED") return "active";
+  if (normalized === "REJECTED") return "inactive";
+  return "pending";
+}
 
 async function hasAdminAccess() {
   const storedRole = getAuthRole();
@@ -50,14 +58,17 @@ export default function Pending() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [businessRows, categoryRows] = await Promise.all([listBusinesses("PENDING"), listCategories()]);
+        const [businessRows, categoryRows] = await Promise.all([listBusinesses(), listCategories()]);
+
+        const pendingRows = businessRows.filter((business) => mapBusinessStatusToBadge(business.status) === "pending");
 
         setCompanies(
-          businessRows.map((business) => ({
+          pendingRows.map((business) => ({
             id: business.id,
             name: business.name,
             email: business.contactEmail,
             category: String(business.categoryName ?? "Okategoriserad"),
+            status: mapBusinessStatusToBadge(business.status),
             description: business.description,
             appliedAt: business.createdAt || new Date().toISOString(),
           })),
@@ -163,7 +174,7 @@ export default function Pending() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-foreground">{company.name}</p>
-                        <StatusBadge status="pending" />
+                        <StatusBadge status={company.status} />
                         <span className="text-xs bg-accent/15 text-accent px-2.5 py-0.5 rounded-full font-medium">
                           {company.category}
                         </span>

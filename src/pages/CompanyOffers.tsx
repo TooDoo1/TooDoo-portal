@@ -146,7 +146,7 @@ export default function CompanyOffers() {
     const fetchOrders = async () => {
       try {
         const businessId = getBusinessId();
-        const orders = await listOrders();
+        const orders = await listOrders(undefined, businessId ?? undefined);
 
         const filteredOrders = businessId
           ? orders.filter((order) => order.businessId === businessId)

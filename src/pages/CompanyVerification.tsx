@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { listOrders, validateClaim, type Order } from "@/lib/api";
+import { getBusinessId, listOrders, validateClaim, type Order } from "@/lib/api";
 import { toast } from "sonner";
 
 function createCouponCode(offerId: string, index: number) {
@@ -28,7 +28,8 @@ export default function CompanyVerification() {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await listOrders();
+        const businessId = getBusinessId();
+        const data = await listOrders(undefined, businessId ?? undefined);
         setOrders(data);
       } catch {
         setOrders([]);

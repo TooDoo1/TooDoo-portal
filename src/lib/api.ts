@@ -140,6 +140,8 @@ export type LoginRequest = {
 
 export type LoginResponse = {
   token: string;
+  refreshToken?: string;
+  user?: User;
 };
 
 export type User = {
@@ -229,7 +231,20 @@ export type CreateOrderRequest = {
   validFrom: string;
   validTo: string;
   maxRedemptions?: number;
-  businessId: string;
+};
+
+export type UpdateOrderRequest = {
+  title?: string;
+  description?: string;
+  detailedDescription?: string;
+  price?: number;
+  originalPrice?: number;
+  orderTimeFrom?: string;
+  orderTimeTo?: string;
+  validFrom?: string;
+  validTo?: string;
+  maxRedemptions?: number;
+  isActive?: boolean;
 };
 
 export type ClaimResponse = {
@@ -305,7 +320,7 @@ export async function createCategory(body: CreateCategoryRequest) {
   return apiRequest<Category>("/category", {
     method: "POST",
     body: JSON.stringify(body),
-  });
+  }, true);
 }
 
 export async function createBusiness(body: CreateBusinessRequest) {
@@ -322,7 +337,7 @@ export async function listBusinesses(status?: BusinessStatus) {
 
 export async function updateBusinessStatus(id: string, status: BusinessStatus) {
   return apiRequest<Business>(
-    `/business/${encodeURIComponent(id)}`,
+    `/business/${encodeURIComponent(id)}/status`,
     {
       method: "PUT",
       body: JSON.stringify({ status }),
@@ -346,18 +361,25 @@ export async function createOrder(body: CreateOrderRequest) {
   return apiRequest<Order>("/orders", {
     method: "POST",
     body: JSON.stringify(body),
-  });
+  }, true);
 }
 
-export async function updateOrder(orderId: string, body: CreateOrderRequest) {
+export async function updateOrder(orderId: string, body: UpdateOrderRequest) {
   return apiRequest<Order>(`/orders/${encodeURIComponent(orderId)}`, {
     method: "PUT",
     body: JSON.stringify(body),
-  });
+  }, true);
 }
 
-export async function listOrders(categoryName?: string) {
-  const query = categoryName ? `?categoryName=${encodeURIComponent(categoryName)}` : "";
+export async function listOrders(categoryName?: string, businessId?: string) {
+  const params = new URLSearchParams();
+  if (categoryName) {
+    params.set("categoryName", categoryName);
+  }
+  if (businessId) {
+    params.set("businessId", businessId);
+  }
+  const query = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<Order[]>(`/orders${query}`, { method: "GET" });
 }
 
@@ -366,7 +388,7 @@ export async function getOrderById(orderId: string) {
 }
 
 export async function deleteOrder(orderId: string) {
-  return apiRequest<Record<string, unknown>>(`/orders/${encodeURIComponent(orderId)}`, { method: "DELETE" });
+  return apiRequest<Record<string, unknown>>(`/orders/${encodeURIComponent(orderId)}`, { method: "DELETE" }, true);
 }
 
 export async function claimOrder(orderId: string) {
