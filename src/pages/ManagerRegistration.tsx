@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
-import { assignBusinessToManager, getUserByEmail, loginUser, registerManager, setAuthEmail, setAuthRole, setAuthToken, setBusinessId } from "@/lib/api";
+import { getUserByEmail, loginUser, redeemManagerInvite, registerManager, setAuthEmail, setAuthRole, setAuthToken, setBusinessId } from "@/lib/api";
 import { toast } from "sonner";
+
+const INVITE_TOKEN_STORAGE_KEY = "toodoo_manager_invite_token";
 
 const shootingStars = [
   { top: "0%", left: "6%", delay: "-0.2s", duration: "5.1s" },
@@ -31,21 +33,25 @@ export default function ManagerRegistration() {
   const [password, setPassword] = useState("");
   const [passwordRepeat, setPasswordRepeat] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [businessId, setBusinessIdState] = useState("");
+  const [inviteToken, setInviteToken] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const emailParam = params.get("email")?.trim() ?? "";
-    const businessIdParam = params.get("businessId")?.trim() ?? "";
+    const inviteTokenParam = params.get("inviteToken")?.trim() ?? "";
+    const storedInviteToken = sessionStorage.getItem(INVITE_TOKEN_STORAGE_KEY)?.trim() ?? "";
 
     if (emailParam) {
       setEmail(emailParam);
     }
 
-    if (businessIdParam) {
-      setBusinessIdState(businessIdParam);
+    if (inviteTokenParam) {
+      setInviteToken(inviteTokenParam);
+      sessionStorage.setItem(INVITE_TOKEN_STORAGE_KEY, inviteTokenParam);
+    } else if (storedInviteToken) {
+      setInviteToken(storedInviteToken);
     }
   }, [location.search]);
 
@@ -71,16 +77,18 @@ export default function ManagerRegistration() {
     try {
       const trimmedEmail = email.trim();
 
-      const bindBusiness = async () => {
-        if (!businessId) {
-          return;
-        }
+      if (!inviteToken) {
+        toast.error("Saknar inviteToken. Be admin skicka en ny inbjudan.");
+        return;
+      }
 
-        const currentUser = await getUserByEmail(trimmedEmail);
-        if (currentUser.businessId !== businessId) {
-          await assignBusinessToManager(trimmedEmail, { businessId });
+      const bindBusiness = async () => {
+        await redeemManagerInvite(trimmedEmail, inviteToken);
+        sessionStorage.removeItem(INVITE_TOKEN_STORAGE_KEY);
+        const refreshedUser = await getUserByEmail(trimmedEmail);
+        if (refreshedUser.businessId) {
+          setBusinessId(refreshedUser.businessId);
         }
-        setBusinessId(businessId);
       };
 
       const finishLogin = async (successMessage: string) => {

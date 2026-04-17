@@ -1,4 +1,4 @@
-const API_BASE_URL =
+const API_BASE_URL = 
   (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
   "https://toodoo-backend-ejml.onrender.com";
 
@@ -158,6 +158,15 @@ export type AssignManagerBusinessRequest = {
   businessId: string;
 };
 
+export type InviteManagerToBusinessResponse = {
+  inviteToken: string;
+  expiresInSeconds?: number;
+};
+
+export type RedeemManagerInviteRequest = {
+  inviteToken: string;
+};
+
 export type CreateCategoryRequest = {
   name: string;
   icon?: string;
@@ -306,6 +315,28 @@ export async function assignBusinessToManager(email: string, body: AssignManager
     {
       method: "POST",
       body: JSON.stringify(body),
+    },
+    true,
+  );
+}
+
+export async function inviteManagerToBusiness(email: string, businessId: string) {
+  return apiRequest<InviteManagerToBusinessResponse>(
+    `/user/manager/${encodeURIComponent(email)}/assign-business/invite`,
+    {
+      method: "POST",
+      body: JSON.stringify({ businessId }),
+    },
+    true,
+  );
+}
+
+export async function redeemManagerInvite(email: string, inviteToken: string) {
+  return apiRequest<User>(
+    `/user/manager/${encodeURIComponent(email)}/assign-business`,
+    {
+      method: "POST",
+      body: JSON.stringify({ inviteToken }),
     },
     true,
   );

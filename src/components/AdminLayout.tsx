@@ -79,13 +79,14 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
 export function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
   const isCompanyRoute = location.pathname.startsWith("/company");
-
-  if (
+  const isPublicRoute =
     location.pathname === "/" ||
     location.pathname === "/login" ||
     location.pathname === "/registration" ||
-    location.pathname === "/manager-registration"
-  ) {
+    location.pathname === "/manager-registration" ||
+    location.pathname === "/manager/onboard";
+
+  if (isPublicRoute) {
     return <>{children}</>;
   }
 

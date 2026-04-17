@@ -73,6 +73,7 @@ const App = () => (
               <Route path="/login" element={<LoggIn />} />
               <Route path="/registration" element={<Registration />} />
               <Route path="/manager-registration" element={<ManagerRegistration />} />
+              <Route path="/manager/onboard" element={<ManagerRegistration />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

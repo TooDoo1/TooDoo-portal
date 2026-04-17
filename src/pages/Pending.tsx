@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { getAuthEmail, getAuthRole, getUserByEmail, listBusinesses, listCategories, updateBusinessStatus } from "@/lib/api";
+import { getAuthEmail, getAuthRole, getUserByEmail, inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus } from "@/lib/api";
 import { toast } from "sonner";
 
 type ActionType = "approve" | "deny";
@@ -106,17 +106,28 @@ export default function Pending() {
         return;
       }
 
-      const managerRegistrationLink = `${window.location.origin}/manager-registration?email=${encodeURIComponent(company.email)}&businessId=${encodeURIComponent(company.id)}`;
       const subject =
         action === "approve"
           ? "Ditt företag blev godkänt"
           : "Förfrågan nekades";
-      const body =
-        action === "approve"
-          ? `Ditt företag blev godkännt. Skapa ditt manager konto här: ${managerRegistrationLink}`
-          : "Förfrågan nekades. Ta kontakt med admin för mer information.";
 
-      window.location.href = `mailto:${encodeURIComponent(company.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const body = action === "approve"
+        ? (() => {
+            // Generate a short-lived invite token and include it in the onboarding link.
+            return inviteManagerToBusiness(company.email, company.id).then((response) => {
+              if (!response.inviteToken) {
+                throw new Error("Kunde inte skapa inbjudningslänk.");
+              }
+
+              const managerRegistrationLink = `${window.location.origin}/manager/onboard?email=${encodeURIComponent(company.email)}&inviteToken=${encodeURIComponent(response.inviteToken)}`;
+              return `Ditt företag blev godkänt. Skapa ditt manager konto här: ${managerRegistrationLink}`;
+            });
+          })()
+        : Promise.resolve("Förfrågan nekades. Ta kontakt med admin för mer information.");
+
+      const resolvedBody = await body;
+
+      window.location.href = `mailto:${encodeURIComponent(company.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(resolvedBody)}`;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte uppdatera företagsstatus.";
       toast.error(message);

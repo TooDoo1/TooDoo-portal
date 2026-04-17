@@ -208,9 +208,6 @@ export default function LoggIn() {
 						<p className="mt-4 text-center text-sm text-muted-foreground">
 							Har du inte ditt företag registrerat? <Link to="/registration" className="font-semibold text-accent underline">Registrera ditt företag!</Link>
 						</p>
-						<p className="mt-2 text-center text-sm text-muted-foreground">
-							Skapa managerkonto? <Link to="/manager-registration" className="font-semibold text-accent underline">Manager registrering</Link>
-						</p>
 					</div>
 				</div>
 			</div>
