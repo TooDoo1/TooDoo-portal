@@ -487,6 +487,25 @@ export async function claimOrder(orderId: string) {
   );
 }
 
+export type Redemption = {
+  id: string;
+  businessId: string;
+  orderId: string;
+  userId: string;
+  qrCodeId?: string | null;
+  redeemedAt: string;
+  order?: { id: string; title: string; price: string; originalPrice?: string | null; imageUrl?: string | null };
+  user?: { id: string; email: string; firstName?: string | null; lastName?: string | null };
+};
+
+export async function getBusinessRedemptions(businessId: string) {
+  return apiRequest<Redemption[]>(
+    `/business/${encodeURIComponent(businessId)}/redemptions`,
+    { method: "GET" },
+    true,
+  );
+}
+
 export async function validateClaim(qrCode: string) {
   return apiRequest<ValidateClaimResponse>(
     "/claim/validate",

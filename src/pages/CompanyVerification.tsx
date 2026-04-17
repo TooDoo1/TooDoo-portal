@@ -1,68 +1,45 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Camera, CameraOff, CheckCircle2, QrCode, ScanLine } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Camera, CameraOff, QrCode, ScanLine, Search, Ticket } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getBusinessId, listOrders, validateClaim, type Order } from "@/lib/api";
+import { getBusinessId, getBusinessRedemptions, listOrders, validateClaim, type Order, type Redemption } from "@/lib/api";
 import { toast } from "sonner";
-
-function createCouponCode(offerId: string, index: number) {
-  const normalizedId = offerId.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const seq = String(index + 1).padStart(4, "0");
-  const seed = offerId.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const checksum = ((index + 1) * 97 + seed).toString(36).toUpperCase().padStart(4, "0").slice(-4);
-  return `TD-${normalizedId}-${seq}-${checksum}`;
-}
 
 export default function CompanyVerification() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [redemptions, setRedemptions] = useState<Redemption[]>([]);
   const [manualCode, setManualCode] = useState("");
-  const [codeSearch, setCodeSearch] = useState("");
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [ticketSearch, setTicketSearch] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     const load = async () => {
+      setIsLoading(true);
       try {
         const businessId = getBusinessId();
-        const data = await listOrders(undefined, businessId ?? undefined);
-        setOrders(data);
+        const [orderData, redemptionData] = await Promise.all([
+          listOrders(undefined, businessId ?? undefined),
+          businessId ? getBusinessRedemptions(businessId) : Promise.resolve([]),
+        ]);
+        setOrders(orderData);
+        setRedemptions(redemptionData);
       } catch {
         setOrders([]);
+        setRedemptions([]);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     void load();
   }, []);
-
-  const activeCoupons = useMemo(() => {
-    const now = Date.now();
-    return orders.filter((offer) => new Date(offer.validTo).getTime() > now);
-  }, [orders]);
-
-  const offersWithCodes = useMemo(
-    () =>
-      activeCoupons.map((offer) => ({
-        ...offer,
-        title: offer.title,
-        claimsClaimed: 0,
-        claimsUsed: 0,
-        claimsTotal: Number(offer.maxRedemptions ?? 0),
-        couponCodes: Array.from({ length: Number(offer.maxRedemptions ?? 0) }, (_, index) => createCouponCode(offer.id, index)),
-      })),
-    [activeCoupons]
-  );
-
-  const allCouponCodes = useMemo(
-    () => new Set(offersWithCodes.flatMap((offer) => offer.couponCodes)),
-    [offersWithCodes]
-  );
-
-  const normalizedCodeSearch = codeSearch.trim().toUpperCase();
 
   useEffect(() => {
     return () => {
@@ -126,19 +103,28 @@ export default function CompanyVerification() {
       }
 
       const title = response.order?.title;
-      toast.success(title ? `Kod verifierad for ${title}.` : `Kod ${code} verifierad.`);
+      toast.success(title ? `Kod verifierad för ${title}.` : `Kod ${code} verifierad.`);
       setManualCode("");
-    } catch (error) {
-      if (!allCouponCodes.has(code)) {
-        toast.error("Kupongkod hittades inte bland aktiva kuponger.");
-      } else {
-        const message = error instanceof Error ? error.message : "Verifiering misslyckades.";
-        toast.error(message);
+
+      const businessId = getBusinessId();
+      if (businessId) {
+        const updated = await getBusinessRedemptions(businessId);
+        setRedemptions(updated);
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Verifiering misslyckades.";
+      toast.error(message);
     } finally {
       setVerifyLoading(false);
     }
   };
+
+  const redemptionsByOrder = new Map<string, Redemption[]>();
+  for (const r of redemptions) {
+    const list = redemptionsByOrder.get(r.orderId) ?? [];
+    list.push(r);
+    redemptionsByOrder.set(r.orderId, list);
+  }
 
   return (
     <div className="space-y-6">
@@ -202,7 +188,7 @@ export default function CompanyVerification() {
             <Input
               value={manualCode}
               onChange={(e) => setManualCode(e.target.value)}
-              placeholder="Exempel: TOO-2026-AB12"
+              placeholder="Exempel: 7K9D-M2Q8-TX4R"
               className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
             />
             <Button className="h-11 bg-accent text-accent-foreground hover:bg-accent/90" onClick={handleManualVerify} disabled={verifyLoading}>
@@ -214,67 +200,114 @@ export default function CompanyVerification() {
 
       <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-foreground">Aktiva kuponger</CardTitle>
+          <CardTitle className="text-foreground flex items-center gap-2">
+            <Ticket className="h-5 w-5 text-accent" />
+            Erbjudanden
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {offersWithCodes.map((offer) => (
-            (() => {
-              const visibleCodes = normalizedCodeSearch
-                ? offer.couponCodes.filter((code) => code.includes(normalizedCodeSearch))
-                : offer.couponCodes;
+        <CardContent className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={ticketSearch}
+              onChange={(e) => setTicketSearch(e.target.value)}
+              placeholder="Sök på kod, namn eller e-post..."
+              className="pl-9 h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+            />
+          </div>
 
-              if (normalizedCodeSearch && visibleCodes.length === 0) {
-                return null;
-              }
-
-              return (
-                <div
-                  key={offer.id}
-                  className="rounded-lg border border-border bg-background p-4"
-                >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-foreground">{offer.title}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Unika kupongkoder: {offer.couponCodes.length}</p>
-                </div>
-                <Badge className="bg-success/15 text-success hover:bg-success/15">Aktiv</Badge>
-              </div>
-
-              <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-                <p>Claimade: {offer.claimsClaimed}</p>
-                <p>Använda: {offer.claimsUsed}</p>
-                <p>Kvar: {Math.max(offer.claimsTotal - offer.claimsClaimed, 0)}</p>
-              </div>
-
-              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                <CheckCircle2 className="h-4 w-4 text-success" />
-                Verifieringsklar för aktiv kampanj
-              </div>
-
-              <div className="mt-3 rounded-md border border-border p-3">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Kupongkoder</p>
-                <Input
-                  id="codeSearch"
-                  value={codeSearch}
-                  onChange={(e) => setCodeSearch(e.target.value)}
-                  placeholder="Sök kod..."
-                  className="mb-2 h-10 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-                />
-                <div className="max-h-32 space-y-1 overflow-auto pr-1 text-xs text-foreground">
-                  {visibleCodes.map((code) => (
-                    <div key={code} className="rounded-sm bg-muted/40 px-2 py-1 font-mono">
-                      {code}
-                    </div>
-                  ))}
-                </div>
-              </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div
+                className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-accent"
+                role="status"
+                aria-label="Laddar"
+              />
             </div>
-              );
-            })()
-          ))}
+          ) : orders.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">Inga erbjudanden hittades.</p>
+          ) : (
+            <div className="space-y-3">
+              {orders.map((order) => {
+                const now = Date.now();
+                const isExpired = new Date(order.validTo).getTime() < now;
+                const claimed = Number(order.claimedRedemptions ?? 0);
+                const max = Number(order.maxRedemptions ?? 0);
+                const orderRedemptions = redemptionsByOrder.get(order.id) ?? [];
+                const isActive = Boolean(order.isActive) && !isExpired;
 
-          {normalizedCodeSearch && !offersWithCodes.some((offer) => offer.couponCodes.some((code) => code.includes(normalizedCodeSearch))) && (
-            <p className="text-sm text-muted-foreground">Inga kupongkoder matchade din sökning.</p>
+                const searchLower = ticketSearch.trim().toLowerCase();
+                const filteredRedemptions = searchLower
+                  ? orderRedemptions.filter((r) => {
+                      const name = `${r.user?.firstName ?? ""} ${r.user?.lastName ?? ""}`.toLowerCase();
+                      const email = (r.user?.email ?? "").toLowerCase();
+                      return name.includes(searchLower) || email.includes(searchLower);
+                    })
+                  : orderRedemptions;
+
+                if (searchLower && filteredRedemptions.length === 0 && !order.title.toLowerCase().includes(searchLower)) {
+                  return null;
+                }
+
+                return (
+                  <div key={order.id} className="rounded-lg border border-border bg-background p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-foreground">{order.title}</p>
+                        <p className="mt-0.5 text-sm text-muted-foreground line-clamp-1">{order.description}</p>
+                      </div>
+                      <Badge className={
+                        isActive
+                          ? "shrink-0 bg-green-500/15 text-green-500 hover:bg-green-500/15"
+                          : "shrink-0 bg-muted text-muted-foreground hover:bg-muted"
+                      }>
+                        {isActive ? "Aktiv" : isExpired ? "Utgången" : "Inaktiv"}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
+                      <span>Pris: <span className="text-foreground font-medium">{order.price} kr</span></span>
+                      {max > 0 && <span>Inlösta: <span className="text-foreground font-medium">{claimed} / {max}</span></span>}
+                      {max > 0 && <span>Kvar: <span className="text-foreground font-medium">{Math.max(max - claimed, 0)}</span></span>}
+                    </div>
+
+                    {filteredRedemptions.length > 0 && (
+                      <div className="mt-3 rounded-md border border-border p-3">
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Inlösta ({searchLower ? `${filteredRedemptions.length} av ${orderRedemptions.length}` : orderRedemptions.length})
+                        </p>
+                        <div className="max-h-60 space-y-2 overflow-auto pr-1">
+                          {filteredRedemptions.map((r) => (
+                            <div key={r.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-foreground truncate">
+                                  {r.user?.firstName && r.user?.lastName
+                                    ? `${r.user.firstName} ${r.user.lastName}`
+                                    : r.user?.email ?? "Okänd"}
+                                </p>
+                                {r.user?.firstName && (
+                                  <p className="text-xs text-muted-foreground truncate">{r.user.email}</p>
+                                )}
+                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                  {new Date(r.redeemedAt).toLocaleString("sv-SE")}
+                                </p>
+                              </div>
+                              <Badge className="shrink-0 bg-blue-500/15 text-blue-400 hover:bg-blue-500/15">
+                                Inlöst
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {orderRedemptions.length === 0 && (
+                      <p className="mt-3 text-xs text-muted-foreground">Inga inlösningar ännu.</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>
