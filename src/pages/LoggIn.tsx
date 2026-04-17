@@ -3,7 +3,7 @@ import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getUserByEmail, loginUser, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
+import { getUserByEmail, loginPortal, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
 import { toast } from "sonner";
 
 const shootingStars = [
@@ -56,7 +56,7 @@ export default function LoggIn() {
 		setIsSubmitting(true);
 		try {
 			const trimmedEmail = email.trim();
-			const response = await loginUser({ email: trimmedEmail, password });
+			const response = await loginPortal({ email: trimmedEmail, password });
 			setAuthToken(response.token);
 			const user = await getUserByEmail(trimmedEmail);
 			const role = typeof user.role === "string" ? user.role : getJwtRole(response.token);

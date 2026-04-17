@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
-import { getUserByEmail, loginUser, redeemManagerInvite, registerManager, setAuthEmail, setAuthRole, setAuthToken, setBusinessId } from "@/lib/api";
+import { getUserByEmail, loginPortal, redeemManagerInvite, registerManager, setAuthEmail, setAuthRole, setAuthToken, setBusinessId } from "@/lib/api";
 import { toast } from "sonner";
 
 const INVITE_TOKEN_STORAGE_KEY = "toodoo_manager_invite_token";
@@ -92,7 +92,7 @@ export default function ManagerRegistration() {
       };
 
       const finishLogin = async (successMessage: string) => {
-        const loginResponse = await loginUser({ email: trimmedEmail, password });
+        const loginResponse = await loginPortal({ email: trimmedEmail, password });
         setAuthToken(loginResponse.token);
         setAuthEmail(trimmedEmail);
 

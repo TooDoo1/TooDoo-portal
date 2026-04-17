@@ -312,6 +312,13 @@ export async function loginUser(body: LoginRequest) {
   });
 }
 
+export async function loginPortal(body: LoginRequest) {
+  return apiRequest<LoginResponse>("/user/login/portal", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function getUserByEmail(email: string) {
   return apiRequest<User>(`/user/${encodeURIComponent(email)}`, { method: "GET" }, true);
 }
