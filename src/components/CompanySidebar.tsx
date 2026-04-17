@@ -1,4 +1,4 @@
-import { BadgeCheck, LayoutDashboard, LogOut, Tags, UserRound } from "lucide-react";
+import { BadgeCheck, LayoutDashboard, LogOut, Tags, UserPlus, UserRound } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -20,6 +20,7 @@ const menuItems = [
   { title: "Dashboard", url: "/company", icon: LayoutDashboard },
   { title: "Erbjudanden", url: "/company/offers", icon: Tags },
   { title: "Verifiering", url: "/company/verification", icon: BadgeCheck },
+  { title: "Bjud in arbetare", url: "/company/workers/new", icon: UserPlus },
   { title: "Konto", url: "/company/account", icon: UserRound },
 ];
 

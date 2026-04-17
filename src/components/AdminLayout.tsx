@@ -84,7 +84,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     location.pathname === "/login" ||
     location.pathname === "/registration" ||
     location.pathname === "/manager-registration" ||
-    location.pathname === "/manager/onboard";
+    location.pathname === "/manager/onboard" ||
+    location.pathname === "/worker/onboard";
 
   if (isPublicRoute) {
     return <>{children}</>;

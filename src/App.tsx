@@ -18,6 +18,8 @@ const CompanyOffers = lazy(() => import("./pages/CompanyOffers"));
 const CompanyNewOffer = lazy(() => import("./pages/CompanyNewOffer"));
 const CompanyVerification = lazy(() => import("./pages/CompanyVerification"));
 const CompanyAccount = lazy(() => import("./pages/CompanyAccount"));
+const WorkerCreation = lazy(() => import("./pages/WorkerCreation"));
+const WorkerOnboard = lazy(() => import("./pages/WorkerOnboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -70,10 +72,12 @@ const App = () => (
               <Route path="/company/offers/new" element={<CompanyNewOffer />} />
               <Route path="/company/verification" element={<CompanyVerification />} />
               <Route path="/company/account" element={<CompanyAccount />} />
+              <Route path="/company/workers/new" element={<WorkerCreation />} />
               <Route path="/login" element={<LoggIn />} />
               <Route path="/registration" element={<Registration />} />
               <Route path="/manager-registration" element={<ManagerRegistration />} />
               <Route path="/manager/onboard" element={<ManagerRegistration />} />
+              <Route path="/worker/onboard" element={<WorkerOnboard />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

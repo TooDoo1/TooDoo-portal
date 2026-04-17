@@ -342,6 +342,25 @@ export async function redeemManagerInvite(email: string, inviteToken: string) {
   );
 }
 
+export async function inviteWorkerToBusiness(email: string) {
+  return apiRequest<InviteManagerToBusinessResponse>(
+    `/user/worker/${encodeURIComponent(email)}/assign-business/invite`,
+    { method: "POST" },
+    true,
+  );
+}
+
+export async function redeemWorkerInvite(email: string, inviteToken: string) {
+  return apiRequest<User>(
+    `/user/worker/${encodeURIComponent(email)}/assign-business`,
+    {
+      method: "POST",
+      body: JSON.stringify({ inviteToken }),
+    },
+    true,
+  );
+}
+
 export async function listCategories(name?: string) {
   const query = name ? `?name=${encodeURIComponent(name)}` : "";
   return apiRequest<Category[]>(`/category${query}`, { method: "GET" });
