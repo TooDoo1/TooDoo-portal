@@ -1,19 +1,41 @@
-import { useState } from "react";
-import { Mail, UserPlus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Mail, Trash2, UserPlus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getUserByEmail, inviteWorkerToBusiness } from "@/lib/api";
+import { inviteWorkerToBusiness, listWorkers, removeWorkerFromBusiness, type User } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function WorkerCreation() {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [workers, setWorkers] = useState<User[]>([]);
+  const [totalWorkers, setTotalWorkers] = useState(0);
+  const [isLoadingWorkers, setIsLoadingWorkers] = useState(true);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const loadWorkers = async () => {
+    setIsLoadingWorkers(true);
+    try {
+      const res = await listWorkers();
+      setWorkers(res.workers);
+      setTotalWorkers(res.total);
+    } catch {
+      setWorkers([]);
+      setTotalWorkers(0);
+    } finally {
+      setIsLoadingWorkers(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadWorkers();
+  }, []);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const trimmed = email.trim().toLowerCase();
+    const trimmed = email.trim();
     if (!trimmed) {
       toast.error("Ange en e-postadress.");
       return;
@@ -21,43 +43,52 @@ export default function WorkerCreation() {
 
     setIsSubmitting(true);
     try {
-      const inviteResponse = await inviteWorkerToBusiness(trimmed);
-      if (!inviteResponse.inviteToken) {
-        throw new Error("Kunde inte skapa inbjudningslänk.");
-      }
+      const subject = "Du har blivit inbjuden som arbetare";
 
+      let inviteToken: string | null = null;
       let userExists = false;
+
       try {
-        await getUserByEmail(trimmed);
-        userExists = true;
+        const inviteResponse = await inviteWorkerToBusiness(trimmed);
+        inviteToken = inviteResponse.inviteToken ?? null;
+        userExists = inviteResponse.recipientExists === true;
       } catch {
         userExists = false;
       }
 
-      const params = new URLSearchParams({
-        email: trimmed,
-        inviteToken: inviteResponse.inviteToken,
-      });
-      if (userExists) {
-        params.set("existing", "true");
-      }
+      const params = new URLSearchParams({ email: trimmed });
+      if (inviteToken) params.set("inviteToken", inviteToken);
+      if (userExists) params.set("existing", "true");
 
       const onboardLink = `${window.location.origin}/worker/onboard?${params.toString()}`;
-
-      const subject = "Du har blivit inbjuden som arbetare";
       const body = userExists
         ? `Hej!\n\nDu har blivit inbjuden att arbeta hos oss. Logga in via länken nedan:\n\n${onboardLink}`
         : `Hej!\n\nDu har blivit inbjuden att arbeta hos oss. Skapa ditt konto via länken nedan:\n\n${onboardLink}`;
 
       window.location.href = `mailto:${encodeURIComponent(trimmed)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-
       toast.success("Inbjudan skapad! E-postklient öppnas.");
+
       setEmail("");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte skapa inbjudan.";
       toast.error(message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRemove = async (worker: User) => {
+    setRemovingId(worker.id);
+    try {
+      await removeWorkerFromBusiness(worker.id);
+      setWorkers((prev) => prev.filter((w) => w.id !== worker.id));
+      setTotalWorkers((prev) => prev - 1);
+      toast.success(`${worker.email} har tagits bort.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte ta bort arbetaren.";
+      toast.error(message);
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -109,6 +140,62 @@ export default function WorkerCreation() {
           </CardContent>
         </Card>
       </form>
+
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="text-foreground flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-accent" />
+              Arbetare ({totalWorkers})
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoadingWorkers ? (
+            <div className="flex items-center justify-center py-8">
+              <div
+                className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-accent"
+                role="status"
+                aria-label="Laddar"
+              />
+            </div>
+          ) : workers.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Inga arbetare kopplade till företaget än.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {workers.map((worker) => (
+                <div
+                  key={worker.id}
+                  className="flex items-center justify-between rounded-lg border border-border bg-background p-4"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {worker.firstName && worker.lastName
+                        ? `${worker.firstName} ${worker.lastName}`
+                        : worker.email}
+                    </p>
+                    {worker.firstName && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{worker.email}</p>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={removingId === worker.id}
+                    onClick={() => handleRemove(worker)}
+                    className="ml-3 shrink-0 border-red-500/50 text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    {removingId === worker.id ? "Tar bort..." : "Ta bort"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

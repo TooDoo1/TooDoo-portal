@@ -85,11 +85,6 @@ export default function WorkerOnboard() {
       return;
     }
 
-    if (!inviteToken) {
-      toast.error("Saknar inviteToken. Be din manager skicka en ny inbjudan.");
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       const trimmedEmail = email.trim();
@@ -110,6 +105,11 @@ export default function WorkerOnboard() {
 
       if (loginResponse.user?.role) {
         setAuthRole(loginResponse.user.role);
+      }
+
+      if (!inviteToken) {
+        toast.error("Saknar inviteToken. Be din manager skicka en ny inbjudan.");
+        return;
       }
 
       await redeemWorkerInvite(trimmedEmail, inviteToken);

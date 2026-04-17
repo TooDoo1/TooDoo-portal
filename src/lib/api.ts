@@ -163,6 +163,13 @@ export type InviteManagerToBusinessResponse = {
   expiresInSeconds?: number;
 };
 
+export type InviteWorkerToBusinessResponse = {
+  inviteToken: string;
+  expiresInSeconds?: number;
+  recipientExists?: boolean;
+  recipientIsUser?: boolean;
+};
+
 export type RedeemManagerInviteRequest = {
   inviteToken: string;
 };
@@ -343,7 +350,7 @@ export async function redeemManagerInvite(email: string, inviteToken: string) {
 }
 
 export async function inviteWorkerToBusiness(email: string) {
-  return apiRequest<InviteManagerToBusinessResponse>(
+  return apiRequest<InviteWorkerToBusinessResponse>(
     `/user/worker/${encodeURIComponent(email)}/assign-business/invite`,
     { method: "POST" },
     true,
@@ -357,6 +364,27 @@ export async function redeemWorkerInvite(email: string, inviteToken: string) {
       method: "POST",
       body: JSON.stringify({ inviteToken }),
     },
+    true,
+  );
+}
+
+export type ListWorkersResponse = {
+  workers: User[];
+  total: number;
+};
+
+export async function listWorkers(skip = 0, take = 100) {
+  return apiRequest<ListWorkersResponse>(
+    `/user/workers?skip=${skip}&take=${take}`,
+    { method: "GET" },
+    true,
+  );
+}
+
+export async function removeWorkerFromBusiness(userId: string) {
+  return apiRequest<Record<string, unknown>>(
+    `/user/worker/${encodeURIComponent(userId)}/remove-business`,
+    { method: "DELETE" },
     true,
   );
 }
