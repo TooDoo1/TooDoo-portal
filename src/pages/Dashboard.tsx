@@ -2,32 +2,37 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Building2, Clock, CheckCircle, TrendingUp, ArrowUpRight, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { listBusinesses, listCategories, listOrders, type Order } from "@/lib/api";
+import { listBusinesses, listCategories, listOrders, type Business, type Category, type Order } from "@/lib/api";
 
 type CategoryCard = {
   name: string;
-  total: number;
+  businessCount: number;
+  orderCount: number;
 };
 
 export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [approvedBusinesses, setApprovedBusinesses] = useState<Business[]>([]);
   const [pendingBusinessIds, setPendingBusinessIds] = useState<string[]>([]);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [ordersData, categoriesData, pendingBusinesses] = await Promise.all([
+        const [ordersData, categoriesData, approvedList, pendingBusinesses] = await Promise.all([
           listOrders(),
           listCategories(),
+          listBusinesses("APPROVED"),
           listBusinesses("PENDING"),
         ]);
         setOrders(ordersData);
-        setCategories(categoriesData.map((category) => category.name));
+        setCategories(categoriesData);
+        setApprovedBusinesses(approvedList);
         setPendingBusinessIds(Array.from(new Set(pendingBusinesses.map((business) => business.id))));
       } catch {
         setOrders([]);
         setCategories([]);
+        setApprovedBusinesses([]);
         setPendingBusinessIds([]);
       }
     };
@@ -35,9 +40,7 @@ export default function Dashboard() {
     void load();
   }, []);
 
-  const uniqueBusinesses = useMemo(() => {
-    return new Set(orders.map((order) => order.businessId)).size;
-  }, [orders]);
+  const activeBusinessCount = useMemo(() => approvedBusinesses.length, [approvedBusinesses]);
 
   const activeOrderCount = useMemo(() => {
     const now = Date.now();
@@ -47,18 +50,35 @@ export default function Dashboard() {
   const pendingBusinessCount = useMemo(() => pendingBusinessIds.length, [pendingBusinessIds]);
 
   const stats = [
-    { label: "Aktiva företag", value: uniqueBusinesses, icon: Building2, trend: "Från live orders", color: "bg-accent/15 text-accent" },
+    { label: "Aktiva företag", value: activeBusinessCount, icon: Building2, trend: "Godkända företag", color: "bg-accent/15 text-accent" },
     { label: "Väntande", value: pendingBusinessCount, icon: Clock, trend: "Unika företag med status PENDING", color: "bg-warning/15 text-warning" },
     { label: "Aktiva erbjudanden", value: activeOrderCount, icon: CheckCircle, trend: "Giltiga just nu", color: "bg-success/15 text-success" },
     { label: "Tillväxt", value: "-", icon: TrendingUp, trend: "Kräver historikdata", color: "bg-primary/15 text-primary" },
   ];
 
   const categoryData: CategoryCard[] = useMemo(() => {
-    return categories.map((name) => ({
-      name,
-      total: orders.filter((order) => String(order.categoryName ?? "") === name).length,
-    }));
-  }, [categories, orders]);
+    const categoryNameById = new Map(categories.map((cat) => [cat.id, cat.name]));
+    const categoryNameByBusinessId = new Map<string, string>();
+    for (const business of approvedBusinesses) {
+      const resolvedName = business.categoryName ?? categoryNameById.get(business.categoryId);
+      if (resolvedName) {
+        categoryNameByBusinessId.set(business.id, resolvedName);
+      }
+    }
+
+    return categories.map((cat) => {
+      const businessCount = approvedBusinesses.filter((business) => {
+        const resolvedName = business.categoryName ?? categoryNameById.get(business.categoryId);
+        return resolvedName === cat.name;
+      }).length;
+      const orderCount = orders.filter((order) => {
+        const fromOrder = typeof order.categoryName === "string" ? order.categoryName : undefined;
+        const fromBusiness = categoryNameByBusinessId.get(order.businessId);
+        return (fromOrder ?? fromBusiness) === cat.name;
+      }).length;
+      return { name: cat.name, businessCount, orderCount };
+    });
+  }, [categories, approvedBusinesses, orders]);
 
   return (
     <div className="space-y-8">
@@ -100,7 +120,9 @@ export default function Dashboard() {
                   <div>
                     <p className="font-semibold text-foreground">{cat.name}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                      <span>{cat.total} erbjudanden</span>
+                      <span>{cat.businessCount} företag</span>
+                      <span className="opacity-40">·</span>
+                      <span>{cat.orderCount} erbjudanden</span>
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-accent transition-colors" />

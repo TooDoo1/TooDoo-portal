@@ -256,7 +256,7 @@ export default function Registration() {
 
 				<button
 					type="button"
-					onClick={() => navigate("/")}
+					onClick={() => navigate("/login")}
 					className="group no-hover-motion relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent"
 					aria-label="Tillbaka till inloggning"
 				>

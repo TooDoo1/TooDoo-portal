@@ -5,10 +5,13 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AdminLayout } from "@/components/AdminLayout";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const Index = lazy(() => import("./pages/Index"));
+const LandingPage = lazy(() => import("./pages/Landingpage"));
 const Companies = lazy(() => import("./pages/Companies"));
 const Pending = lazy(() => import("./pages/Pending"));
+const AdminLogs = lazy(() => import("./pages/AdminLogs"));
 const CategoryPage = lazy(() => import("./pages/CategoryPage"));
 const LoggIn = lazy(() => import("./pages/LoggIn"));
 const Registration = lazy(() => import("./pages/Registration"));
@@ -18,6 +21,8 @@ const CompanyOffers = lazy(() => import("./pages/CompanyOffers"));
 const CompanyNewOffer = lazy(() => import("./pages/CompanyNewOffer"));
 const CompanyVerification = lazy(() => import("./pages/CompanyVerification"));
 const CompanyAccount = lazy(() => import("./pages/CompanyAccount"));
+const WorkerCreation = lazy(() => import("./pages/WorkerCreation"));
+const WorkerOnboard = lazy(() => import("./pages/WorkerOnboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -60,19 +65,31 @@ const App = () => (
         <AdminLayout>
           <Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
+              <Route path="/" element={<LandingPage />} />
               <Route path="/" element={<LoggIn />} />
-              <Route path="/admin" element={<Index />} />
-              <Route path="/companies" element={<Companies />} />
-              <Route path="/pending" element={<Pending />} />
-              <Route path="/category/:name" element={<CategoryPage />} />
-              <Route path="/company" element={<CompanyDashboard />} />
-              <Route path="/company/offers" element={<CompanyOffers />} />
-              <Route path="/company/offers/new" element={<CompanyNewOffer />} />
-              <Route path="/company/verification" element={<CompanyVerification />} />
-              <Route path="/company/account" element={<CompanyAccount />} />
               <Route path="/login" element={<LoggIn />} />
               <Route path="/registration" element={<Registration />} />
               <Route path="/manager-registration" element={<ManagerRegistration />} />
+              <Route path="/manager/onboard" element={<ManagerRegistration />} />
+              <Route path="/worker/onboard" element={<WorkerOnboard />} />
+
+              <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
+                <Route path="/admin" element={<Index />} />
+                <Route path="/admin/logs" element={<AdminLogs />} />
+                <Route path="/companies" element={<Companies />} />
+                <Route path="/pending" element={<Pending />} />
+                <Route path="/category/:name" element={<CategoryPage />} />
+              </Route>
+
+              <Route element={<ProtectedRoute allowedRoles={["MANAGER"]} />}>
+                <Route path="/company" element={<CompanyDashboard />} />
+                <Route path="/company/offers" element={<CompanyOffers />} />
+                <Route path="/company/offers/new" element={<CompanyNewOffer />} />
+                <Route path="/company/verification" element={<CompanyVerification />} />
+                <Route path="/company/account" element={<CompanyAccount />} />
+                <Route path="/company/workers/new" element={<WorkerCreation />} />
+              </Route>
+
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

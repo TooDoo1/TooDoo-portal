@@ -1,6 +1,7 @@
-import { Building2, ClipboardList, LayoutDashboard, LogOut } from "lucide-react";
+import { Building2, ClipboardList, LayoutDashboard, LogOut, ScrollText } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
+import { clearAuthIdentity, clearAuthToken } from "@/lib/api";
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +21,7 @@ const menuItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
   { title: "Företag", url: "/companies", icon: Building2 },
   { title: "Väntande företag", url: "/pending", icon: ClipboardList },
+  { title: "Loggar", url: "/admin/logs", icon: ScrollText },
 ];
 
 export function AdminSidebar() {
@@ -87,7 +89,11 @@ export function AdminSidebar() {
         <Separator className="bg-border/50 mb-3" />
         <SidebarMenuButton
           className="text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg"
-          onClick={() => navigate("/")}
+          onClick={() => {
+            clearAuthToken();
+            clearAuthIdentity();
+            navigate("/login", { replace: true });
+          }}
         >
           <LogOut className="mr-2.5 h-4 w-4" />
           {!collapsed && <span className="text-sm">Logga ut</span>}

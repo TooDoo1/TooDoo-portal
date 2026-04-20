@@ -3,7 +3,7 @@ import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getUserByEmail, loginUser, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
+import { getUserByEmail, loginPortal, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
 import { toast } from "sonner";
 
 const shootingStars = [
@@ -56,7 +56,7 @@ export default function LoggIn() {
 		setIsSubmitting(true);
 		try {
 			const trimmedEmail = email.trim();
-			const response = await loginUser({ email: trimmedEmail, password });
+			const response = await loginPortal({ email: trimmedEmail, password });
 			setAuthToken(response.token);
 			const user = await getUserByEmail(trimmedEmail);
 			const role = typeof user.role === "string" ? user.role : getJwtRole(response.token);
@@ -138,9 +138,9 @@ export default function LoggIn() {
 				}
 			`}</style>
 
-			<div className="fixed left-4 top-4 z-20 flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl">
-				<img src="/Icon.jpg" alt="Login" className="h-10 w-10 object-cover" />
-			</div>
+			<button onClick={() => navigate("/")} className="fixed left-4 top-4 z-20 flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl cursor-pointer hover:scale-110 transition">
+  <img src="/Icon.jpg" alt="Landingpage" className="h-10 w-10 object-cover" />
+</button>
 
 			<div className="relative z-20 mx-auto flex w-full max-w-6xl flex-col px-6 pt-12 pb-6">
 				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
@@ -188,7 +188,7 @@ export default function LoggIn() {
 								className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90"
 							>
 								<span className="anim-login-text pointer-events-none mr-1 relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-2">
-									{isSubmitting ? "Loggar in..." : "Logga in"}
+									{isSubmitting ? "Loggar in" : "Logga in"}
 								</span>
 								<span className="anim-login-line pointer-events-none absolute right-12 z-0 h-[1px] w-14 origin-right mr-28 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-9" />
 								<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
@@ -207,9 +207,6 @@ export default function LoggIn() {
 
 						<p className="mt-4 text-center text-sm text-muted-foreground">
 							Har du inte ditt företag registrerat? <Link to="/registration" className="font-semibold text-accent underline">Registrera ditt företag!</Link>
-						</p>
-						<p className="mt-2 text-center text-sm text-muted-foreground">
-							Skapa managerkonto? <Link to="/manager-registration" className="font-semibold text-accent underline">Manager registrering</Link>
 						</p>
 					</div>
 				</div>
