@@ -232,10 +232,12 @@ export default function LandingPage() {
 
           {/* Auth buttons */}
           <div style={{ display: "flex", gap: 12 }}>
-            <button onClick={() => navigate("/login")} className="btn-outline-hover" style={{
-              background: "transparent", color: "#fff", border: "1px solid rgba(255,255,255,0.3)",
-              padding: "10px 20px", borderRadius: 8, fontWeight: 600, cursor: "pointer",
-            }}>Logga in</button>
+           <button
+  onClick={() => navigate("/registration")} className="btn-hover" style={{
+    background: "transparent",color: "#fff", border: "1px solid rgba(255,255,255,0.3)",
+     padding: "10px 20px", borderRadius: 8, fontWeight: 600, cursor: "pointer",
+  }}>Registrera ditt företag
+  </button>
             <button onClick={() => navigate("/login")} className="btn-hover" style={{
               background: "#ffa200", color: "#000b2a", border: "none",
               padding: "10px 20px", borderRadius: 8, fontWeight: 600, cursor: "pointer",

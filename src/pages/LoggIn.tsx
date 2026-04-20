@@ -138,9 +138,9 @@ export default function LoggIn() {
 				}
 			`}</style>
 
-			<div className="fixed left-4 top-4 z-20 flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl">
-				<img src="/Icon.jpg" alt="Login" className="h-10 w-10 object-cover" />
-			</div>
+			<button onClick={() => navigate("/")} className="fixed left-4 top-4 z-20 flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl cursor-pointer hover:scale-110 transition">
+  <img src="/Icon.jpg" alt="Landingpage" className="h-10 w-10 object-cover" />
+</button>
 
 			<div className="relative z-20 mx-auto flex w-full max-w-6xl flex-col px-6 pt-12 pb-6">
 				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
