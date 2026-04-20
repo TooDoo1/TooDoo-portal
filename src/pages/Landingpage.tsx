@@ -196,8 +196,18 @@ export default function LandingPage() {
       }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           {/* Logo */}
-          <div style={{ fontSize: 22, fontWeight: 800, cursor: "pointer" }} onClick={() => navigate("/")}>
-            Too<span style={{ color: "#ff3b30" }}>Doo</span>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 22, fontWeight: 800, cursor: "pointer" }}
+            onClick={() => navigate("/")}
+          >
+            <img
+              src="/Icon.jpg"
+              alt="TooDoo"
+              style={{ height: 36, width: 36, borderRadius: 8, objectFit: "cover" }}
+            />
+            <span>
+              Too<span style={{ color: "#ff3b30" }}>Doo</span>
+            </span>
           </div>
 
           {/* Dropdown nav items */}
