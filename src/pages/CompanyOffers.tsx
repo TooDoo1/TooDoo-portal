@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Eye, MousePointer, Clock, QrCode } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, MousePointer, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { claimOrder, deleteOrder, getBusinessId, listOrders, type Order } from "@/lib/api";
+import { deleteOrder, getBusinessId, listOrders, type Order } from "@/lib/api";
 import { toast } from "sonner";
 
 type FilterStatus = "all" | "active" | "draft" | "archived";
@@ -135,7 +135,6 @@ function CountdownTimer({ status, startsAt, expiresAt }: { status: Offer["status
 export default function CompanyOffers() {
   const navigate = useNavigate();
   const [offers, setOffers] = useState<Offer[]>([]);
-  const [claimLoading, setClaimLoading] = useState<Record<string, boolean>>({});
   const [deleteLoading, setDeleteLoading] = useState<Record<string, boolean>>({});
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
@@ -184,25 +183,6 @@ export default function CompanyOffers() {
       toast.error(message);
     } finally {
       setDeleteLoading((prev) => ({ ...prev, [offer.id]: false }));
-    }
-  };
-
-  const handleClaimOffer = async (offerId: string) => {
-    setClaimLoading((prev) => ({ ...prev, [offerId]: true }));
-    try {
-      const response = await claimOrder(offerId);
-
-      if (!response.ok) {
-        toast.error(response.reason || "Kunde inte claima erbjudandet.");
-        return;
-      }
-
-      toast.success(response.qrCode?.code ? `QR-kod skapad: ${response.qrCode.code}` : "Erbjudande claimat.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Claim misslyckades.";
-      toast.error(message);
-    } finally {
-      setClaimLoading((prev) => ({ ...prev, [offerId]: false }));
     }
   };
 
@@ -443,19 +423,6 @@ export default function CompanyOffers() {
                     {/* Actions */}
                     <div className="flex items-center justify-between gap-3 pt-2">
                       <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="bg-success hover:bg-success/85 text-success-foreground gap-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleClaimOffer(offer.id);
-                          }}
-                          disabled={!!claimLoading[offer.id]}
-                        >
-                          <QrCode className="h-4 w-4" />
-                          {claimLoading[offer.id] ? "Skapar..." : "Claim"}
-                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"

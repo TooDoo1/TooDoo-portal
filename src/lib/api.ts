@@ -187,6 +187,7 @@ export type CreateBusinessRequest = {
   website?: string;
   address: string;
   city: string;
+  logoUrl?: string;
   categoryId: string;
 };
 
@@ -198,8 +199,7 @@ export type UpdateBusinessRequest = {
   website?: string | null;
   address?: string;
   city?: string;
-  categoryId?: string;
-  status?: BusinessStatus;
+  logoUrl?: string | null;
 };
 
 export type BusinessStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -213,6 +213,7 @@ export type Business = {
   website?: string | null;
   address: string;
   city: string;
+  logoUrl?: string | null;
   categoryId: string;
   categoryName?: string;
   status?: BusinessStatus;
@@ -504,6 +505,26 @@ export async function getBusinessRedemptions(businessId: string) {
     { method: "GET" },
     true,
   );
+}
+
+export type LogStatus = "INFO" | "WARNING" | "ERROR" | "SUCCESS" | "FAILURE";
+
+export type LogEntry = {
+  id: string;
+  status: LogStatus;
+  message?: string | null;
+  createdAt: string;
+  metadata?: unknown;
+  [key: string]: unknown;
+};
+
+export async function listLogs(params: { status?: LogStatus; take?: number; skip?: number } = {}) {
+  const query = new URLSearchParams();
+  if (params.status) query.set("status", params.status);
+  if (typeof params.take === "number") query.set("take", String(params.take));
+  if (typeof params.skip === "number") query.set("skip", String(params.skip));
+  const qs = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<LogEntry[] | { logs: LogEntry[]; total?: number }>(`/log${qs}`, { method: "GET" }, true);
 }
 
 export async function validateClaim(qrCode: string) {

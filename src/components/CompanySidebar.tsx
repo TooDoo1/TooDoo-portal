@@ -1,6 +1,7 @@
 import { BadgeCheck, LayoutDashboard, LogOut, Tags, UserPlus, UserRound } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
+import { clearAuthIdentity, clearAuthToken } from "@/lib/api";
 import {
   Sidebar,
   SidebarContent,
@@ -89,7 +90,11 @@ export function CompanySidebar() {
         <Separator className="bg-border/50 mb-3" />
         <SidebarMenuButton
           className="text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg"
-          onClick={() => navigate("/")}
+          onClick={() => {
+            clearAuthToken();
+            clearAuthIdentity();
+            navigate("/login", { replace: true });
+          }}
         >
           <LogOut className="mr-2.5 h-4 w-4" />
           {!collapsed && <span className="text-sm">Logga ut</span>}

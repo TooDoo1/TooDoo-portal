@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { listOrders, type Order } from "@/lib/api";
+import { listBusinesses, listCategories } from "@/lib/api";
 import { toast } from "sonner";
 
 type Company = {
@@ -35,24 +35,28 @@ export default function CategoryPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const orders = await listOrders(categoryName);
-        const businesses = Array.from(
-          orders.reduce<Map<string, Company>>((map, order: Order) => {
-            if (!map.has(order.businessId)) {
-              map.set(order.businessId, {
-                id: order.businessId,
-                name: `Business ${order.businessId.slice(0, 6)}`,
-                email: "okand@business.local",
-                category: categoryName,
-                status: "active",
-                joinedAt: order.validFrom || new Date().toISOString(),
-              });
-            }
-            return map;
-          }, new Map()),
-        ).map((entry) => entry[1]);
+        const [approvedBusinesses, categoryRows] = await Promise.all([
+          listBusinesses("APPROVED"),
+          listCategories(),
+        ]);
 
-        setActive(businesses);
+        const categoryNameById = new Map(categoryRows.map((cat) => [cat.id, cat.name]));
+
+        const matches = approvedBusinesses
+          .filter((business) => {
+            const resolvedName = business.categoryName ?? categoryNameById.get(business.categoryId);
+            return resolvedName === categoryName;
+          })
+          .map<Company>((business) => ({
+            id: business.id,
+            name: business.name,
+            email: business.contactEmail,
+            category: categoryName,
+            status: "active",
+            joinedAt: business.createdAt || new Date().toISOString(),
+          }));
+
+        setActive(matches);
       } catch {
         setActive([]);
       }
@@ -120,15 +124,15 @@ export default function CategoryPage() {
                     onClick={() => setSelectedCompany(company)}
                   >
                     <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
                           <CompanyAvatar name={company.name} />
-                          <div>
-                            <p className="font-semibold text-foreground">{company.name}</p>
-                            <p className="text-sm text-muted-foreground">{company.email}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-foreground truncate" title={company.name}>{company.name}</p>
+                            <p className="text-sm text-muted-foreground truncate" title={company.email}>{company.email}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           <StatusBadge status="active" />
                           <Button
                             variant="ghost"

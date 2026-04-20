@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/StatusBadge";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { listCategories, listOrders, type Order } from "@/lib/api";
+import { listBusinesses, listCategories } from "@/lib/api";
 import { toast } from "sonner";
 
 type Company = {
@@ -31,25 +31,25 @@ export default function Companies() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [orders, categoryRows] = await Promise.all([listOrders(), listCategories()]);
+        const [businessRows, categoryRows] = await Promise.all([
+          listBusinesses("APPROVED"),
+          listCategories(),
+        ]);
 
-        const uniqueBusinesses = Array.from(
-          orders.reduce<Map<string, Company>>((map, order: Order) => {
-            if (!map.has(order.businessId)) {
-              map.set(order.businessId, {
-                id: order.businessId,
-                name: `Business ${order.businessId.slice(0, 6)}`,
-                email: "okand@business.local",
-                status: "active",
-                joinedAt: order.validFrom || new Date().toISOString(),
-                category: String(order.categoryName ?? "Okategoriserad"),
-              });
-            }
-            return map;
-          }, new Map()),
-        ).map((entry) => entry[1]);
+        const categoryById = new Map(categoryRows.map((cat) => [cat.id, cat.name]));
 
-        setCompanies(uniqueBusinesses);
+        setCompanies(
+          businessRows.map((business) => ({
+            id: business.id,
+            name: business.name,
+            email: business.contactEmail,
+            status: "active",
+            joinedAt: business.createdAt || new Date().toISOString(),
+            category: String(
+              business.categoryName ?? categoryById.get(business.categoryId) ?? "Okategoriserad",
+            ),
+          })),
+        );
         setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
       } catch {
         setCompanies([]);
@@ -116,15 +116,17 @@ export default function Companies() {
           {filtered.map((company) => (
             <Card key={company.id} className="card-hover bg-card border-border">
               <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <CompanyAvatar name={company.name} logo={company.logo} />
-                    <div>
-                      <p className="font-semibold text-foreground">{company.name}</p>
-                      <p className="text-sm text-muted-foreground">{company.email}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-foreground truncate" title={company.name}>{company.name}</p>
+                      <p className="text-sm text-muted-foreground truncate" title={company.email}>{company.email}</p>
                     </div>
                   </div>
-                  <StatusBadge status={company.status} />
+                  <div className="shrink-0">
+                    <StatusBadge status={company.status} />
+                  </div>
                 </div>
                 <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
                   <span>Gick med: {new Date(company.joinedAt).toLocaleDateString("sv-SE")}</span>
