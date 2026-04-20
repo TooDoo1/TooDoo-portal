@@ -8,6 +8,7 @@ import { AdminLayout } from "@/components/AdminLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const Index = lazy(() => import("./pages/Index"));
+const LandingPage = lazy(() => import("./pages/Landingpage"));
 const Companies = lazy(() => import("./pages/Companies"));
 const Pending = lazy(() => import("./pages/Pending"));
 const AdminLogs = lazy(() => import("./pages/AdminLogs"));
@@ -64,6 +65,7 @@ const App = () => (
         <AdminLayout>
           <Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
+              <Route path="/" element={<LandingPage />} />
               <Route path="/" element={<LoggIn />} />
               <Route path="/login" element={<LoggIn />} />
               <Route path="/registration" element={<Registration />} />
