@@ -322,7 +322,7 @@ export default function LandingPage() {
               background: "transparent", color: "#fff", border: "1px solid rgba(255,255,255,0.3)",
               padding: "16px 32px", borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: "pointer",
             }}>
-              Ladda ner din app
+              Ladda ner appen
             </button>
           </div>
         </div>
