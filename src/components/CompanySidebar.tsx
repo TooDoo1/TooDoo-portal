@@ -118,13 +118,21 @@ export function CompanySidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border bg-card/60 backdrop-blur-sm">
-      <SidebarHeader className="p-2.5">
+      <SidebarHeader className="p-2.5 group-data-[collapsible=icon]:overflow-hidden group-data-[collapsible=icon]:p-1.5">
         <div
-          className={`flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/40 p-2.5 transition-colors ${
-            collapsed ? "justify-center" : ""
+          className={`flex items-center transition-colors ${
+            collapsed
+              ? "mx-auto w-fit justify-center gap-0 border-0 bg-transparent p-0 shadow-none"
+              : "gap-2.5 rounded-xl border border-border/50 bg-background/40 p-2.5"
           }`}
         >
-          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1 ring-primary/40">
+          <div
+            className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-lg ${
+              collapsed
+                ? "h-8 w-8 bg-transparent ring-0"
+                : "h-9 w-9 ring-1 ring-primary/40"
+            }`}
+          >
             <img src="/Icon.jpg" alt="TooDoo" className="h-full w-full object-cover" />
           </div>
           {!collapsed && (
