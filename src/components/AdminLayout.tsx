@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { CompanySidebar } from "@/components/CompanySidebar";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useLocation } from "react-router-dom";
+import { getAuthEmail } from "@/lib/api";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -31,20 +32,65 @@ const shootingStars = [
   { top: "92%", left: "100%", delay: "-6.6s", duration: "6.3s" },
 ];
 
+function getInitials(email: string | null | undefined, fallback: string) {
+  if (!email) return fallback;
+  const local = email.split("@")[0];
+  const parts = local.split(/[._-]/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return (local.slice(0, 2) || fallback).toUpperCase();
+}
+
+function formatPageTitle(pathname: string, isCompanyRoute: boolean) {
+  if (pathname === "/admin") return "Dashboard";
+  if (pathname === "/companies") return "Företag";
+  if (pathname === "/pending") return "Väntande företag";
+  if (pathname === "/admin/logs") return "Loggar";
+  if (pathname.startsWith("/category/")) return "Kategori";
+  if (pathname === "/company") return "Dashboard";
+  if (pathname === "/company/offers") return "Erbjudanden";
+  if (pathname === "/company/offers/new") return "Nytt erbjudande";
+  if (pathname === "/company/verification") return "Verifiering";
+  if (pathname === "/company/workers/new") return "Arbetare";
+  if (pathname === "/company/account") return "Mitt företag";
+  return isCompanyRoute ? "Företag" : "Admin";
+}
+
 function AdminLayoutContent({ children }: AdminLayoutProps) {
   const { state } = useSidebar();
   const sidebarOpen = state === "expanded";
   const location = useLocation();
   const isCompanyRoute = location.pathname.startsWith("/company");
   const [notificationsOn, setNotificationsOn] = useState(true);
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEmail(getAuthEmail());
+  }, []);
+
   const notificationHelpText = isCompanyRoute
     ? "När aktiv skickar mail varje 60 min på hur många som aktiverat ert erbjudande och vilket."
     : "När aktiv skickar mail varje 60 min på vilka och hur många företag som väntar";
 
+  const pageTitle = formatPageTitle(location.pathname, isCompanyRoute);
+  const scopeLabel = isCompanyRoute ? "Företagspanel" : "Administrationspanel";
+  const accentColor = "text-primary";
+  const triggerBg = sidebarOpen
+    ? "bg-primary/30 hover:bg-primary/40"
+    : "bg-primary hover:bg-primary/90";
+  const triggerFg = "text-primary-foreground";
+
   return (
     <div className="flex-1 flex h-screen flex-col overflow-hidden">
       <header className="sticky top-0 z-30 h-14 flex items-center justify-between border-b border-border bg-card/80 px-4 backdrop-blur-sm">
-        <SidebarTrigger className={`h-7 w-7 ${sidebarOpen ? "bg-accent/30 hover:bg-accent/40" : "bg-accent hover:bg-accent/80"} text-accent-foreground`} />
+        <div className="flex items-center gap-3 min-w-0">
+          <SidebarTrigger className={`h-7 w-7 ${triggerBg} ${triggerFg}`} />
+          <div className="hidden sm:flex flex-col leading-tight min-w-0">
+            <span className={`text-[10px] uppercase tracking-[0.2em] font-semibold ${accentColor}`}>{scopeLabel}</span>
+            <span className="truncate text-sm font-semibold text-foreground">{pageTitle}</span>
+          </div>
+        </div>
         <div className="flex items-center gap-3">
           <TooltipProvider>
             <Tooltip>
@@ -67,7 +113,9 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
             </Tooltip>
           </TooltipProvider>
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-primary/20 text-primary text-xs font-semibold">{isCompanyRoute ? "Co" : "AD"}</AvatarFallback>
+            <AvatarFallback className="text-xs font-semibold bg-primary/20 text-primary">
+              {getInitials(email, isCompanyRoute ? "Co" : "AD")}
+            </AvatarFallback>
           </Avatar>
         </div>
       </header>

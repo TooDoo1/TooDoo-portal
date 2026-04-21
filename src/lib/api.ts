@@ -421,6 +421,10 @@ export async function listBusinesses(status?: BusinessStatus) {
   return apiRequest<Business[]>(`/business${query}`, { method: "GET" });
 }
 
+export async function getBusinessById(id: string) {
+  return apiRequest<Business>(`/business/${encodeURIComponent(id)}`, { method: "GET" }, true);
+}
+
 export async function updateBusinessStatus(id: string, status: BusinessStatus) {
   return apiRequest<Business>(
     `/business/${encodeURIComponent(id)}/status`,
