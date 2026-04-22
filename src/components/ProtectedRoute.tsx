@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import {
-  clearAuthIdentity,
-  clearAuthToken,
+  clearAuthStorage,
   getAuthEmail,
   getAuthRole,
   getAuthToken,
@@ -56,8 +55,7 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
 
   useEffect(() => {
     if (tokenInvalid) {
-      clearAuthToken();
-      clearAuthIdentity();
+      clearAuthStorage();
       return;
     }
 

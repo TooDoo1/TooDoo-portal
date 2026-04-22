@@ -10,7 +10,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getBusinessId, listOrders, type Order } from "@/lib/api";
+import { listOrders, resolveBusinessId, type Order } from "@/lib/api";
 
 const quickLinks = [
   {
@@ -39,8 +39,12 @@ export default function CompanyDashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const businessId = getBusinessId();
-        const data = await listOrders(undefined, businessId ?? undefined);
+        const businessId = await resolveBusinessId();
+        if (!businessId) {
+          setOrders([]);
+          return;
+        }
+        const data = await listOrders(undefined, businessId);
         setOrders(data);
       } catch {
         setOrders([]);

@@ -6,6 +6,7 @@ const TOKEN_STORAGE_KEY = "toodoo_jwt";
 const USER_EMAIL_STORAGE_KEY = "toodoo_user_email";
 const USER_ROLE_STORAGE_KEY = "toodoo_user_role";
 const BUSINESS_ID_STORAGE_KEY = "toodoo_business_id";
+const WORKER_INVITE_TOKEN_SESSION_KEY = "toodoo_worker_invite_token";
 
 type ApiErrorShape = {
   error?: string;
@@ -116,6 +117,45 @@ export function setBusinessId(id: string) {
   localStorage.setItem(BUSINESS_ID_STORAGE_KEY, id);
 }
 
+export function clearBusinessId() {
+  localStorage.removeItem(BUSINESS_ID_STORAGE_KEY);
+}
+
+/**
+ * Clear all auth-related storage used by the portal.
+ * Call this on logout and when tokens are invalid/expired.
+ */
+export function clearAuthStorage() {
+  clearAuthToken();
+  clearAuthIdentity();
+  clearBusinessId();
+  try {
+    sessionStorage.removeItem(WORKER_INVITE_TOKEN_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Resolve the current manager's businessId.
+ * Prefers localStorage, falls back to GET /user/:email and stores it.
+ */
+export async function resolveBusinessId() {
+  let resolved = getBusinessId();
+  if (resolved) return resolved;
+
+  const email = getAuthEmail();
+  if (!email) return null;
+
+  const user = await getUserByEmail(email);
+  if (user.businessId) {
+    setBusinessId(user.businessId);
+    return user.businessId;
+  }
+
+  return null;
+}
+
 export type HealthResponse = { ok?: boolean; status?: string; [key: string]: unknown };
 export type Category = { id: string; name: string; icon?: string | null };
 
@@ -125,6 +165,8 @@ export type RegisterRequest = {
   gender?: string;
   firstName?: string;
   lastName?: string;
+  birthDate?: string;
+  interests?: string[];
   businessId?: string;
 };
 

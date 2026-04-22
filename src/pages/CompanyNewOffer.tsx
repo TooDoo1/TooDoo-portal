@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { ArrowLeft, CalendarDays, ChevronDown, ChevronUp, PlusCircle } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -11,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { createOrder, getBusinessId, getOrderById, updateOrder } from "@/lib/api";
+import { createOrder, getBusinessById, getBusinessId, getOrderById, resolveBusinessId, updateOrder, type Business } from "@/lib/api";
 
 type OfferForm = {
   title: string;
@@ -27,12 +28,309 @@ type OfferForm = {
   expiresAt: string;
 };
 
+type OfferPayload = {
+  title: string;
+  description: string;
+  detailedDescription?: string;
+  price: number;
+  originalPrice?: number;
+  orderTimeFrom: string;
+  orderTimeTo: string;
+  validFrom: string;
+  validTo: string;
+  maxRedemptions?: number;
+};
+
+type PreviewBusiness = Pick<Business, "name" | "address" | "city" | "contactPhone" | "website"> & {
+  logoUrl?: string | null;
+};
+
+type OfferPreviewCardProps = {
+  businessName: string;
+  offerText: string;
+  priceKr: number | string;
+  originalPriceKr?: number | string;
+  claimedCount?: number;
+  totalCount?: number;
+  countdownText?: string;
+  imageUrl?: string;
+  ctaLabel?: string;
+};
+
+function OfferPreviewCard({
+  businessName,
+  offerText,
+  priceKr,
+  originalPriceKr,
+  claimedCount = 0,
+  totalCount = 1,
+  countdownText = "13:52:57",
+  imageUrl,
+  ctaLabel = "Logga in för att claima!",
+}: OfferPreviewCardProps) {
+  const progress =
+    totalCount > 0 ? Math.max(0, Math.min(100, (claimedCount / totalCount) * 100)) : 0;
+
+  return (
+    <div style={previewStyles.page}>
+      <div style={previewStyles.phoneFrame}>
+        <div style={previewStyles.hero} />
+
+        <div style={previewStyles.content}>
+          <div style={previewStyles.title}>{businessName}</div>
+
+          <div style={previewStyles.pillsRow}>
+            <button type="button" style={{ ...previewStyles.pill, outline: "none" }}>Hitta hit</button>
+            <button type="button" style={{ ...previewStyles.pill, outline: "none" }}>Webbplats</button>
+          </div>
+
+          <div style={previewStyles.card}>
+            <div style={previewStyles.cardTop}>
+              <div style={previewStyles.thumbWrap}>
+                {imageUrl ? (
+                  <img alt="" src={imageUrl} style={previewStyles.thumbImg} />
+                ) : (
+                  <div style={previewStyles.thumbFallback} />
+                )}
+
+                <div style={previewStyles.countdownChip}>{countdownText}</div>
+              </div>
+
+              <div style={previewStyles.offerBody}>
+                <div style={previewStyles.offerText}>{offerText}</div>
+
+                <div style={previewStyles.priceRow}>
+                  <div style={previewStyles.price}>{priceKr} kr</div>
+                  {originalPriceKr !== undefined && originalPriceKr !== null ? (
+                    <span style={previewStyles.originalPrice}>{originalPriceKr} kr</span>
+                  ) : null}
+                </div>
+
+                <div style={previewStyles.meta}>
+                  Claimade: {claimedCount} / {totalCount}
+                </div>
+
+                <div style={previewStyles.progressTrack}>
+                  <div style={{ ...previewStyles.progressFill, width: `${progress}%` }} />
+                </div>
+              </div>
+            </div>
+
+            <button type="button" style={{ ...previewStyles.cta, outline: "none" }}>{ctaLabel}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const previewStyles: Record<string, CSSProperties> = {
+  page: {
+    background: "transparent",
+    padding: 0,
+    fontFamily:
+      'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
+    color: "#fff",
+  },
+
+  phoneFrame: {
+    width: 380,
+    borderRadius: 28,
+    overflow: "hidden",
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "linear-gradient(180deg, #000b2a 0%, #061333 55%, #000b2a 100%)",
+    boxShadow: "0 18px 55px rgba(0,0,0,0.55)",
+  },
+
+  hero: {
+    height: 190,
+    background: "#000b2a",
+  },
+
+  content: {
+    padding: 20,
+    paddingTop: 18,
+  },
+
+  title: {
+    fontSize: 36,
+    lineHeight: "40px",
+    fontWeight: 650,
+    letterSpacing: -0.6,
+    marginBottom: 40,
+  },
+
+  pillsRow: {
+    display: "flex",
+    gap: 12,
+    marginBottom: 12,
+  },
+
+  pill: {
+    flex: 1,
+    height: 44,
+    borderRadius: 999,
+    border: "0",
+    background: "hsl(var(--accent) / 0.14)",
+    color: "hsl(var(--accent))",
+    fontWeight: 700,
+    fontSize: 16,
+    cursor: "pointer",
+    backdropFilter: "none",
+  },
+
+  card: {
+    position: "relative",
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "#0a1535",
+    boxShadow: "0 12px 30px rgba(0,0,0,0.45)",
+    padding: 14,
+    overflow: "hidden",
+  },
+
+  cardTop: {
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    position: "relative",
+    zIndex: 1,
+  },
+
+  thumbWrap: {
+    position: "relative",
+    width: 112,
+    height: 112,
+    borderRadius: 20,
+    overflow: "hidden",
+    background: "rgba(255,255,255,0.10)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    flex: "0 0 auto",
+  },
+
+  thumbImg: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+  },
+
+  thumbFallback: {
+    width: "100%",
+    height: "100%",
+    background:
+      "radial-gradient(120% 90% at 30% 20%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.06) 55%, rgba(255,255,255,0.03) 100%)",
+  },
+
+  countdownChip: {
+    position: "absolute",
+    left: 8,
+    bottom: 8,
+    padding: "4px 8px",
+    borderRadius: 999,
+    background: "rgba(0,0,0,0.55)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#fff",
+    opacity: 0.8,
+    zIndex: 2,
+  },
+
+  offerBody: {
+    flex: 1,
+    minWidth: 0,
+    position: "relative",
+    zIndex: 1,
+  },
+
+  offerText: {
+    fontSize: 16,
+    fontWeight: 600,
+    color: "rgba(255,255,255,0.78)",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    marginBottom: 0,
+  },
+
+  priceRow: {
+    display: "flex",
+    alignItems: "flex-end",
+    gap: 10,
+    marginTop: 6,
+    flexWrap: "nowrap",
+    whiteSpace: "nowrap",
+  },
+
+  price: {
+    fontSize: 16,
+    fontWeight: 800,
+    letterSpacing: -0.3,
+    lineHeight: "20px",
+    color: "#fff",
+  },
+
+  originalPrice: {
+    display: "inline-block",
+    fontSize: 16,
+    fontWeight: 600,
+    color: "rgb(147, 197, 253)",
+    textDecoration: "line-through",
+    textDecorationColor: "rgb(147, 197, 253)",
+    marginBottom: 0,
+    lineHeight: "20px",
+  },
+
+  meta: {
+    marginTop: 6,
+    fontSize: 16,
+    fontWeight: 600,
+    color: "rgba(255,255,255,0.55)",
+  },
+
+  progressTrack: {
+    marginTop: 12,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.12)",
+    overflow: "hidden",
+    position: "relative",
+    zIndex: 1,
+  },
+
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    background: "#ff3b30",
+  },
+
+  cta: {
+    marginTop: 14,
+    height: 44,
+    width: "100%",
+    borderRadius: 999,
+    border: "0",
+    background: "#ff3b30",
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: 600,
+    cursor: "pointer",
+    boxShadow: "0 10px 24px rgba(255,59,48,0.18)",
+    position: "relative",
+    zIndex: 1,
+  },
+};
+
 export default function CompanyNewOffer() {
   const navigate = useNavigate();
   const location = useLocation();
   const [startOpen, setStartOpen] = useState(false);
   const [expiresOpen, setExpiresOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState<OfferPayload | null>(null);
+  const [previewBusiness, setPreviewBusiness] = useState<PreviewBusiness | null>(null);
   const [isLoadingOffer, setIsLoadingOffer] = useState(false);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const today = new Date();
@@ -50,6 +348,32 @@ export default function CompanyNewOffer() {
     couponLifetimeUnit: "minutes",
     expiresAt: "",
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadBusiness = async () => {
+      try {
+        const id = await resolveBusinessId();
+        if (!id) return;
+        const b = await getBusinessById(id);
+        if (cancelled) return;
+        setPreviewBusiness({
+          name: b.name,
+          address: b.address,
+          city: b.city,
+          contactPhone: b.contactPhone,
+          website: b.website,
+          logoUrl: b.logoUrl ?? null,
+        });
+      } catch {
+        if (!cancelled) setPreviewBusiness(null);
+      }
+    };
+    void loadBusiness();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -212,31 +536,37 @@ export default function CompanyNewOffer() {
       return;
     }
 
+    const detailedDescription = form.detailedDescription.trim();
+    const description = [form.description.trim(), detailedDescription].filter(Boolean).join("\n\n");
+    const payload: OfferPayload = {
+      title: form.title.trim(),
+      description,
+      detailedDescription: detailedDescription || undefined,
+      price,
+      originalPrice,
+      orderTimeFrom: orderTimeFromIso,
+      orderTimeTo: validToIso,
+      validFrom: orderTimeFromIso,
+      validTo: couponValidToIso,
+      maxRedemptions,
+    };
+
+    setPendingPayload(payload);
+    setPreviewOpen(true);
+  };
+
+  const confirmCreateOrUpdate = async () => {
+    if (!pendingPayload) return;
     setIsSubmitting(true);
     try {
-      const detailedDescription = form.detailedDescription.trim();
-      const description = [form.description.trim(), detailedDescription].filter(Boolean).join("\n\n");
-      const payload = {
-        title: form.title.trim(),
-        description,
-        detailedDescription: detailedDescription || undefined,
-        price,
-        originalPrice,
-        orderTimeFrom: orderTimeFromIso,
-        orderTimeTo: validToIso,
-        validFrom: orderTimeFromIso,
-        validTo: couponValidToIso,
-        maxRedemptions,
-      };
-
       if (editOrderId) {
-        await updateOrder(editOrderId, payload);
+        await updateOrder(editOrderId, pendingPayload);
         toast.success("Erbjudande uppdaterat.");
       } else {
-        await createOrder(payload);
+        await createOrder(pendingPayload);
         toast.success("Erbjudande skapat.");
       }
-
+      setPreviewOpen(false);
       navigate("/company/offers");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte skapa erbjudandet.";
@@ -592,6 +922,88 @@ export default function CompanyNewOffer() {
           </form>
         </CardContent>
       </Card>
+
+      <Dialog open={previewOpen} onOpenChange={(open) => !isSubmitting && setPreviewOpen(open)}>
+        <DialogContent hideClose className="max-h-[85vh] max-w-[840px] overflow-hidden border-border bg-card p-0">
+          <div className="grid gap-0 md:grid-cols-[max-content_1fr]">
+            <div className="border-b border-border bg-background/30 px-6 py-6 md:border-b-0 md:border-r">
+              <DialogHeader className="items-start text-left">
+                <DialogTitle>Förhandsvisning i appen</DialogTitle>
+              </DialogHeader>
+
+              <div className="mt-4 flex justify-center">
+                <div className="origin-top scale-[0.78]">
+                  <OfferPreviewCard
+                    businessName={previewBusiness?.name?.trim() || "Företag"}
+                    offerText={pendingPayload?.title || form.title || "Titel"}
+                    priceKr={pendingPayload?.price ?? 0}
+                    originalPriceKr={pendingPayload?.originalPrice}
+                    claimedCount={0}
+                    totalCount={pendingPayload?.maxRedemptions ?? 1}
+                    countdownText="13:52:57"
+                    imageUrl={previewBusiness?.logoUrl ?? undefined}
+                    ctaLabel="Logga in för att claima!"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5">
+              <div className="space-y-3 max-w-lg">
+                <div className="rounded-2xl border border-border bg-background/40 p-5">
+                  <div className="text-base font-semibold text-foreground">Kontroll</div>
+                  <div className="mt-1 text-sm text-muted-foreground leading-relaxed">
+                    Så här kommer erbjudandet att se ut för användare. Bekräfta för att {editOrderId ? "spara" : "skapa"}.
+                  </div>
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    Dubbelkolla titel, beskrivning, pris och datum innan du bekräftar.
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border bg-background/40 p-4">
+                  <div className="text-xs text-muted-foreground">Start</div>
+                  <div className="text-sm font-semibold text-foreground">{form.startAt || "-"}</div>
+                  <div className="mt-3 text-xs text-muted-foreground">Utgång</div>
+                  <div className="text-sm font-semibold text-foreground">{form.expiresAt || "-"}</div>
+                  <div className="mt-3 text-xs text-muted-foreground">Kupong livstid</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {form.couponLifetimeMinutes} {form.couponLifetimeUnit}
+                  </div>
+                  <div className="mt-3 text-xs text-[#ff3b30]">Viktigt</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    TooDoo tar 10% av vad erbjudandet är värt en faktura kommer skapas i fakturor
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="mt-6">
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen(false)}
+                  disabled={isSubmitting}
+                  className="group no-hover-motion relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+                  aria-label="Tillbaka"
+                >
+                  <span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
+                    <ArrowLeft className="anim-back-arrow h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
+                  </span>
+                  <span className="anim-back-line pointer-events-none absolute left-4 right-4 z-0 h-[1px] origin-left scale-x-0 rounded-full bg-foreground transition-transform duration-300 group-hover:scale-x-100" />
+                  <span className="anim-back-text pointer-events-none relative z-10 ml-1 whitespace-nowrap transition-all duration-300 group-hover:translate-x-2 group-hover:opacity-0">
+                    Tillbaka
+                  </span>
+                </button>
+                <Button
+                  type="button"
+                  disabled={isSubmitting || !pendingPayload}
+                  className="bg-accent text-accent-foreground hover:bg-accent/90"
+                  onClick={confirmCreateOrUpdate}
+                >
+                  {isSubmitting ? (editOrderId ? "Sparar..." : "Skapar...") : editOrderId ? "Bekräfta och spara" : "Bekräfta och skapa"}
+                </Button>
+              </DialogFooter>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

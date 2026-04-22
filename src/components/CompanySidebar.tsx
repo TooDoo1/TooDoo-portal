@@ -3,8 +3,7 @@ import { BadgeCheck, Briefcase, LayoutDashboard, LogOut, Tags, UserPlus, UserRou
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  clearAuthIdentity,
-  clearAuthToken,
+  clearAuthStorage,
   getAuthEmail,
   getAuthRole,
   getBusinessById,
@@ -111,8 +110,7 @@ export function CompanySidebar() {
   }, []);
 
   const handleLogout = () => {
-    clearAuthToken();
-    clearAuthIdentity();
+    clearAuthStorage();
     navigate("/login", { replace: true });
   };
 

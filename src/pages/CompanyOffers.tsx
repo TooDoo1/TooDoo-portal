@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { deleteOrder, getBusinessId, listOrders, type Order } from "@/lib/api";
+import { deleteOrder, listOrders, resolveBusinessId, type Order } from "@/lib/api";
 import { toast } from "sonner";
 
 type FilterStatus = "all" | "active" | "draft" | "archived";
@@ -144,14 +144,15 @@ export default function CompanyOffers() {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const businessId = getBusinessId();
-        const orders = await listOrders(undefined, businessId ?? undefined);
+        const businessId = await resolveBusinessId();
+        if (!businessId) {
+          setOffers([]);
+          toast.error("Saknar businessId. Logga in igen.");
+          return;
+        }
+        const orders = await listOrders(undefined, businessId);
 
-        const filteredOrders = businessId
-          ? orders.filter((order) => order.businessId === businessId)
-          : orders;
-
-        const sortedOrders = [...filteredOrders].sort((a, b) => {
+        const sortedOrders = [...orders].sort((a, b) => {
           const aTime = new Date(a.orderTimeFrom || a.validFrom || 0).getTime();
           const bTime = new Date(b.orderTimeFrom || b.validFrom || 0).getTime();
           return bTime - aTime;

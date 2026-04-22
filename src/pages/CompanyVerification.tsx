@@ -4,7 +4,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getBusinessId, getBusinessRedemptions, listOrders, validateClaim, type Order, type Redemption } from "@/lib/api";
+import {
+  getBusinessRedemptions,
+  listOrders,
+  resolveBusinessId,
+  validateClaim,
+  type Order,
+  type Redemption,
+} from "@/lib/api";
 import { toast } from "sonner";
 
 export default function CompanyVerification() {
@@ -23,10 +30,15 @@ export default function CompanyVerification() {
     const load = async () => {
       setIsLoading(true);
       try {
-        const businessId = getBusinessId();
+        const businessId = await resolveBusinessId();
+        if (!businessId) {
+          setOrders([]);
+          setRedemptions([]);
+          return;
+        }
         const [orderData, redemptionData] = await Promise.all([
-          listOrders(undefined, businessId ?? undefined),
-          businessId ? getBusinessRedemptions(businessId) : Promise.resolve([]),
+          listOrders(undefined, businessId),
+          getBusinessRedemptions(businessId),
         ]);
         setOrders(orderData);
         setRedemptions(redemptionData);
@@ -106,11 +118,10 @@ export default function CompanyVerification() {
       toast.success(title ? `Kod verifierad för ${title}.` : `Kod ${code} verifierad.`);
       setManualCode("");
 
-      const businessId = getBusinessId();
-      if (businessId) {
-        const updated = await getBusinessRedemptions(businessId);
-        setRedemptions(updated);
-      }
+      const businessId = await resolveBusinessId();
+      if (!businessId) return;
+      const updated = await getBusinessRedemptions(businessId);
+      setRedemptions(updated);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Verifiering misslyckades.";
       toast.error(message);

@@ -32,14 +32,6 @@ const shootingStars = [
   { top: "92%", left: "100%", delay: "-6.6s", duration: "6.3s" },
 ];
 
-/** Tiny always-on backdrop stars so the sky never reads as “empty” between meteors. */
-const staticStars = Array.from({ length: 72 }, (_, i) => ({
-  top: `${((i * 37) % 99) + (i % 3) * 0.3}%`,
-  left: `${((i * 53) % 99) + ((i * 7) % 3) * 0.2}%`,
-  size: 1.25 + (i % 5) * 0.45,
-  opacity: 0.14 + (i % 9) * 0.035,
-}));
-
 function getInitials(email: string | null | undefined, fallback: string) {
   if (!email) return fallback;
   const local = email.split("@")[0];
@@ -150,21 +142,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <SidebarProvider>
       <div className="relative min-h-screen flex w-full overflow-hidden bg-background">
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          {staticStars.map((s, i) => (
-            <span
-              key={`static-star-${i}`}
-              className="absolute rounded-full bg-foreground/90"
-              style={{
-                top: s.top,
-                left: s.left,
-                width: s.size,
-                height: s.size,
-                opacity: s.opacity,
-                boxShadow: `0 0 ${2 + (i % 3)}px hsl(var(--accent) / 0.35)`,
-              }}
-            />
-          ))}
+        <div className="pointer-events-none absolute inset-0">
           {shootingStars.map((star, index) => {
             const isAccent = index % 2 === 0;
             const color = isAccent ? "hsl(var(--accent))" : "hsl(var(--primary))";
@@ -172,12 +150,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             return (
               <span
                 key={`${star.top}-${star.left}-${index}`}
-                className="absolute h-[3px] w-52 rounded-full"
+                className="absolute h-[2px] w-36 rounded-full opacity-80"
                 style={{
                   top: star.top,
                   left: star.left,
                   background: `linear-gradient(90deg, transparent, ${color})`,
-                  boxShadow: `0 0 22px ${color}, 0 0 8px ${color}`,
+                  boxShadow: `0 0 14px ${color}`,
                   animation: `layout-shooting-star ${star.duration} linear ${star.delay} infinite`,
                 }}
               />
@@ -191,14 +169,11 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               transform: translate3d(0, 0, 0) rotate(145deg);
               opacity: 0;
             }
-            12% {
-              opacity: 0.95;
+            8% {
+              opacity: 0.9;
             }
-            78% {
-              opacity: 0.8;
-            }
-            92% {
-              opacity: 0.55;
+            65% {
+              opacity: 0.7;
             }
             100% {
               transform: translate3d(-95vw, 120vh, 0) rotate(145deg);

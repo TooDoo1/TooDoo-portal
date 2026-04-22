@@ -33,13 +33,29 @@ export default function WorkerOnboard() {
   const [passwordRepeat, setPasswordRepeat] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [gender, setGender] = useState<"MALE" | "FEMALE" | "OTHER">("OTHER");
+  const [birthDate, setBirthDate] = useState("");
+  const [gender, setGender] = useState<"MALE" | "FEMALE" | "NON_BINARY" | "OTHER">("OTHER");
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordRepeat, setShowPasswordRepeat] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [inviteToken, setInviteToken] = useState("");
   const [isExistingUser, setIsExistingUser] = useState(false);
   const [isDone, setIsDone] = useState(false);
+
+  const isValidBirthDate = (value: string) => {
+    const v = value.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+    const [yStr, mStr, dStr] = v.split("-");
+    const y = Number(yStr);
+    const m = Number(mStr);
+    const d = Number(dStr);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return false;
+    if (y < 1900 || y > 2100) return false;
+    if (m < 1 || m > 12) return false;
+    if (d < 1 || d > 31) return false;
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+  };
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -85,6 +101,15 @@ export default function WorkerOnboard() {
       return;
     }
 
+    if (!isExistingUser && !birthDate.trim()) {
+      toast.error("Fyll i födelsedatum (ÅÅÅÅ-MM-DD).");
+      return;
+    }
+    if (!isExistingUser && !isValidBirthDate(birthDate)) {
+      toast.error("Födelsedatum måste vara i formatet ÅÅÅÅ-MM-DD.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const trimmedEmail = email.trim();
@@ -96,6 +121,7 @@ export default function WorkerOnboard() {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           gender,
+          birthDate: new Date(`${birthDate.trim()}T00:00:00.000Z`).toISOString(),
         });
       }
 
@@ -274,16 +300,35 @@ export default function WorkerOnboard() {
 
                       <div className="space-y-2">
                         <label className="text-sm font-semibold text-foreground">Kön:</label>
-                        <Select value={gender} onValueChange={(v) => setGender(v as "MALE" | "FEMALE" | "OTHER")}>
+                        <Select
+                          value={gender}
+                          onValueChange={(v) => setGender(v as "MALE" | "FEMALE" | "NON_BINARY" | "OTHER")}
+                        >
                           <SelectTrigger className="h-11 border-border bg-background text-foreground">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="border-border bg-popover text-popover-foreground">
                             <SelectItem value="MALE">Man</SelectItem>
                             <SelectItem value="FEMALE">Kvinna</SelectItem>
+                            <SelectItem value="NON_BINARY">Icke-binär</SelectItem>
                             <SelectItem value="OTHER">Annat</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label htmlFor="workerBirthDate" className="text-sm font-semibold text-foreground">
+                          Födelsedatum:
+                        </label>
+                        <Input
+                          id="workerBirthDate"
+                          type="text"
+                          inputMode="numeric"
+                          value={birthDate}
+                          onChange={(e) => setBirthDate(e.target.value)}
+                          placeholder="ÅÅÅÅ-MM-DD"
+                          className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+                        />
                       </div>
                     </>
                   )}

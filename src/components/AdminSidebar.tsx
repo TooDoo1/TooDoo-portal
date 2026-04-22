@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Building2, ClipboardList, LayoutDashboard, LogOut, ScrollText, ShieldCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
-import { clearAuthIdentity, clearAuthToken, getAuthEmail, getAuthRole } from "@/lib/api";
+import { clearAuthStorage, getAuthEmail, getAuthRole } from "@/lib/api";
 import {
   Sidebar,
   SidebarContent,
@@ -68,8 +68,7 @@ export function AdminSidebar() {
   }, []);
 
   const handleLogout = () => {
-    clearAuthToken();
-    clearAuthIdentity();
+    clearAuthStorage();
     navigate("/login", { replace: true });
   };
 
