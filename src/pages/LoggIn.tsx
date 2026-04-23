@@ -72,6 +72,8 @@ export default function LoggIn() {
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Kunde inte logga in.";
+			// Helpful in dev: see full error (including tagged route info from ApiError).
+			console.error("Login error:", error);
 			toast.error(message);
 		} finally {
 			setIsSubmitting(false);

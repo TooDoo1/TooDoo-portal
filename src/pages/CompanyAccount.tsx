@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
-import { Building2, ImageIcon, Mail, MapPin, Phone, Save, Tag } from "lucide-react";
+import { Building2, ImageIcon, Mail, MapPin, Moon, Phone, Save, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/StatusBadge";
+import { cn } from "@/lib/utils";
+import { setMonochromeEnabled } from "@/lib/monochrome";
+import { useMonochrome } from "@/hooks/useMonochrome";
+import { TimePicker } from "@/components/TimePicker";
 import {
   getAuthEmail,
   getBusinessId,
@@ -18,6 +22,66 @@ import {
 } from "@/lib/api";
 import { toast } from "sonner";
 
+type OpeningHoursDayKey =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+type OpeningHoursDayValue = { closed: boolean; from: string; to: string };
+type OpeningHoursState = Record<OpeningHoursDayKey, OpeningHoursDayValue>;
+
+const defaultOpeningHours: OpeningHoursState = {
+  monday: { closed: false, from: "09:00", to: "17:00" },
+  tuesday: { closed: false, from: "09:00", to: "17:00" },
+  wednesday: { closed: false, from: "09:00", to: "17:00" },
+  thursday: { closed: false, from: "09:00", to: "17:00" },
+  friday: { closed: false, from: "09:00", to: "17:00" },
+  saturday: { closed: true, from: "09:00", to: "17:00" },
+  sunday: { closed: true, from: "09:00", to: "17:00" },
+};
+
+const openingHoursLabels: Record<OpeningHoursDayKey, string> = {
+  monday: "Måndag",
+  tuesday: "Tisdag",
+  wednesday: "Onsdag",
+  thursday: "Torsdag",
+  friday: "Fredag",
+  saturday: "Lördag",
+  sunday: "Söndag",
+};
+
+const weekdayKeys: OpeningHoursDayKey[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+const weekendKeys: OpeningHoursDayKey[] = ["saturday", "sunday"];
+
+function toOpeningHoursState(value: Business["openingHours"]): OpeningHoursState {
+  const base: OpeningHoursState = structuredClone(defaultOpeningHours);
+  const raw = (value ?? {}) as Record<string, unknown>;
+  for (const key of Object.keys(base) as OpeningHoursDayKey[]) {
+    const day = raw[key] as { from?: unknown; to?: unknown } | undefined;
+    if (day && typeof day === "object") {
+      const from = typeof day.from === "string" ? day.from : base[key].from;
+      const to = typeof day.to === "string" ? day.to : base[key].to;
+      base[key] = { closed: false, from, to };
+    } else {
+      base[key] = { ...base[key], closed: true };
+    }
+  }
+  return base;
+}
+
+function toOpeningHoursPayload(state: OpeningHoursState) {
+  const payload = Object.fromEntries(
+    Object.entries(state)
+      .filter(([, v]) => !v.closed)
+      .map(([day, v]) => [day, { from: v.from, to: v.to }]),
+  );
+  return Object.keys(payload).length > 0 ? (payload as Record<string, unknown>) : undefined;
+}
+
 type CompanyAccountForm = {
   name: string;
   contactEmail: string;
@@ -25,7 +89,7 @@ type CompanyAccountForm = {
   website: string;
   address: string;
   city: string;
-  logoUrl: string;
+  imageUrl: string;
   description: string;
 };
 
@@ -36,7 +100,7 @@ const emptyForm: CompanyAccountForm = {
   website: "",
   address: "",
   city: "",
-  logoUrl: "",
+  imageUrl: "",
   description: "",
 };
 
@@ -48,7 +112,7 @@ function businessToForm(business: Business): CompanyAccountForm {
     website: business.website ?? "",
     address: business.address ?? "",
     city: business.city ?? "",
-    logoUrl: business.logoUrl ?? "",
+    imageUrl: business.imageUrl ?? "",
     description: business.description ?? "",
   };
 }
@@ -62,11 +126,16 @@ function mapStatusToBadge(status: BusinessStatus | undefined) {
 export default function CompanyAccount() {
   const [form, setForm] = useState<CompanyAccountForm>(emptyForm);
   const [originalForm, setOriginalForm] = useState<CompanyAccountForm>(emptyForm);
+  const [openingHours, setOpeningHours] = useState<OpeningHoursState>(defaultOpeningHours);
+  const [originalOpeningHours, setOriginalOpeningHours] = useState<OpeningHoursState>(defaultOpeningHours);
+  const [groupWeekdays, setGroupWeekdays] = useState(true);
+  const [weekdayGroup, setWeekdayGroup] = useState<OpeningHoursDayValue>({ closed: false, from: "09:00", to: "17:00" });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [businessId, setActiveBusinessId] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState<string>("");
   const [status, setStatus] = useState<BusinessStatus | undefined>(undefined);
+  const monochrome = useMonochrome();
 
   const updateField = (field: keyof CompanyAccountForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -104,11 +173,15 @@ export default function CompanyAccount() {
         const resolvedCategory = business.categoryName ?? categoryById.get(business.categoryId) ?? "";
 
         const nextForm = businessToForm(business);
+        const nextOpeningHours = toOpeningHoursState(business.openingHours);
         setActiveBusinessId(business.id);
         setCategoryName(resolvedCategory);
         setStatus(business.status);
         setForm(nextForm);
         setOriginalForm(nextForm);
+        setOpeningHours(nextOpeningHours);
+        setOriginalOpeningHours(nextOpeningHours);
+        setWeekdayGroup({ ...nextOpeningHours.monday });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Kunde inte ladda kontoinformation.";
         toast.error(message);
@@ -161,7 +234,18 @@ export default function CompanyAccount() {
     }
 
     const trimmedWebsite = form.website.trim();
-    const trimmedLogoUrl = form.logoUrl.trim();
+    const trimmedImageUrl = form.imageUrl.trim();
+    const effectiveOpeningHours: OpeningHoursState = groupWeekdays
+      ? {
+          ...openingHours,
+          monday: { ...weekdayGroup },
+          tuesday: { ...weekdayGroup },
+          wednesday: { ...weekdayGroup },
+          thursday: { ...weekdayGroup },
+          friday: { ...weekdayGroup },
+        }
+      : openingHours;
+    const openingHoursPayload = toOpeningHoursPayload(effectiveOpeningHours);
 
     setIsSaving(true);
     try {
@@ -173,7 +257,8 @@ export default function CompanyAccount() {
         website: trimmedWebsite ? trimmedWebsite : null,
         address: trimmedAddress,
         city: trimmedCity,
-        logoUrl: trimmedLogoUrl ? trimmedLogoUrl : null,
+        imageUrl: trimmedImageUrl ? trimmedImageUrl : undefined,
+        openingHours: openingHoursPayload,
       });
 
       const nextForm = businessToForm({
@@ -199,10 +284,15 @@ export default function CompanyAccount() {
 
   const handleReset = () => {
     setForm(originalForm);
+    setOpeningHours(originalOpeningHours);
+    setWeekdayGroup({ ...originalOpeningHours.monday });
     toast.info("Ändringar återställda.");
   };
 
-  const isDirty = JSON.stringify(form) !== JSON.stringify(originalForm);
+  const isDirty =
+    JSON.stringify(form) !== JSON.stringify(originalForm) ||
+    JSON.stringify(openingHours) !== JSON.stringify(originalOpeningHours) ||
+    (groupWeekdays && JSON.stringify(weekdayGroup) !== JSON.stringify(originalOpeningHours.monday));
 
   return (
     <div className="space-y-6 max-w-full min-w-0">
@@ -225,6 +315,275 @@ export default function CompanyAccount() {
       <form onSubmit={handleSave} className="space-y-4">
         <Card className="bg-card border-border">
           <CardHeader>
+            <CardTitle className="text-foreground">Utseende</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Moon className="h-4 w-4 text-muted-foreground" />
+                  Svartvitt läge
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Gör hela företagspanelen svartvit (black &amp; white).
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-pressed={monochrome}
+                onClick={() => {
+                  setMonochromeEnabled(!monochrome);
+                }}
+                className={cn(
+                  "inline-flex h-10 items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
+                  monochrome
+                    ? "border-accent bg-accent text-accent-foreground"
+                    : "border-border bg-background text-foreground hover:bg-accent/15",
+                )}
+              >
+                <span
+                  className={cn(
+                    "grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+                    monochrome
+                      ? "border-accent-foreground/30 bg-accent-foreground/10"
+                      : "border-border bg-background/40",
+                  )}
+                  aria-hidden="true"
+                >
+                  {monochrome ? "✓" : ""}
+                </span>
+                {monochrome ? "På" : "Av"}
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground">Öppettider</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-foreground">Samma tider Mån–Fre</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Komprimerar vardagar till en rad.
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-pressed={groupWeekdays}
+                onClick={() => {
+                  const next = !groupWeekdays;
+                  setGroupWeekdays(next);
+                  if (next) setWeekdayGroup({ ...openingHours.monday });
+                }}
+                className={cn(
+                  "inline-flex h-10 items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
+                  groupWeekdays
+                    ? "border-accent bg-accent text-accent-foreground"
+                    : "border-border bg-background text-foreground hover:bg-accent/15",
+                )}
+              >
+                <span
+                  className={cn(
+                    "grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+                    groupWeekdays
+                      ? "border-accent-foreground/30 bg-accent-foreground/10"
+                      : "border-border bg-background/40",
+                  )}
+                  aria-hidden="true"
+                >
+                  {groupWeekdays ? "✓" : ""}
+                </span>
+                {groupWeekdays ? "På" : "Av"}
+              </button>
+            </div>
+
+            <div className="space-y-2 rounded-xl border border-border bg-background/40 p-3">
+              <div className="space-y-2">
+                {groupWeekdays ? (
+                  <div className="grid grid-cols-[170px_1fr] items-center gap-2 rounded-lg bg-background/60 p-2">
+                    <button
+                      type="button"
+                      aria-pressed={weekdayGroup.closed}
+                      onClick={() => setWeekdayGroup((prev) => ({ ...prev, closed: !prev.closed }))}
+                      className={cn(
+                        "inline-flex h-10 w-full items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
+                        weekdayGroup.closed
+                          ? "border-destructive bg-destructive text-destructive-foreground"
+                          : "border-border bg-background text-foreground hover:bg-accent/15",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+                          weekdayGroup.closed
+                            ? "border-destructive-foreground/30 bg-destructive-foreground/10"
+                            : "border-border bg-background/40",
+                        )}
+                        aria-hidden="true"
+                      >
+                        {weekdayGroup.closed ? "✕" : ""}
+                      </span>
+                      <span className="flex flex-col items-start leading-tight">
+                        <span>Mån–Fre</span>
+                        <span className={cn("text-[11px] font-medium", weekdayGroup.closed ? "text-destructive-foreground/80" : "text-muted-foreground")}>
+                          {weekdayGroup.closed ? "Stängt" : "Öppet"}
+                        </span>
+                      </span>
+                    </button>
+
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                      <TimePicker
+                        label="Välj starttid"
+                        disabled={weekdayGroup.closed || isLoading}
+                        value={weekdayGroup.from}
+                        onChange={(from) => setWeekdayGroup((prev) => ({ ...prev, from }))}
+                      />
+                      <span className="text-xs text-muted-foreground text-center">–</span>
+                      <TimePicker
+                        label="Välj sluttid"
+                        disabled={weekdayGroup.closed || isLoading}
+                        value={weekdayGroup.to}
+                        onChange={(to) => setWeekdayGroup((prev) => ({ ...prev, to }))}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  weekdayKeys.map((dayKey) => {
+                    const value = openingHours[dayKey];
+                    return (
+                      <div key={dayKey} className="grid grid-cols-[170px_1fr] items-center gap-2 rounded-lg bg-background/60 p-2">
+                        <button
+                          type="button"
+                          aria-pressed={value.closed}
+                          disabled={isLoading}
+                          onClick={() =>
+                            setOpeningHours((prev) => ({
+                              ...prev,
+                              [dayKey]: { ...prev[dayKey], closed: !prev[dayKey].closed },
+                            }))
+                          }
+                          className={cn(
+                            "inline-flex h-10 w-full items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors disabled:opacity-50",
+                            value.closed
+                              ? "border-destructive bg-destructive text-destructive-foreground"
+                              : "border-border bg-background text-foreground hover:bg-accent/15",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+                              value.closed
+                                ? "border-destructive-foreground/30 bg-destructive-foreground/10"
+                                : "border-border bg-background/40",
+                            )}
+                            aria-hidden="true"
+                          >
+                            {value.closed ? "✕" : ""}
+                          </span>
+                          <span className="flex flex-col items-start leading-tight">
+                            <span>{openingHoursLabels[dayKey]}</span>
+                            <span className={cn("text-[11px] font-medium", value.closed ? "text-destructive-foreground/80" : "text-muted-foreground")}>
+                              {value.closed ? "Stängt" : "Öppet"}
+                            </span>
+                          </span>
+                        </button>
+
+                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                          <TimePicker
+                            label="Välj starttid"
+                            disabled={value.closed || isLoading}
+                            value={value.from}
+                            onChange={(from) =>
+                              setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
+                            }
+                          />
+                          <span className="text-xs text-muted-foreground text-center">–</span>
+                          <TimePicker
+                            label="Välj sluttid"
+                            disabled={value.closed || isLoading}
+                            value={value.to}
+                            onChange={(to) =>
+                              setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+
+                {weekendKeys.map((dayKey) => {
+                  const value = openingHours[dayKey];
+                  return (
+                    <div key={dayKey} className="grid grid-cols-[170px_1fr] items-center gap-2 rounded-lg bg-background/60 p-2">
+                      <button
+                        type="button"
+                        aria-pressed={value.closed}
+                        disabled={isLoading}
+                        onClick={() =>
+                          setOpeningHours((prev) => ({
+                            ...prev,
+                            [dayKey]: { ...prev[dayKey], closed: !prev[dayKey].closed },
+                          }))
+                        }
+                        className={cn(
+                          "inline-flex h-10 w-full items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors disabled:opacity-50",
+                          value.closed
+                            ? "border-destructive bg-destructive text-destructive-foreground"
+                            : "border-border bg-background text-foreground hover:bg-accent/15",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+                            value.closed
+                              ? "border-destructive-foreground/30 bg-destructive-foreground/10"
+                              : "border-border bg-background/40",
+                          )}
+                          aria-hidden="true"
+                        >
+                          {value.closed ? "✕" : ""}
+                        </span>
+                        <span className="flex flex-col items-start leading-tight">
+                          <span>{openingHoursLabels[dayKey]}</span>
+                          <span className={cn("text-[11px] font-medium", value.closed ? "text-destructive-foreground/80" : "text-muted-foreground")}>
+                            {value.closed ? "Stängt" : "Öppet"}
+                          </span>
+                        </span>
+                      </button>
+
+                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                        <TimePicker
+                          label="Välj starttid"
+                          disabled={value.closed || isLoading}
+                          value={value.from}
+                          onChange={(from) =>
+                            setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
+                          }
+                        />
+                        <span className="text-xs text-muted-foreground text-center">–</span>
+                        <TimePicker
+                          label="Välj sluttid"
+                          disabled={value.closed || isLoading}
+                          value={value.to}
+                          onChange={(to) =>
+                            setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
+          <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
               <Building2 className="h-5 w-5 text-accent" />
               Företagsinformation
@@ -245,21 +604,21 @@ export default function CompanyAccount() {
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground flex items-center gap-2">
                 <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                Logo URL <span className="text-xs text-muted-foreground">(valfri)</span>
+                Bild URL <span className="text-xs text-muted-foreground">(valfri)</span>
               </label>
               <Input
-                value={form.logoUrl}
-                onChange={(e) => updateField("logoUrl", e.target.value)}
+                value={form.imageUrl}
+                onChange={(e) => updateField("imageUrl", e.target.value)}
                 disabled={isLoading}
-                placeholder="https://example.com/logo.png"
+                placeholder="https://example.com/image.png"
                 className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
               />
-              {form.logoUrl.trim() && (
+              {form.imageUrl.trim() && (
                 <div className="mt-2 flex items-center gap-3">
                   <div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
                     <img
-                      src={form.logoUrl}
-                      alt="Logo preview"
+                      src={form.imageUrl}
+                      alt="Image preview"
                       className="h-full w-full object-contain"
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).style.display = "none";

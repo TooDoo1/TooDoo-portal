@@ -6,6 +6,7 @@ const TOKEN_STORAGE_KEY = "toodoo_jwt";
 const USER_EMAIL_STORAGE_KEY = "toodoo_user_email";
 const USER_ROLE_STORAGE_KEY = "toodoo_user_role";
 const BUSINESS_ID_STORAGE_KEY = "toodoo_business_id";
+const WORKER_INVITE_TOKEN_SESSION_KEY = "toodoo_worker_invite_token";
 
 type ApiErrorShape = {
   error?: string;
@@ -65,7 +66,10 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, withAuth = fa
   const payload = contentType.includes("application/json") ? await response.json() : null;
 
   if (!response.ok) {
-    throw toApiError(payload, `Request failed (${response.status})`);
+    const apiError = toApiError(payload, `Request failed (${response.status})`);
+    // Attach high-signal context to the message so UI errors are actionable.
+    apiError.message = `${apiError.message} [${response.status} ${init.method ?? "GET"} ${path}]`;
+    throw apiError;
   }
 
   return payload as T;
@@ -116,6 +120,45 @@ export function setBusinessId(id: string) {
   localStorage.setItem(BUSINESS_ID_STORAGE_KEY, id);
 }
 
+export function clearBusinessId() {
+  localStorage.removeItem(BUSINESS_ID_STORAGE_KEY);
+}
+
+/**
+ * Clear all auth-related storage used by the portal.
+ * Call this on logout and when tokens are invalid/expired.
+ */
+export function clearAuthStorage() {
+  clearAuthToken();
+  clearAuthIdentity();
+  clearBusinessId();
+  try {
+    sessionStorage.removeItem(WORKER_INVITE_TOKEN_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Resolve the current manager's businessId.
+ * Prefers localStorage, falls back to GET /user/:email and stores it.
+ */
+export async function resolveBusinessId() {
+  let resolved = getBusinessId();
+  if (resolved) return resolved;
+
+  const email = getAuthEmail();
+  if (!email) return null;
+
+  const user = await getUserByEmail(email);
+  if (user.businessId) {
+    setBusinessId(user.businessId);
+    return user.businessId;
+  }
+
+  return null;
+}
+
 export type HealthResponse = { ok?: boolean; status?: string; [key: string]: unknown };
 export type Category = { id: string; name: string; icon?: string | null };
 
@@ -125,6 +168,8 @@ export type RegisterRequest = {
   gender?: string;
   firstName?: string;
   lastName?: string;
+  birthDate?: string;
+  interests?: string[];
   businessId?: string;
 };
 
@@ -187,7 +232,8 @@ export type CreateBusinessRequest = {
   website?: string;
   address: string;
   city: string;
-  logoUrl?: string;
+  imageUrl?: string;
+  openingHours?: Record<string, unknown>;
   categoryId: string;
 };
 
@@ -199,7 +245,8 @@ export type UpdateBusinessRequest = {
   website?: string | null;
   address?: string;
   city?: string;
-  logoUrl?: string | null;
+  imageUrl?: string;
+  openingHours?: Record<string, unknown>;
 };
 
 export type BusinessStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -213,13 +260,75 @@ export type Business = {
   website?: string | null;
   address: string;
   city: string;
-  logoUrl?: string | null;
+  imageUrl?: string | null;
+  openingHours?: Record<string, unknown> | null;
   categoryId: string;
   categoryName?: string;
   status?: BusinessStatus;
   createdAt?: string;
   updatedAt?: string;
 };
+
+// --- FöretagsAPI.se (frontend direct) ---
+type ForetagsApiCompany = {
+  name: string;
+  orgNumber: string;
+  score?: number;
+  postalAddress?: {
+    street?: string;
+    postalCode?: string;
+    city?: string;
+  };
+};
+
+type ForetagsApiSearchResponse = {
+  companies?: ForetagsApiCompany[];
+};
+
+function getForetagsApiKey() {
+  const key = (import.meta.env.VITE_FORETAGS_API_KEY as string | undefined)?.trim();
+  if (!key) {
+    throw new ApiError("Saknar FöretagsAPI-nyckel (VITE_FORETAGS_API_KEY).");
+  }
+  return key;
+}
+
+export function normalizeOrgNumber(input: string) {
+  return (input ?? "").replace(/[^\d]/g, "").trim();
+}
+
+export async function searchCompaniesByOrgNumber(orgNumber: string, limit = 5) {
+  const normalized = normalizeOrgNumber(orgNumber);
+  if (!normalized) {
+    throw new ApiError("Fyll i organisationsnummer.");
+  }
+
+  const response = await fetch("https://data.foretagsapi.se/v1/search", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getForetagsApiKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      org_number: normalized,
+      limit,
+    }),
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  const payload = contentType.includes("application/json") ? ((await response.json()) as unknown) : null;
+
+  if (!response.ok) {
+    const message =
+      (payload as { error?: string; message?: string } | null)?.error ||
+      (payload as { error?: string; message?: string } | null)?.message ||
+      `FöretagsAPI request failed (${response.status})`;
+    throw new ApiError(message);
+  }
+
+  const data = (payload ?? {}) as ForetagsApiSearchResponse;
+  return (Array.isArray(data.companies) ? data.companies : []) as ForetagsApiCompany[];
+}
 
 export type Order = {
   id: string;
@@ -262,6 +371,35 @@ export type UpdateOrderRequest = {
   validTo?: string;
   maxRedemptions?: number;
   isActive?: boolean;
+};
+
+export type OrderPreset = {
+  id: string;
+  title: string;
+  description: string;
+  price: number | string;
+  originalPrice?: number | string | null;
+  imageUrl?: string | null;
+  maxRedemptions?: number;
+  isArchived?: boolean;
+  businessId: string;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+};
+
+export type CreateOrderPresetRequest = {
+  title: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  imageUrl?: string;
+  maxRedemptions?: number;
+};
+
+export type ListOrderPresetsResponse = {
+  presets: OrderPreset[];
+  total?: number;
 };
 
 export type ClaimResponse = {
@@ -421,6 +559,10 @@ export async function listBusinesses(status?: BusinessStatus) {
   return apiRequest<Business[]>(`/business${query}`, { method: "GET" });
 }
 
+export async function getBusinessById(id: string) {
+  return apiRequest<Business>(`/business/${encodeURIComponent(id)}`, { method: "GET" }, true);
+}
+
 export async function updateBusinessStatus(id: string, status: BusinessStatus) {
   return apiRequest<Business>(
     `/business/${encodeURIComponent(id)}/status`,
@@ -467,6 +609,30 @@ export async function listOrders(categoryName?: string, businessId?: string) {
   }
   const query = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<Order[]>(`/orders${query}`, { method: "GET" });
+}
+
+export async function createOrderPreset(body: CreateOrderPresetRequest) {
+  return apiRequest<OrderPreset>("/order-presets", {
+    method: "POST",
+    body: JSON.stringify(body),
+  }, true);
+}
+
+export async function listOrderPresets(params: { skip?: number; take?: number; includeArchived?: boolean } = {}) {
+  const query = new URLSearchParams();
+  if (typeof params.skip === "number") query.set("skip", String(params.skip));
+  if (typeof params.take === "number") query.set("take", String(params.take));
+  if (typeof params.includeArchived === "boolean") query.set("includeArchived", params.includeArchived ? "true" : "false");
+  const qs = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<ListOrderPresetsResponse | OrderPreset[]>(`/order-presets${qs}`, { method: "GET" }, true);
+}
+
+export async function deleteOrderPreset(orderPresetId: string) {
+  return apiRequest<Record<string, unknown>>(
+    `/order-presets/${encodeURIComponent(orderPresetId)}`,
+    { method: "DELETE" },
+    true,
+  );
 }
 
 export async function getOrderById(orderId: string) {

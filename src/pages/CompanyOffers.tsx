@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Edit, Trash2, Eye, MousePointer, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -6,18 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { deleteOrder, getBusinessId, listOrders, type Order } from "@/lib/api";
+import { deleteOrder, deleteOrderPreset, listOrderPresets, listOrders, resolveBusinessId, type Order, type OrderPreset } from "@/lib/api";
 import { toast } from "sonner";
 
-type FilterStatus = "all" | "active" | "draft" | "archived";
+type FilterStatus = "all" | "active" | "draft" | "presets";
 
 type Offer = {
   id: string;
   companyId: string;
   title: string;
-  description: string;
-  detailedDescription: string;
-  category: string;
   status: "active" | "draft" | "archived";
   createdAt: string;
   startsAt: string;
@@ -31,28 +28,39 @@ type Offer = {
   discountedPrice: number;
 };
 
+type Preset = {
+  id: string;
+  title: string;
+  price: number;
+  originalPrice?: number;
+  maxRedemptions?: number;
+  createdAt?: string;
+};
+
 const parsePrice = (value: number | string | null | undefined) => {
   const num = Number(value ?? 0);
   return Number.isFinite(num) ? num : 0;
+};
+
+const pickFirstNumber = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return null;
+};
+
+const getOrderMetric = (order: Order, keys: string[]): number | null => {
+  for (const key of keys) {
+    const v = (order as unknown as Record<string, unknown>)[key];
+    const num = pickFirstNumber(v);
+    if (num !== null) return num;
+  }
+  return null;
 };
 
 const mapOrderToOffer = (order: Order): Offer => {
   const claimsTotal = typeof order.maxRedemptions === "number" ? order.maxRedemptions : 100;
   const price = parsePrice(order.price);
   const originalPrice = parsePrice(order.originalPrice);
-  const rawDescription = typeof order.description === "string" ? order.description : "";
-  const rawDetailedDescription = typeof order.detailedDescription === "string" ? order.detailedDescription.trim() : "";
-
-  // Backward compatibility: older orders stored short + detailed text in description separated by a blank line.
-  let shortDescription = rawDescription.trim();
-  let detailedDescription = rawDetailedDescription;
-  if (!detailedDescription) {
-    const parts = rawDescription.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
-    if (parts.length > 1) {
-      shortDescription = parts[0];
-      detailedDescription = parts.slice(1).join("\n\n");
-    }
-  }
 
   const now = Date.now();
   const startTime = new Date(order.orderTimeFrom || order.validFrom || 0).getTime();
@@ -65,26 +73,43 @@ const mapOrderToOffer = (order: Order): Offer => {
         ? "draft"
         : "active";
 
+  const claimed =
+    getOrderMetric(order, ["claimsClaimed", "claimedCount", "claimsCreated", "claimCount", "qrCount"]) ??
+    0;
+  const used =
+    getOrderMetric(order, ["claimsUsed", "usedCount", "redeemedCount", "redemptionCount"]) ??
+    0;
+
   return {
     id: order.id,
     companyId: order.businessId,
     title: order.title,
-    description: shortDescription,
-    detailedDescription,
-    category: typeof order.categoryName === "string" ? order.categoryName : "Okategoriserad",
     status,
     createdAt: order.orderTimeFrom || order.validFrom,
     startsAt: order.orderTimeFrom || order.validFrom,
     expiresAt: order.orderTimeTo || order.validTo,
     views: 0,
     clicks: 0,
-    claimsClaimed: 0,
-    claimsUsed: 0,
+    // If backend doesn't send claimed counts, fall back to used (at least redeems update).
+    claimsClaimed: Math.max(0, Math.floor(claimed || used)),
+    claimsUsed: Math.max(0, Math.floor(used)),
     claimsTotal,
     originalPrice,
     discountedPrice: price,
   };
 };
+
+const mapPreset = (preset: OrderPreset): Preset => ({
+  id: preset.id,
+  title: typeof preset.title === "string" ? preset.title : "",
+  price: parsePrice(preset.price),
+  originalPrice:
+    typeof preset.originalPrice === "number" || typeof preset.originalPrice === "string"
+      ? Number(preset.originalPrice)
+      : undefined,
+  maxRedemptions: typeof preset.maxRedemptions === "number" ? preset.maxRedemptions : undefined,
+  createdAt: typeof preset.createdAt === "string" ? preset.createdAt : undefined,
+});
 
 function CountdownTimer({ status, startsAt, expiresAt }: { status: Offer["status"]; startsAt: string; expiresAt: string }) {
   const [timeLeft, setTimeLeft] = useState("");
@@ -135,39 +160,68 @@ function CountdownTimer({ status, startsAt, expiresAt }: { status: Offer["status
 export default function CompanyOffers() {
   const navigate = useNavigate();
   const [offers, setOffers] = useState<Offer[]>([]);
+  const [presets, setPresets] = useState<Preset[]>([]);
   const [deleteLoading, setDeleteLoading] = useState<Record<string, boolean>>({});
+  const [presetDeleteLoading, setPresetDeleteLoading] = useState<Record<string, boolean>>({});
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [offerToDelete, setOfferToDelete] = useState<Offer | null>(null);
-  const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
+  const [presetToDelete, setPresetToDelete] = useState<Preset | null>(null);
 
-  useEffect(() => {
-    const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
       try {
-        const businessId = getBusinessId();
-        const orders = await listOrders(undefined, businessId ?? undefined);
+        const businessId = await resolveBusinessId();
+        if (!businessId) {
+          setOffers([]);
+          setPresets([]);
+          toast.error("Saknar businessId. Logga in igen.");
+          return;
+        }
+        const [orders, presetsResponse] = await Promise.all([
+          listOrders(undefined, businessId),
+          listOrderPresets({ take: 50, skip: 0 }),
+        ]);
 
-        const filteredOrders = businessId
-          ? orders.filter((order) => order.businessId === businessId)
-          : orders;
+        const presetsArray = Array.isArray(presetsResponse)
+          ? presetsResponse
+          : Array.isArray((presetsResponse as { presets?: OrderPreset[] }).presets)
+            ? (presetsResponse as { presets: OrderPreset[] }).presets
+            : [];
 
-        const sortedOrders = [...filteredOrders].sort((a, b) => {
+        const sortedOrders = [...orders].sort((a, b) => {
           const aTime = new Date(a.orderTimeFrom || a.validFrom || 0).getTime();
           const bTime = new Date(b.orderTimeFrom || b.validFrom || 0).getTime();
           return bTime - aTime;
         });
 
         setOffers(sortedOrders.map(mapOrderToOffer));
+        setPresets(presetsArray.map(mapPreset));
       } catch {
         setOffers([]);
+        setPresets([]);
       }
-    };
-
-    void fetchOrders();
   }, []);
+
+  useEffect(() => {
+    void fetchOrders();
+
+    // Keep counters fresh when users claim offers.
+    const interval = window.setInterval(() => {
+      void fetchOrders();
+    }, 15000);
+
+    const onFocus = () => void fetchOrders();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [fetchOrders]);
 
   const filteredOffers = offers.filter((offer) => {
     if (filterStatus === "all") return true;
+    if (filterStatus === "presets") return false;
     return offer.status === filterStatus;
   });
 
@@ -186,8 +240,18 @@ export default function CompanyOffers() {
     }
   };
 
-  const toggleDescription = (offerId: string) => {
-    setExpandedDescriptions((prev) => ({ ...prev, [offerId]: !prev[offerId] }));
+  const handleDeletePreset = async (preset: Preset) => {
+    setPresetDeleteLoading((prev) => ({ ...prev, [preset.id]: true }));
+    try {
+      await deleteOrderPreset(preset.id);
+      setPresets((prev) => prev.filter((p) => p.id !== preset.id));
+      toast.success(`Preset "${preset.title}" har tagits bort.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte ta bort preset.";
+      toast.error(message);
+    } finally {
+      setPresetDeleteLoading((prev) => ({ ...prev, [preset.id]: false }));
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -287,7 +351,7 @@ export default function CompanyOffers() {
 
       
       <div className="flex gap-2 flex-wrap">
-        {(["all", "active", "draft", "archived"] as FilterStatus[]).map((status) => (
+        {(["all", "active", "draft", "presets"] as FilterStatus[]).map((status) => (
           <Button
             key={status}
             variant={filterStatus === status ? "default" : "outline"}
@@ -300,21 +364,71 @@ export default function CompanyOffers() {
                 ? "Aktiva"
                 : status === "draft"
                   ? "Utkast"
-                  : "Arkiverade"}
-            {status !== "all" && ` (${offers.filter((o) => o.status === status).length})`}
+                  : "Preset erbjudanden"}
+            {status !== "all" && status !== "presets" && ` (${offers.filter((o) => o.status === status).length})`}
+            {status === "presets" && ` (${presets.length})`}
           </Button>
         ))}
       </div>
 
       
-      {filteredOffers.length === 0 ? (
+      {filterStatus === "presets" ? (
+        presets.length === 0 ? (
+          <Card className="bg-card border-border">
+            <CardHeader className="text-center py-12">
+              <CardTitle className="text-foreground">Inga presets än</CardTitle>
+              <CardDescription className="mt-2">
+                Skapa ett preset från “Nytt erbjudande” med knappen “Skapa preset”.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {presets.map((preset) => (
+              <Card key={preset.id} className="bg-card border-border card-hover">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-semibold text-foreground truncate">{preset.title}</h3>
+                      <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>Max kuponger: {typeof preset.maxRedemptions === "number" ? preset.maxRedemptions : "-"}</span>
+                        {preset.createdAt ? (
+                          <span>Skapad: {new Date(preset.createdAt).toLocaleDateString("sv-SE")}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0 text-right space-y-1">
+                      {typeof preset.originalPrice === "number" ? (
+                        <div className="text-xs text-muted-foreground line-through">{preset.originalPrice} kr</div>
+                      ) : null}
+                      <div className="text-sm font-semibold text-accent">{preset.price} kr</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center justify-end">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="bg-[#ff3b30] hover:bg-[#ff3b30]/70 text-white gap-2"
+                      onClick={() => setPresetToDelete(preset)}
+                      disabled={!!presetDeleteLoading[preset.id]}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {presetDeleteLoading[preset.id] ? "Tar bort..." : "Ta bort"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      ) : filteredOffers.length === 0 ? (
         <Card className="bg-card border-border">
           <CardHeader className="text-center py-12">
             <CardTitle className="text-foreground">Inga erbjudanden än</CardTitle>
             <CardDescription className="mt-2">
               {filterStatus === "all"
                 ? "Du har inte skapat något erbjudande än. Börja med att skapa ett nytt erbjudande."
-                : `Du har inga ${filterStatus === "active" ? "aktiva" : filterStatus === "draft" ? "utkast" : "arkiverade"} erbjudanden.`}
+                : `Du har inga ${filterStatus === "active" ? "aktiva" : "utkast"} erbjudanden.`}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -325,7 +439,6 @@ export default function CompanyOffers() {
             const availableClaims = offer.claimsTotal - offer.claimsClaimed;
             const claimedNotUsed = Math.max(offer.claimsClaimed - offer.claimsUsed, 0);
             const earnings = offer.claimsUsed * offer.discountedPrice;
-            const hasDetailedDescription = offer.detailedDescription.trim().length > 0;
 
             return (
               <Card
@@ -344,27 +457,6 @@ export default function CompanyOffers() {
                             {getStatusLabel(offer.status)}
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {offer.description}
-                          {hasDetailedDescription ? (
-                            <>
-                              {" "}
-                              <button
-                                type="button"
-                                className="font-medium text-accent hover:text-accent/80"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleDescription(offer.id);
-                                }}
-                              >
-                                {expandedDescriptions[offer.id] ? "Mindre" : "Mer"}
-                              </button>
-                            </>
-                          ) : null}
-                        </p>
-                        {hasDetailedDescription && expandedDescriptions[offer.id] && (
-                          <p className="mt-2 text-sm text-muted-foreground">{offer.detailedDescription}</p>
-                        )}
                       </div>
                       <div className="flex-shrink-0 text-right space-y-2">
                         <CountdownTimer status={offer.status} startsAt={offer.startsAt} expiresAt={offer.expiresAt} />
@@ -481,6 +573,23 @@ export default function CompanyOffers() {
           const current = offerToDelete;
           setOfferToDelete(null);
           void handleDeleteOffer(current);
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!presetToDelete}
+        onOpenChange={(open) => {
+          if (!open) setPresetToDelete(null);
+        }}
+        title="Ta bort preset?"
+        description={presetToDelete ? `Detta tar bort \"${presetToDelete.title}\" permanent.` : "Detta tar bort presetet permanent."}
+        confirmLabel="Ja, ta bort"
+        variant="destructive"
+        onConfirm={() => {
+          if (!presetToDelete) return;
+          const current = presetToDelete;
+          setPresetToDelete(null);
+          void handleDeletePreset(current);
         }}
       />
     </div>

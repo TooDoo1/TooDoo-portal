@@ -1,11 +1,17 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AdminLayout } from "@/components/AdminLayout";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { applyMonochrome } from "@/lib/monochrome";
+
+const AdminLayout = lazy(() =>
+  import("./components/AdminLayout").then((m) => ({ default: m.AdminLayout })),
+);
+const ProtectedRoute = lazy(() =>
+  import("./components/ProtectedRoute").then((m) => ({ default: m.ProtectedRoute })),
+);
 
 const Index = lazy(() => import("./pages/Index"));
 const LandingPage = lazy(() => import("./pages/Landingpage"));
@@ -26,6 +32,14 @@ const WorkerOnboard = lazy(() => import("./pages/WorkerOnboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
+
+function PrivateLayout() {
+  return (
+    <AdminLayout>
+      <Outlet />
+    </AdminLayout>
+  );
+}
 
 function RouteLoadingFallback() {
   const [showLoader, setShowLoader] = useState(false);
@@ -56,47 +70,52 @@ function RouteLoadingFallback() {
   );
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AdminLayout>
+const App = () => {
+  useEffect(() => {
+    applyMonochrome();
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
           <Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
               <Route path="/" element={<LandingPage />} />
-              <Route path="/" element={<LoggIn />} />
               <Route path="/login" element={<LoggIn />} />
               <Route path="/registration" element={<Registration />} />
               <Route path="/manager-registration" element={<ManagerRegistration />} />
               <Route path="/manager/onboard" element={<ManagerRegistration />} />
               <Route path="/worker/onboard" element={<WorkerOnboard />} />
 
-              <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
-                <Route path="/admin" element={<Index />} />
-                <Route path="/admin/logs" element={<AdminLogs />} />
-                <Route path="/companies" element={<Companies />} />
-                <Route path="/pending" element={<Pending />} />
-                <Route path="/category/:name" element={<CategoryPage />} />
-              </Route>
+              <Route element={<PrivateLayout />}>
+                <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
+                  <Route path="/admin" element={<Index />} />
+                  <Route path="/admin/logs" element={<AdminLogs />} />
+                  <Route path="/companies" element={<Companies />} />
+                  <Route path="/pending" element={<Pending />} />
+                  <Route path="/category/:name" element={<CategoryPage />} />
+                </Route>
 
-              <Route element={<ProtectedRoute allowedRoles={["MANAGER"]} />}>
-                <Route path="/company" element={<CompanyDashboard />} />
-                <Route path="/company/offers" element={<CompanyOffers />} />
-                <Route path="/company/offers/new" element={<CompanyNewOffer />} />
-                <Route path="/company/verification" element={<CompanyVerification />} />
-                <Route path="/company/account" element={<CompanyAccount />} />
-                <Route path="/company/workers/new" element={<WorkerCreation />} />
+                <Route element={<ProtectedRoute allowedRoles={["MANAGER"]} />}>
+                  <Route path="/company" element={<CompanyDashboard />} />
+                  <Route path="/company/offers" element={<CompanyOffers />} />
+                  <Route path="/company/offers/new" element={<CompanyNewOffer />} />
+                  <Route path="/company/verification" element={<CompanyVerification />} />
+                  <Route path="/company/account" element={<CompanyAccount />} />
+                  <Route path="/company/workers/new" element={<WorkerCreation />} />
+                </Route>
               </Route>
 
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
-        </AdminLayout>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

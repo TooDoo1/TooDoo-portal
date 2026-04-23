@@ -9,9 +9,11 @@ import { cn } from "@/lib/utils";
 import {
 	createBusiness,
 	listCategories,
+	searchCompaniesByOrgNumber,
 	setBusinessId,
 } from "@/lib/api";
 import { toast } from "sonner";
+import { TimePicker } from "@/components/TimePicker";
 
 const shootingStars = [
 	{ top: "0%", left: "6%", delay: "-0.2s", duration: "5.1s" },
@@ -40,8 +42,49 @@ export default function Registration() {
 	const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+	const [orgNumber, setOrgNumber] = useState("");
+	const [orgSearchLoading, setOrgSearchLoading] = useState(false);
+	const [orgSearchResults, setOrgSearchResults] = useState<
+		Array<{
+			name: string;
+			orgNumber: string;
+			addressLine: string;
+			city: string;
+			street: string;
+		}>
+	>([]);
+	const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(null);
 	const navigate = useNavigate();
 	const longDescRef = useRef<HTMLTextAreaElement>(null);
+	const [openingHours, setOpeningHours] = useState<Record<
+		"monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday",
+		{ closed: boolean; from: string; to: string }
+	>>({
+		monday: { closed: false, from: "09:00", to: "17:00" },
+		tuesday: { closed: false, from: "09:00", to: "17:00" },
+		wednesday: { closed: false, from: "09:00", to: "17:00" },
+		thursday: { closed: false, from: "09:00", to: "17:00" },
+		friday: { closed: false, from: "09:00", to: "17:00" },
+		saturday: { closed: true, from: "09:00", to: "17:00" },
+		sunday: { closed: true, from: "09:00", to: "17:00" },
+	});
+	const [groupWeekdays, setGroupWeekdays] = useState(true);
+	const [weekdayGroup, setWeekdayGroup] = useState<{ closed: boolean; from: string; to: string }>({
+		closed: false,
+		from: "09:00",
+		to: "17:00",
+	});
+	const openingHoursLabels: Record<keyof typeof openingHours, string> = {
+		monday: "Måndag",
+		tuesday: "Tisdag",
+		wednesday: "Onsdag",
+		thursday: "Torsdag",
+		friday: "Fredag",
+		saturday: "Lördag",
+		sunday: "Söndag",
+	};
+	const weekdayKeys: Array<keyof typeof openingHours> = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+	const weekendKeys: Array<keyof typeof openingHours> = ["saturday", "sunday"];
 	const companyOptions = [
 		{ value: "toodoo-ab", label: "TooDoo AB" },
 		{ value: "ikea", label: "IKEA" },
@@ -125,7 +168,10 @@ export default function Registration() {
 		const city = (document.getElementById("companyCity") as HTMLInputElement | null)?.value.trim() ?? "";
 		const address = (document.getElementById("companyAddress") as HTMLInputElement | null)?.value.trim() ?? "";
 		const longDescription = longDescRef.current?.value.trim() ?? "";
-		const companyName = companyOptions.find((option) => option.value === company)?.label || "Annat företag";
+		const companyName =
+			selectedCompanyName?.trim() ||
+			companyOptions.find((option) => option.value === company)?.label ||
+			"Annat företag";
 
 		let normalizedWebsite: string | undefined;
 		if (website) {
@@ -151,6 +197,24 @@ export default function Registration() {
 
 		setIsSubmitting(true);
 		try {
+			const effectiveOpeningHours = groupWeekdays
+				? ({
+						...openingHours,
+						monday: { ...weekdayGroup },
+						tuesday: { ...weekdayGroup },
+						wednesday: { ...weekdayGroup },
+						thursday: { ...weekdayGroup },
+						friday: { ...weekdayGroup },
+					} satisfies typeof openingHours)
+				: openingHours;
+
+			const openingHoursPayload = Object.fromEntries(
+				Object.entries(effectiveOpeningHours)
+					.filter(([, v]) => !v.closed)
+					.map(([day, v]) => [day, { from: v.from, to: v.to }]),
+			);
+			const shouldSendOpeningHours = Object.keys(openingHoursPayload).length > 0;
+
 			const businessResponse = await createBusiness({
 				name: companyName,
 				description: longDescription,
@@ -160,6 +224,7 @@ export default function Registration() {
 				address,
 				city,
 				categoryId: categoryId,
+				...(shouldSendOpeningHours ? { openingHours: openingHoursPayload } : {}),
 			});
 
 			const businessId =
@@ -180,6 +245,53 @@ export default function Registration() {
 		} finally {
 			setIsSubmitting(false);
 		}
+	};
+
+	const handleOrgSearch = async () => {
+		const raw = orgNumber.trim();
+		if (!raw) {
+			toast.error("Fyll i organisationsnummer.");
+			return;
+		}
+
+		setOrgSearchLoading(true);
+		try {
+			const companies = await searchCompaniesByOrgNumber(raw, 5);
+			const mapped = companies.map((c) => {
+				const street = c.postalAddress?.street?.trim() ?? "";
+				const postalCode = c.postalAddress?.postalCode?.trim() ?? "";
+				const city = c.postalAddress?.city?.trim() ?? "";
+				const addressLine = [street, [postalCode, city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+
+				return {
+					name: c.name,
+					orgNumber: c.orgNumber,
+					addressLine,
+					city,
+					street,
+				};
+			});
+			setOrgSearchResults(mapped);
+			if (mapped.length === 0) {
+				toast.info("Inga träffar.");
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Kunde inte söka företag.";
+			toast.error(message);
+		} finally {
+			setOrgSearchLoading(false);
+		}
+	};
+
+	const applySelectedCompany = (c: { name: string; city: string; street: string }) => {
+		setSelectedCompanyName(c.name);
+		setCompany("annat");
+		setCompanyOpen(false);
+
+		const cityInput = document.getElementById("companyCity") as HTMLInputElement | null;
+		const addressInput = document.getElementById("companyAddress") as HTMLInputElement | null;
+		if (cityInput && c.city) cityInput.value = c.city;
+		if (addressInput && c.street) addressInput.value = c.street;
 	};
 
 	return (
@@ -376,7 +488,11 @@ export default function Registration() {
 											aria-expanded={companyOpen}
 											className="h-11 w-full rounded-md border border-border bg-background px-3 text-left text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
 										>
-											{company ? companyOptions.find((option) => option.value === company)?.label : "Välj företag"}
+											{selectedCompanyName?.trim()
+												? selectedCompanyName
+												: company
+													? companyOptions.find((option) => option.value === company)?.label
+													: "Välj företag"}
 										</button>
 									</PopoverTrigger>
 									<PopoverContent className="w-[--radix-popover-trigger-width] border-border bg-popover p-0" align="start">
@@ -408,6 +524,55 @@ export default function Registration() {
 							</div>
 
 							<div className="space-y-2">
+								<label htmlFor="orgNumber" className="ml-0.5 text-sm font-semibold text-muted-foreground">
+									Organisationsnummer:
+								</label>
+								<div className="flex gap-2">
+									<Input
+										id="orgNumber"
+										value={orgNumber}
+										onChange={(e) => setOrgNumber(e.target.value)}
+										placeholder="556703-7485"
+										className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+									/>
+									<button
+										type="button"
+										disabled={orgSearchLoading}
+										onClick={handleOrgSearch}
+										className="inline-flex h-11 shrink-0 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
+									>
+										{orgSearchLoading ? "Söker..." : "Sök"}
+									</button>
+								</div>
+
+								{orgSearchResults.length > 0 ? (
+									<div className="rounded-xl border border-border bg-background/30 p-2">
+										<div className="space-y-1">
+											{orgSearchResults.map((c) => (
+												<button
+													key={`${c.orgNumber}-${c.name}`}
+													type="button"
+													onClick={() => applySelectedCompany(c)}
+													className="w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent/20"
+												>
+													<div className="flex items-center justify-between gap-3">
+														<div className="min-w-0">
+															<div className="truncate text-sm font-semibold text-foreground">{c.name}</div>
+															<div className="truncate text-xs text-muted-foreground">
+																Org.nr: {c.orgNumber}
+																{c.addressLine ? ` · ${c.addressLine}` : ""}
+															</div>
+														</div>
+														<Check className={cn("h-4 w-4 shrink-0", selectedCompanyName === c.name ? "opacity-100" : "opacity-0")} />
+													</div>
+												</button>
+											))}
+										</div>
+									</div>
+								) : null}
+							</div>
+
+							<div className="space-y-2">
 								<label htmlFor="companyCity" className="ml-0.5 text-sm font-semibold text-muted-foreground">Stad:</label>
 								<Input
 									id="companyCity"
@@ -423,6 +588,242 @@ export default function Registration() {
 									placeholder="Ange adress"
 									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
+							</div>
+
+							<div className="space-y-3 pt-2">
+								<label className="ml-0.5 text-sm font-semibold text-muted-foreground">Öppettider (valfritt):</label>
+								<div className="space-y-2 rounded-xl border border-border bg-background/30 p-3">
+									<div className="flex items-center justify-between gap-3">
+										<button
+											type="button"
+											aria-pressed={groupWeekdays}
+											onClick={() => {
+												const next = !groupWeekdays;
+												setGroupWeekdays(next);
+												if (next) {
+													// When enabling grouping, seed group values from Monday for least surprise.
+													setWeekdayGroup({ ...openingHours.monday });
+												}
+											}}
+											className={cn(
+												"inline-flex h-10 w-full items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
+												"group",
+												groupWeekdays
+													? "border-accent bg-accent text-accent-foreground"
+													: "border-border bg-background text-foreground hover:bg-accent/15",
+											)}
+										>
+											<span
+												className={cn(
+													"grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+													groupWeekdays
+														? "border-accent-foreground/30 bg-accent-foreground/10"
+														: "border-border bg-background/40",
+												)}
+												aria-hidden="true"
+											>
+												{groupWeekdays ? "✓" : ""}
+											</span>
+											<span className="flex flex-col items-start leading-tight">
+												<span>Mån–Fre</span>
+												<span className={cn("text-[11px] font-medium", groupWeekdays ? "text-accent-foreground/80" : "text-muted-foreground")}>
+													Komprimerar vardagar till en rad
+												</span>
+											</span>
+										</button>
+									</div>
+
+									<div className="grid gap-2">
+										{groupWeekdays ? (
+											<div className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg bg-background/40 p-2 sm:grid-cols-[140px_1fr]">
+												<div className="flex items-center gap-3 sm:w-[140px]">
+													<button
+														type="button"
+														aria-pressed={weekdayGroup.closed}
+														onClick={() => setWeekdayGroup((prev) => ({ ...prev, closed: !prev.closed }))}
+														className={cn(
+															"inline-flex h-10 w-full items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
+															weekdayGroup.closed
+																? "border-destructive bg-destructive text-destructive-foreground"
+																: "border-border bg-background text-foreground hover:bg-accent/15",
+														)}
+													>
+														<span
+															className={cn(
+																"grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+																weekdayGroup.closed
+																	? "border-destructive-foreground/30 bg-destructive-foreground/10"
+																	: "border-border bg-background/40",
+															)}
+															aria-hidden="true"
+														>
+															{weekdayGroup.closed ? "✕" : ""}
+														</span>
+														<span className="flex flex-col items-start leading-tight">
+															<span>Mån–Fre</span>
+															<span className={cn("text-[11px] font-medium", weekdayGroup.closed ? "text-destructive-foreground/80" : "text-muted-foreground")}>
+																{weekdayGroup.closed ? "Stängt" : "Öppet"}
+															</span>
+														</span>
+													</button>
+												</div>
+
+												<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+													<TimePicker
+														label="Välj starttid"
+														disabled={weekdayGroup.closed}
+														value={weekdayGroup.from}
+														onChange={(from) => setWeekdayGroup((prev) => ({ ...prev, from }))}
+													/>
+													<span className="text-xs text-muted-foreground text-center">–</span>
+													<TimePicker
+														label="Välj sluttid"
+														disabled={weekdayGroup.closed}
+														value={weekdayGroup.to}
+														onChange={(to) => setWeekdayGroup((prev) => ({ ...prev, to }))}
+													/>
+												</div>
+											</div>
+										) : (
+											weekdayKeys.map((dayKey) => {
+												const value = openingHours[dayKey];
+												return (
+													<div
+														key={dayKey}
+														className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg bg-background/40 p-2 sm:grid-cols-[140px_1fr]"
+													>
+														<div className="flex items-center gap-3 sm:w-[140px]">
+															<button
+																type="button"
+																aria-pressed={value.closed}
+																onClick={() =>
+																	setOpeningHours((prev) => ({
+																		...prev,
+																		[dayKey]: { ...prev[dayKey], closed: !prev[dayKey].closed },
+																	}))
+																}
+																className={cn(
+																	"inline-flex h-10 w-full items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
+																	value.closed
+																		? "border-destructive bg-destructive text-destructive-foreground"
+																		: "border-border bg-background text-foreground hover:bg-accent/15",
+																)}
+															>
+																<span
+																	className={cn(
+																		"grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+																		value.closed
+																			? "border-destructive-foreground/30 bg-destructive-foreground/10"
+																			: "border-border bg-background/40",
+																	)}
+																	aria-hidden="true"
+																>
+																	{value.closed ? "✕" : ""}
+																</span>
+																<span className="flex flex-col items-start leading-tight">
+																	<span>{openingHoursLabels[dayKey]}</span>
+																	<span className={cn("text-[11px] font-medium", value.closed ? "text-destructive-foreground/80" : "text-muted-foreground")}>
+																		{value.closed ? "Stängt" : "Öppet"}
+																	</span>
+																</span>
+															</button>
+														</div>
+
+														<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+															<TimePicker
+																label="Välj starttid"
+																disabled={value.closed}
+																value={value.from}
+																onChange={(from) =>
+																	setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
+																}
+															/>
+															<span className="text-xs text-muted-foreground text-center">–</span>
+															<TimePicker
+																label="Välj sluttid"
+																disabled={value.closed}
+																value={value.to}
+																onChange={(to) =>
+																	setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
+																}
+															/>
+														</div>
+													</div>
+												);
+											})
+										)}
+
+										{weekendKeys.map((dayKey) => {
+											const value = openingHours[dayKey];
+											return (
+												<div
+													key={dayKey}
+													className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg bg-background/40 p-2 sm:grid-cols-[140px_1fr]"
+												>
+													<div className="flex items-center gap-3 sm:w-[140px]">
+														<button
+															type="button"
+															aria-pressed={value.closed}
+															onClick={() =>
+																setOpeningHours((prev) => ({
+																	...prev,
+																	[dayKey]: { ...prev[dayKey], closed: !prev[dayKey].closed },
+																}))
+															}
+															className={cn(
+																"inline-flex h-10 w-full items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
+																value.closed
+																	? "border-destructive bg-destructive text-destructive-foreground"
+																	: "border-border bg-background text-foreground hover:bg-accent/15",
+															)}
+														>
+															<span
+																className={cn(
+																	"grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+																	value.closed
+																		? "border-destructive-foreground/30 bg-destructive-foreground/10"
+																		: "border-border bg-background/40",
+																)}
+																aria-hidden="true"
+															>
+																{value.closed ? "✕" : ""}
+															</span>
+															<span className="flex flex-col items-start leading-tight">
+																<span>{openingHoursLabels[dayKey]}</span>
+																<span className={cn("text-[11px] font-medium", value.closed ? "text-destructive-foreground/80" : "text-muted-foreground")}>
+																	{value.closed ? "Stängt" : "Öppet"}
+																</span>
+															</span>
+														</button>
+													</div>
+
+													<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+														<TimePicker
+															label="Välj starttid"
+															disabled={value.closed}
+															value={value.from}
+															onChange={(from) =>
+																setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
+															}
+														/>
+														<span className="text-xs text-muted-foreground text-center">–</span>
+														<TimePicker
+															label="Välj sluttid"
+															disabled={value.closed}
+															value={value.to}
+															onChange={(to) =>
+																setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
+															}
+														/>
+													</div>
+												</div>
+											);
+										})}
+									</div>
+								</div>
+								<p className="text-xs text-muted-foreground">
+									Vi skickar bara dagar som inte är markerade som “Stängt”.
+								</p>
 							</div>
 						</div>
 					</div>

@@ -1,30 +1,378 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { ArrowLeft, CalendarDays, ChevronDown, ChevronUp, PlusCircle } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { addDays, format, parseISO, startOfDay } from "date-fns";
 import { toast } from "sonner";
-import { createOrder, getBusinessId, getOrderById, updateOrder } from "@/lib/api";
+import { createOrder, createOrderPreset, getBusinessById, getBusinessId, getOrderById, listOrderPresets, resolveBusinessId, updateOrder, type Business, type OrderPreset } from "@/lib/api";
+import { TimePicker } from "@/components/TimePicker";
 
 type OfferForm = {
   title: string;
-  description: string;
-  detailedDescription: string;
-  category: string;
   startAt: string;
+  startTime: string;
   originalPrice: string;
   discountedPrice: string;
   claimsTotal: string;
   couponLifetimeMinutes: string;
   couponLifetimeUnit: "minutes" | "hours" | "days";
   expiresAt: string;
+  expiresTime: string;
+};
+
+type OfferPayload = {
+  title: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  orderTimeFrom: string;
+  orderTimeTo: string;
+  validFrom: string;
+  validTo: string;
+  maxRedemptions?: number;
+};
+
+type PreviewBusiness = Pick<Business, "name" | "address" | "city" | "contactPhone" | "website"> & {
+  imageUrl?: string | null;
+};
+
+function clamp2(value: number) {
+  return String(Math.max(0, Math.min(99, value))).padStart(2, "0");
+}
+
+function normalizeTime(value: string) {
+  const match = (value ?? "").trim().match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!match) return "";
+  const hh = Number(match[1]);
+  const mm = Number(match[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return "";
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return "";
+  return `${clamp2(hh)}:${clamp2(mm)}`;
+}
+
+function compareTime(a: string, b: string) {
+  const na = normalizeTime(a);
+  const nb = normalizeTime(b);
+  if (!na || !nb) return 0;
+  const [ah, am] = na.split(":").map(Number);
+  const [bh, bm] = nb.split(":").map(Number);
+  return ah !== bh ? ah - bh : am - bm;
+}
+
+function ceilToStep(time: string, stepMinutes: number) {
+  const n = normalizeTime(time);
+  if (!n) return "";
+  const [hStr, mStr] = n.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  const total = h * 60 + m;
+  const stepped = Math.ceil(total / stepMinutes) * stepMinutes;
+  const hh = Math.floor(stepped / 60);
+  const mm = stepped % 60;
+  if (hh > 23) return "23:59";
+  return `${clamp2(hh)}:${clamp2(mm)}`;
+}
+
+function addMinutesToTime(time: string, minutesToAdd: number) {
+  const n = normalizeTime(time);
+  if (!n) return "";
+  const [hStr, mStr] = n.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  const total = h * 60 + m + minutesToAdd;
+  const clamped = Math.max(0, Math.min(23 * 60 + 59, total));
+  const hh = Math.floor(clamped / 60);
+  const mm = clamped % 60;
+  return `${clamp2(hh)}:${clamp2(mm)}`;
+}
+
+function toLocalIsoWithOffset(date: Date) {
+  // Backend-safe ISO string that preserves the local wall-clock time by including offset, e.g. 2026-04-23T11:40:00+02:00
+  return format(date, "yyyy-MM-dd'T'HH:mm:ssxxx");
+}
+
+type OfferPreviewCardProps = {
+  businessName: string;
+  offerText: string;
+  priceKr: number | string;
+  originalPriceKr?: number | string;
+  claimedCount?: number;
+  totalCount?: number;
+  countdownText?: string;
+  imageUrl?: string;
+  ctaLabel?: string;
+};
+
+function OfferPreviewCard({
+  businessName,
+  offerText,
+  priceKr,
+  originalPriceKr,
+  claimedCount = 0,
+  totalCount = 1,
+  countdownText = "13:52:57",
+  imageUrl,
+  ctaLabel = "Logga in för att claima!",
+}: OfferPreviewCardProps) {
+  const progress =
+    totalCount > 0 ? Math.max(0, Math.min(100, (claimedCount / totalCount) * 100)) : 0;
+
+  return (
+    <div style={previewStyles.page}>
+      <div style={previewStyles.phoneFrame}>
+        <div style={previewStyles.hero} />
+
+        <div style={previewStyles.content}>
+          <div style={previewStyles.title}>{businessName}</div>
+
+          <div style={previewStyles.pillsRow}>
+            <button type="button" style={{ ...previewStyles.pill, outline: "none" }}>Hitta hit</button>
+            <button type="button" style={{ ...previewStyles.pill, outline: "none" }}>Webbplats</button>
+          </div>
+
+          <div style={previewStyles.card}>
+            <div style={previewStyles.cardTop}>
+              <div style={previewStyles.thumbWrap}>
+                {imageUrl ? (
+                  <img alt="" src={imageUrl} style={previewStyles.thumbImg} />
+                ) : (
+                  <div style={previewStyles.thumbFallback} />
+                )}
+
+                <div style={previewStyles.countdownChip}>{countdownText}</div>
+              </div>
+
+              <div style={previewStyles.offerBody}>
+                <div style={previewStyles.offerText}>{offerText}</div>
+
+                <div style={previewStyles.priceRow}>
+                  <div style={previewStyles.price}>{priceKr} kr</div>
+                  {originalPriceKr !== undefined && originalPriceKr !== null ? (
+                    <span style={previewStyles.originalPrice}>{originalPriceKr} kr</span>
+                  ) : null}
+                </div>
+
+                <div style={previewStyles.meta}>
+                  Claimade: {claimedCount} / {totalCount}
+                </div>
+
+                <div style={previewStyles.progressTrack}>
+                  <div style={{ ...previewStyles.progressFill, width: `${progress}%` }} />
+                </div>
+              </div>
+            </div>
+
+            <button type="button" style={{ ...previewStyles.cta, outline: "none" }}>{ctaLabel}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const previewStyles: Record<string, CSSProperties> = {
+  page: {
+    background: "transparent",
+    padding: 0,
+    fontFamily:
+      'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
+    color: "#fff",
+  },
+
+  phoneFrame: {
+    width: 380,
+    borderRadius: 28,
+    overflow: "hidden",
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "linear-gradient(180deg, #000b2a 0%, #061333 55%, #000b2a 100%)",
+    boxShadow: "0 18px 55px rgba(0,0,0,0.55)",
+  },
+
+  hero: {
+    height: 190,
+    background: "#000b2a",
+  },
+
+  content: {
+    padding: 20,
+    paddingTop: 18,
+  },
+
+  title: {
+    fontSize: 36,
+    lineHeight: "40px",
+    fontWeight: 650,
+    letterSpacing: -0.6,
+    marginBottom: 40,
+  },
+
+  pillsRow: {
+    display: "flex",
+    gap: 12,
+    marginBottom: 12,
+  },
+
+  pill: {
+    flex: 1,
+    height: 44,
+    borderRadius: 999,
+    border: "0",
+    background: "hsl(var(--accent) / 0.14)",
+    color: "hsl(var(--accent))",
+    fontWeight: 700,
+    fontSize: 16,
+    cursor: "pointer",
+    backdropFilter: "none",
+  },
+
+  card: {
+    position: "relative",
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "#0a1535",
+    boxShadow: "0 12px 30px rgba(0,0,0,0.45)",
+    padding: 14,
+    overflow: "hidden",
+  },
+
+  cardTop: {
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    position: "relative",
+    zIndex: 1,
+  },
+
+  thumbWrap: {
+    position: "relative",
+    width: 112,
+    height: 112,
+    borderRadius: 20,
+    overflow: "hidden",
+    background: "rgba(255,255,255,0.10)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    flex: "0 0 auto",
+  },
+
+  thumbImg: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+  },
+
+  thumbFallback: {
+    width: "100%",
+    height: "100%",
+    background:
+      "radial-gradient(120% 90% at 30% 20%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.06) 55%, rgba(255,255,255,0.03) 100%)",
+  },
+
+  countdownChip: {
+    position: "absolute",
+    left: 8,
+    bottom: 8,
+    padding: "4px 8px",
+    borderRadius: 999,
+    background: "rgba(0,0,0,0.55)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#fff",
+    opacity: 0.8,
+    zIndex: 2,
+  },
+
+  offerBody: {
+    flex: 1,
+    minWidth: 0,
+    position: "relative",
+    zIndex: 1,
+  },
+
+  offerText: {
+    fontSize: 16,
+    fontWeight: 600,
+    color: "rgba(255,255,255,0.78)",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    marginBottom: 0,
+  },
+
+  priceRow: {
+    display: "flex",
+    alignItems: "flex-end",
+    gap: 10,
+    marginTop: 6,
+    flexWrap: "nowrap",
+    whiteSpace: "nowrap",
+  },
+
+  price: {
+    fontSize: 16,
+    fontWeight: 800,
+    letterSpacing: -0.3,
+    lineHeight: "20px",
+    color: "#fff",
+  },
+
+  originalPrice: {
+    display: "inline-block",
+    fontSize: 16,
+    fontWeight: 600,
+    color: "rgb(147, 197, 253)",
+    textDecoration: "line-through",
+    textDecorationColor: "rgb(147, 197, 253)",
+    marginBottom: 0,
+    lineHeight: "20px",
+  },
+
+  meta: {
+    marginTop: 6,
+    fontSize: 16,
+    fontWeight: 600,
+    color: "rgba(255,255,255,0.55)",
+  },
+
+  progressTrack: {
+    marginTop: 12,
+    height: 8,
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.12)",
+    overflow: "hidden",
+    position: "relative",
+    zIndex: 1,
+  },
+
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    background: "#ff3b30",
+  },
+
+  cta: {
+    marginTop: 14,
+    height: 44,
+    width: "100%",
+    borderRadius: 999,
+    border: "0",
+    background: "#ff3b30",
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: 600,
+    cursor: "pointer",
+    boxShadow: "0 10px 24px rgba(255,59,48,0.18)",
+    position: "relative",
+    zIndex: 1,
+  },
 };
 
 export default function CompanyNewOffer() {
@@ -33,23 +381,54 @@ export default function CompanyNewOffer() {
   const [startOpen, setStartOpen] = useState(false);
   const [expiresOpen, setExpiresOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [presetPickerOpen, setPresetPickerOpen] = useState(false);
+  const [presets, setPresets] = useState<OrderPreset[]>([]);
+  const [presetsLoading, setPresetsLoading] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState<OfferPayload | null>(null);
+  const [previewBusiness, setPreviewBusiness] = useState<PreviewBusiness | null>(null);
   const [isLoadingOffer, setIsLoadingOffer] = useState(false);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
-  const today = new Date();
-  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  const today = startOfDay(new Date());
+  const tomorrow = addDays(today, 1);
   const [form, setForm] = useState<OfferForm>({
     title: "",
-    description: "",
-    detailedDescription: "",
-    category: "",
     startAt: "",
+    startTime: "",
     originalPrice: "",
     discountedPrice: "",
     claimsTotal: "",
     couponLifetimeMinutes: "60",
     couponLifetimeUnit: "minutes",
     expiresAt: "",
+    expiresTime: "",
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadBusiness = async () => {
+      try {
+        const id = await resolveBusinessId();
+        if (!id) return;
+        const b = await getBusinessById(id);
+        if (cancelled) return;
+        setPreviewBusiness({
+          name: b.name,
+          address: b.address,
+          city: b.city,
+          contactPhone: b.contactPhone,
+          website: b.website,
+          imageUrl: b.imageUrl ?? null,
+        });
+      } catch {
+        if (!cancelled) setPreviewBusiness(null);
+      }
+    };
+    void loadBusiness();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -64,12 +443,6 @@ export default function CompanyNewOffer() {
     const loadOrder = async () => {
       try {
         const order = await getOrderById(orderId);
-        const rawDescription = typeof order.description === "string" ? order.description : "";
-        const rawDetailedDescription = typeof order.detailedDescription === "string" ? order.detailedDescription.trim() : "";
-        const descriptionParts = rawDescription.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
-        const shortDescription = descriptionParts.length > 1 ? descriptionParts[0] : rawDescription.trim();
-        const detailedDescription = rawDetailedDescription || (descriptionParts.length > 1 ? descriptionParts.slice(1).join("\n\n") : "");
-
         const orderTimeFrom = order.orderTimeFrom || order.validFrom || "";
         const orderTimeTo = order.orderTimeTo || order.validTo || "";
         const couponLifetimeMs = new Date(order.validTo).getTime() - new Date(orderTimeFrom).getTime();
@@ -79,16 +452,15 @@ export default function CompanyNewOffer() {
 
         setForm({
           title: order.title ?? "",
-          description: shortDescription,
-          detailedDescription,
-          category: typeof order.categoryName === "string" ? order.categoryName : "",
           startAt: orderTimeFrom ? format(new Date(orderTimeFrom), "yyyy-MM-dd") : "",
+          startTime: orderTimeFrom ? format(new Date(orderTimeFrom), "HH:mm") : "",
           originalPrice: typeof order.originalPrice === "number" || typeof order.originalPrice === "string" ? String(order.originalPrice) : "",
           discountedPrice: typeof order.price === "number" || typeof order.price === "string" ? String(order.price) : "",
           claimsTotal: typeof order.maxRedemptions === "number" ? String(order.maxRedemptions) : "",
           couponLifetimeMinutes: String(couponLifetimeMinutes),
           couponLifetimeUnit: "minutes",
           expiresAt: orderTimeTo ? format(new Date(orderTimeTo), "yyyy-MM-dd") : "",
+          expiresTime: orderTimeTo ? format(new Date(orderTimeTo), "HH:mm") : "",
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Kunde inte läsa erbjudandet.";
@@ -101,11 +473,11 @@ export default function CompanyNewOffer() {
 
     void loadOrder();
   }, [location.search, navigate]);
-  const startDateForEndPicker = form.startAt ? new Date(form.startAt) : null;
+  const startDateForEndPicker = form.startAt ? parseISO(form.startAt) : null;
   const expiresMinDate = startDateForEndPicker && !Number.isNaN(startDateForEndPicker.getTime())
     ? startDateForEndPicker
     : tomorrow;
-  const expiresDateForStartPicker = form.expiresAt ? new Date(form.expiresAt) : null;
+  const expiresDateForStartPicker = form.expiresAt ? parseISO(form.expiresAt) : null;
   const startMaxDate = expiresDateForStartPicker && !Number.isNaN(expiresDateForStartPicker.getTime())
     ? expiresDateForStartPicker
     : null;
@@ -120,11 +492,51 @@ export default function CompanyNewOffer() {
     onChange(field, String(next));
   };
 
+  const openPresetPicker = async () => {
+    setPresetPickerOpen(true);
+    if (presetsLoading || presets.length > 0) return;
+    setPresetsLoading(true);
+    try {
+      const response = await listOrderPresets({ take: 50, skip: 0 });
+      const presetsArray = Array.isArray(response)
+        ? response
+        : Array.isArray((response as { presets?: OrderPreset[] }).presets)
+          ? (response as { presets: OrderPreset[] }).presets
+          : [];
+      setPresets(presetsArray);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte hämta presets.";
+      toast.error(message);
+      setPresets([]);
+    } finally {
+      setPresetsLoading(false);
+    }
+  };
+
+  const applyPreset = (preset: OrderPreset) => {
+    const price = typeof preset.price === "number" || typeof preset.price === "string" ? String(preset.price) : "";
+    const originalPrice =
+      typeof preset.originalPrice === "number" || typeof preset.originalPrice === "string"
+        ? String(preset.originalPrice)
+        : "";
+    const claimsTotal = typeof preset.maxRedemptions === "number" ? String(preset.maxRedemptions) : "";
+
+    setForm((prev) => ({
+      ...prev,
+      title: typeof preset.title === "string" ? preset.title : prev.title,
+      discountedPrice: price,
+      originalPrice,
+      claimsTotal,
+    }));
+    setPresetPickerOpen(false);
+    toast.success("Preset laddat.");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.title.trim() || !form.description.trim()) {
-      toast.error("Fyll i titel och kort beskrivning.");
+    if (!form.title.trim()) {
+      toast.error("Fyll i titel.");
       return;
     }
 
@@ -179,12 +591,40 @@ export default function CompanyNewOffer() {
     }
 
     if (!form.startAt) {
+      toast.error("Välj ett startdatum för erbjudandet.");
+      return;
+    }
+
+    if (!form.startTime) {
       toast.error("Välj en starttid för erbjudandet.");
       return;
     }
 
-    const orderTimeFromDate = new Date(form.startAt);
-    const validToDate = new Date(`${form.expiresAt}T23:59:59`);
+    if (!form.expiresTime) {
+      toast.error("Välj en sluttid för erbjudandet.");
+      return;
+    }
+
+    if (form.startAt && form.expiresAt && form.startAt === form.expiresAt) {
+      // Same day is allowed, but end must be after start.
+      if (compareTime(form.expiresTime, addMinutesToTime(form.startTime, 1)) < 0) {
+        toast.error("Sluttid måste vara efter starttid när datumen är samma dag.");
+        return;
+      }
+    }
+
+    if (form.startAt === format(new Date(), "yyyy-MM-dd")) {
+      const now = new Date();
+      const nowTime = `${clamp2(now.getHours())}:${clamp2(now.getMinutes())}`;
+      const effectiveMin = ceilToStep(nowTime, 5);
+      if (effectiveMin && compareTime(form.startTime, effectiveMin) < 0) {
+        toast.error(`Starttid kan inte vara tidigare än ${effectiveMin} idag.`);
+        return;
+      }
+    }
+
+    const orderTimeFromDate = new Date(`${form.startAt}T${form.startTime}`);
+    const validToDate = new Date(`${form.expiresAt}T${form.expiresTime}:00`);
     if (Number.isNaN(orderTimeFromDate.getTime()) || Number.isNaN(validToDate.getTime())) {
       toast.error("Starttid eller slutdatum är ogiltigt.");
       return;
@@ -196,11 +636,11 @@ export default function CompanyNewOffer() {
     }
 
     const nowDate = new Date();
-    const nowIso = nowDate.toISOString();
-    const orderTimeFromIso = orderTimeFromDate.toISOString();
-    const validToIso = validToDate.toISOString();
+    const nowIso = toLocalIsoWithOffset(nowDate);
+    const orderTimeFromIso = toLocalIsoWithOffset(orderTimeFromDate);
+    const validToIso = toLocalIsoWithOffset(validToDate);
     const couponValidToDate = new Date(orderTimeFromDate.getTime() + couponLifetimeValue * couponLifetimeMultiplier);
-    const couponValidToIso = couponValidToDate.toISOString();
+    const couponValidToIso = toLocalIsoWithOffset(couponValidToDate);
 
     if (validToDate.getTime() <= Date.now()) {
       toast.error("Slutdatum måste vara i framtiden.");
@@ -212,34 +652,95 @@ export default function CompanyNewOffer() {
       return;
     }
 
+    const description = form.title.trim();
+    const payload: OfferPayload = {
+      title: form.title.trim(),
+      description,
+      price,
+      originalPrice,
+      orderTimeFrom: orderTimeFromIso,
+      orderTimeTo: validToIso,
+      validFrom: orderTimeFromIso,
+      validTo: couponValidToIso,
+      maxRedemptions,
+    };
+
+    setPendingPayload(payload);
+    setPreviewOpen(true);
+  };
+
+  const confirmCreateOrUpdate = async () => {
+    if (!pendingPayload) return;
     setIsSubmitting(true);
     try {
-      const detailedDescription = form.detailedDescription.trim();
-      const description = [form.description.trim(), detailedDescription].filter(Boolean).join("\n\n");
-      const payload = {
-        title: form.title.trim(),
-        description,
-        detailedDescription: detailedDescription || undefined,
-        price,
-        originalPrice,
-        orderTimeFrom: orderTimeFromIso,
-        orderTimeTo: validToIso,
-        validFrom: orderTimeFromIso,
-        validTo: couponValidToIso,
-        maxRedemptions,
-      };
-
       if (editOrderId) {
-        await updateOrder(editOrderId, payload);
+        await updateOrder(editOrderId, pendingPayload);
         toast.success("Erbjudande uppdaterat.");
       } else {
-        await createOrder(payload);
+        await createOrder(pendingPayload);
         toast.success("Erbjudande skapat.");
       }
-
+      setPreviewOpen(false);
       navigate("/company/offers");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte skapa erbjudandet.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCreatePreset = async () => {
+    if (!form.title.trim()) {
+      toast.error("Fyll i titel.");
+      return;
+    }
+
+    const businessId = getBusinessId();
+    if (!businessId) {
+      toast.error("Saknar businessId. Registrera/logga in igen.");
+      return;
+    }
+
+    const price = Number(form.discountedPrice);
+    if (!Number.isFinite(price) || price <= 0) {
+      toast.error("Pris måste vara ett tal större än 0.");
+      return;
+    }
+
+    let originalPrice: number | undefined;
+    if (form.originalPrice.trim()) {
+      const parsedOriginalPrice = Number(form.originalPrice);
+      if (!Number.isFinite(parsedOriginalPrice) || parsedOriginalPrice < 0) {
+        toast.error("Ordinarie pris måste vara ett giltigt tal.");
+        return;
+      }
+      originalPrice = parsedOriginalPrice;
+    }
+
+    let maxRedemptions: number | undefined;
+    if (form.claimsTotal.trim()) {
+      const parsedMaxRedemptions = Number(form.claimsTotal);
+      if (!Number.isInteger(parsedMaxRedemptions) || parsedMaxRedemptions <= 0) {
+        toast.error("Max antal kuponger måste vara ett heltal större än 0.");
+        return;
+      }
+      maxRedemptions = parsedMaxRedemptions;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createOrderPreset({
+        title: form.title.trim(),
+        description: form.title.trim(),
+        price,
+        originalPrice,
+        maxRedemptions,
+      });
+      toast.success("Preset skapat.");
+      navigate("/company/offers");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte skapa preset.";
       toast.error(message);
     } finally {
       setIsSubmitting(false);
@@ -309,35 +810,6 @@ export default function CompanyNewOffer() {
                   placeholder="Ex. 15% av biobiljett"
                   value={form.title}
                   onChange={(e) => onChange("title", e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium text-foreground">Kort beskrivning</label>
-                <Textarea
-                  placeholder="Kort text som syns i erbjudandekortet"
-                  value={form.description}
-                  onChange={(e) => onChange("description", e.target.value)}
-                  className="min-h-20"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium text-foreground">Detaljerad beskrivning</label>
-                <Textarea
-                  placeholder="Text som visas efter klick pa Mer"
-                  value={form.detailedDescription}
-                  onChange={(e) => onChange("detailedDescription", e.target.value)}
-                  className="min-h-28"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Kategori</label>
-                <Input
-                  placeholder="Ex. Mat & Dryck"
-                  value={form.category}
-                  onChange={(e) => onChange("category", e.target.value)}
                 />
               </div>
 
@@ -510,10 +982,10 @@ export default function CompanyNewOffer() {
                         </div>
                         <Calendar
                           mode="single"
-                          selected={form.startAt ? new Date(form.startAt) : undefined}
+                          selected={form.startAt ? parseISO(form.startAt) : undefined}
                           modifiers={
                             form.expiresAt
-                              ? { endDate: new Date(form.expiresAt) }
+                              ? { endDate: parseISO(form.expiresAt) }
                               : undefined
                           }
                           modifiersClassNames={{
@@ -530,7 +1002,7 @@ export default function CompanyNewOffer() {
                         />
                       </PopoverContent>
                     </Popover>
-                    <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
+                    <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground" />
                   </div>
                 </div>
 
@@ -554,10 +1026,10 @@ export default function CompanyNewOffer() {
                       <PopoverContent className="w-auto border-border bg-popover p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={form.expiresAt ? new Date(form.expiresAt) : undefined}
+                          selected={form.expiresAt ? parseISO(form.expiresAt) : undefined}
                           modifiers={
                             form.startAt
-                              ? { startDate: new Date(form.startAt) }
+                              ? { startDate: parseISO(form.startAt) }
                               : undefined
                           }
                           modifiersClassNames={{
@@ -574,8 +1046,36 @@ export default function CompanyNewOffer() {
                         />
                       </PopoverContent>
                     </Popover>
-                    <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
+                    <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground" />
                   </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 md:col-span-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Starttid</label>
+                  <TimePicker
+                    label="Välj starttid"
+                    value={form.startTime}
+                    onChange={(next) => onChange("startTime", next)}
+                    disabled={!form.startAt}
+                    minTime={form.startAt === format(new Date(), "yyyy-MM-dd") ? `${clamp2(new Date().getHours())}:${clamp2(new Date().getMinutes())}` : undefined}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Sluttid</label>
+                  <TimePicker
+                    label="Välj sluttid"
+                    value={form.expiresTime}
+                    onChange={(next) => onChange("expiresTime", next)}
+                    disabled={!form.expiresAt}
+                    minTime={
+                      form.expiresAt && form.startAt && form.expiresAt === form.startAt && form.startTime
+                        ? addMinutesToTime(form.startTime, 1)
+                        : undefined
+                    }
+                  />
                 </div>
               </div>
             </div>
@@ -583,6 +1083,24 @@ export default function CompanyNewOffer() {
             <div className="flex items-center justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => navigate("/company/offers")}>
                 Avbryt
+              </Button>
+              {!editOrderId ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSubmitting}
+                  onClick={openPresetPicker}
+                >
+                  Ladda preset
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSubmitting}
+                onClick={handleCreatePreset}
+              >
+                Skapa preset
               </Button>
               <Button type="submit" disabled={isSubmitting} className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90">
                 <PlusCircle className="h-4 w-4" />
@@ -592,6 +1110,143 @@ export default function CompanyNewOffer() {
           </form>
         </CardContent>
       </Card>
+
+      <Dialog open={presetPickerOpen} onOpenChange={(open) => !isSubmitting && setPresetPickerOpen(open)}>
+        <DialogContent className="max-h-[80vh] max-w-[720px] overflow-hidden border-border bg-card p-0">
+          <div className="border-b border-border px-5 py-4">
+            <DialogHeader className="items-start text-left">
+              <DialogTitle>Ladda preset</DialogTitle>
+              <DialogDescription>Välj ett preset för att fylla i titel, pris och max kuponger.</DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="p-5 overflow-y-auto max-h-[60vh]">
+            {presetsLoading ? (
+              <div className="text-sm text-muted-foreground">Hämtar presets...</div>
+            ) : presets.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Inga presets hittades.</div>
+            ) : (
+              <div className="space-y-2">
+                {presets.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => applyPreset(p)}
+                    className="w-full rounded-xl border border-border bg-background/40 p-4 text-left transition-colors hover:bg-accent/10"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-foreground">{p.title}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Max kuponger: {typeof p.maxRedemptions === "number" ? p.maxRedemptions : "-"}
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        {p.originalPrice !== undefined && p.originalPrice !== null && p.originalPrice !== "" ? (
+                          <div className="text-xs text-muted-foreground line-through">{String(p.originalPrice)} kr</div>
+                        ) : null}
+                        <div className="text-sm font-semibold text-accent">{String(p.price)} kr</div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="border-t border-border px-5 py-4">
+            <Button type="button" variant="outline" onClick={() => setPresetPickerOpen(false)} disabled={isSubmitting}>
+              Stäng
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={previewOpen} onOpenChange={(open) => !isSubmitting && setPreviewOpen(open)}>
+        <DialogContent hideClose className="max-h-[85vh] max-w-[840px] overflow-hidden border-border bg-card p-0">
+          <div className="grid gap-0 md:grid-cols-[max-content_1fr]">
+            <div className="border-b border-border bg-background/30 px-6 py-6 md:border-b-0 md:border-r">
+              <DialogHeader className="items-start text-left">
+                <DialogTitle>Förhandsvisning i appen</DialogTitle>
+              </DialogHeader>
+
+              <div className="mt-4 flex justify-center">
+                <div className="origin-top scale-[0.78]">
+                  <OfferPreviewCard
+                    businessName={previewBusiness?.name?.trim() || "Företag"}
+                    offerText={pendingPayload?.title || form.title || "Titel"}
+                    priceKr={pendingPayload?.price ?? 0}
+                    originalPriceKr={pendingPayload?.originalPrice}
+                    claimedCount={0}
+                    totalCount={pendingPayload?.maxRedemptions ?? 1}
+                    countdownText="13:52:57"
+                    imageUrl={previewBusiness?.imageUrl ?? undefined}
+                    ctaLabel="Logga in för att claima!"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5">
+              <div className="space-y-3 max-w-lg">
+                <div className="rounded-2xl border border-border bg-background/40 p-5">
+                  <div className="text-base font-semibold text-foreground">Kontroll</div>
+                  <div className="mt-1 text-sm text-muted-foreground leading-relaxed">
+                    Så här kommer erbjudandet att se ut för användare. Bekräfta för att {editOrderId ? "spara" : "skapa"}.
+                  </div>
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    Dubbelkolla titel, beskrivning, pris och datum innan du bekräftar.
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border bg-background/40 p-4">
+                  <div className="text-xs text-muted-foreground">Start</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {form.startAt ? `${form.startAt}${form.startTime ? ` ${form.startTime}` : ""}` : "-"}
+                  </div>
+                  <div className="mt-3 text-xs text-muted-foreground">Utgång</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {form.expiresAt ? `${form.expiresAt}${form.expiresTime ? ` ${form.expiresTime}` : ""}` : "-"}
+                  </div>
+                  <div className="mt-3 text-xs text-muted-foreground">Kupong livstid</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {form.couponLifetimeMinutes} {form.couponLifetimeUnit}
+                  </div>
+                  <div className="mt-3 text-xs text-[#ff3b30]">Viktigt</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    TooDoo tar 10% av vad erbjudandet är värt en faktura kommer skapas i fakturor
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="mt-6">
+                <button
+                  type="button"
+                  onClick={() => setPreviewOpen(false)}
+                  disabled={isSubmitting}
+                  className="group no-hover-motion relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+                  aria-label="Tillbaka"
+                >
+                  <span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
+                    <ArrowLeft className="anim-back-arrow h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
+                  </span>
+                  <span className="anim-back-line pointer-events-none absolute left-4 right-4 z-0 h-[1px] origin-left scale-x-0 rounded-full bg-foreground transition-transform duration-300 group-hover:scale-x-100" />
+                  <span className="anim-back-text pointer-events-none relative z-10 ml-1 whitespace-nowrap transition-all duration-300 group-hover:translate-x-2 group-hover:opacity-0">
+                    Tillbaka
+                  </span>
+                </button>
+                <Button
+                  type="button"
+                  disabled={isSubmitting || !pendingPayload}
+                  className="bg-accent text-accent-foreground hover:bg-accent/90"
+                  onClick={confirmCreateOrUpdate}
+                >
+                  {isSubmitting ? (editOrderId ? "Sparar..." : "Skapar...") : editOrderId ? "Bekräfta och spara" : "Bekräfta och skapa"}
+                </Button>
+              </DialogFooter>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
