@@ -17,6 +17,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
+import { useMonochrome } from "@/hooks/useMonochrome";
 
 type MenuGroup = {
   label: string;
@@ -61,6 +63,7 @@ export function AdminSidebar() {
 
   const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const monochrome = useMonochrome();
 
   useEffect(() => {
     setEmail(getAuthEmail());
@@ -73,7 +76,13 @@ export function AdminSidebar() {
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-border bg-card/60 backdrop-blur-sm">
+    <Sidebar
+      collapsible="icon"
+      className={cn(
+        "border-r border-border",
+        monochrome ? "bg-card" : "bg-card/60 backdrop-blur-sm",
+      )}
+    >
       <SidebarHeader className="p-2.5 group-data-[collapsible=icon]:overflow-hidden group-data-[collapsible=icon]:p-1.5">
         <div
           className={`flex items-center transition-colors ${
@@ -172,7 +181,12 @@ export function AdminSidebar() {
             <button
               type="button"
               onClick={handleLogout}
-              className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-border/60 bg-background/30 text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40"
+              className={cn(
+                "flex h-9 w-full items-center justify-center gap-2 rounded-lg border text-sm font-medium transition-colors",
+                monochrome
+                  ? "border-destructive bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  : "border-border/60 bg-background/30 text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40",
+              )}
             >
               <LogOut className="h-4 w-4" />
               <span>Logga ut</span>
@@ -190,7 +204,12 @@ export function AdminSidebar() {
               onClick={handleLogout}
               aria-label="Logga ut"
               title="Logga ut"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/60 bg-background/30 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40"
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-lg border transition-colors",
+                monochrome
+                  ? "border-destructive bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  : "border-border/60 bg-background/30 text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40",
+              )}
             >
               <LogOut className="h-4 w-4" />
             </button>

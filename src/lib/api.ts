@@ -232,7 +232,7 @@ export type CreateBusinessRequest = {
   website?: string;
   address: string;
   city: string;
-  logoUrl?: string;
+  imageUrl?: string;
   openingHours?: Record<string, unknown>;
   categoryId: string;
 };
@@ -245,7 +245,8 @@ export type UpdateBusinessRequest = {
   website?: string | null;
   address?: string;
   city?: string;
-  logoUrl?: string | null;
+  imageUrl?: string;
+  openingHours?: Record<string, unknown>;
 };
 
 export type BusinessStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -259,7 +260,8 @@ export type Business = {
   website?: string | null;
   address: string;
   city: string;
-  logoUrl?: string | null;
+  imageUrl?: string | null;
+  openingHours?: Record<string, unknown> | null;
   categoryId: string;
   categoryName?: string;
   status?: BusinessStatus;
@@ -369,6 +371,35 @@ export type UpdateOrderRequest = {
   validTo?: string;
   maxRedemptions?: number;
   isActive?: boolean;
+};
+
+export type OrderPreset = {
+  id: string;
+  title: string;
+  description: string;
+  price: number | string;
+  originalPrice?: number | string | null;
+  imageUrl?: string | null;
+  maxRedemptions?: number;
+  isArchived?: boolean;
+  businessId: string;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+};
+
+export type CreateOrderPresetRequest = {
+  title: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  imageUrl?: string;
+  maxRedemptions?: number;
+};
+
+export type ListOrderPresetsResponse = {
+  presets: OrderPreset[];
+  total?: number;
 };
 
 export type ClaimResponse = {
@@ -578,6 +609,30 @@ export async function listOrders(categoryName?: string, businessId?: string) {
   }
   const query = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<Order[]>(`/orders${query}`, { method: "GET" });
+}
+
+export async function createOrderPreset(body: CreateOrderPresetRequest) {
+  return apiRequest<OrderPreset>("/order-presets", {
+    method: "POST",
+    body: JSON.stringify(body),
+  }, true);
+}
+
+export async function listOrderPresets(params: { skip?: number; take?: number; includeArchived?: boolean } = {}) {
+  const query = new URLSearchParams();
+  if (typeof params.skip === "number") query.set("skip", String(params.skip));
+  if (typeof params.take === "number") query.set("take", String(params.take));
+  if (typeof params.includeArchived === "boolean") query.set("includeArchived", params.includeArchived ? "true" : "false");
+  const qs = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<ListOrderPresetsResponse | OrderPreset[]>(`/order-presets${qs}`, { method: "GET" }, true);
+}
+
+export async function deleteOrderPreset(orderPresetId: string) {
+  return apiRequest<Record<string, unknown>>(
+    `/order-presets/${encodeURIComponent(orderPresetId)}`,
+    { method: "DELETE" },
+    true,
+  );
 }
 
 export async function getOrderById(orderId: string) {

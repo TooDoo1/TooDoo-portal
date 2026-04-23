@@ -8,17 +8,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { addDays, format, parseISO, startOfDay } from "date-fns";
 import { toast } from "sonner";
-import { createOrder, getBusinessById, getBusinessId, getOrderById, resolveBusinessId, updateOrder, type Business } from "@/lib/api";
+import { createOrder, createOrderPreset, getBusinessById, getBusinessId, getOrderById, listOrderPresets, resolveBusinessId, updateOrder, type Business, type OrderPreset } from "@/lib/api";
 
 type OfferForm = {
   title: string;
-  description: string;
-  detailedDescription: string;
-  category: string;
   startAt: string;
   startTime: string;
   originalPrice: string;
@@ -33,7 +29,6 @@ type OfferForm = {
 type OfferPayload = {
   title: string;
   description: string;
-  detailedDescription?: string;
   price: number;
   originalPrice?: number;
   orderTimeFrom: string;
@@ -44,7 +39,7 @@ type OfferPayload = {
 };
 
 type PreviewBusiness = Pick<Business, "name" | "address" | "city" | "contactPhone" | "website"> & {
-  logoUrl?: string | null;
+  imageUrl?: string | null;
 };
 
 function clamp2(value: number) {
@@ -147,7 +142,7 @@ function TimePicker({
           aria-label={label}
         >
           {normalized || "Välj tid"}
-          <Clock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
+          <Clock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground" />
         </button>
       </PopoverTrigger>
       <PopoverContent side="top" align="start" className="w-56 border-border bg-popover p-2">
@@ -536,6 +531,9 @@ export default function CompanyNewOffer() {
   const [expiresOpen, setExpiresOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [presetPickerOpen, setPresetPickerOpen] = useState(false);
+  const [presets, setPresets] = useState<OrderPreset[]>([]);
+  const [presetsLoading, setPresetsLoading] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<OfferPayload | null>(null);
   const [previewBusiness, setPreviewBusiness] = useState<PreviewBusiness | null>(null);
   const [isLoadingOffer, setIsLoadingOffer] = useState(false);
@@ -544,9 +542,6 @@ export default function CompanyNewOffer() {
   const tomorrow = addDays(today, 1);
   const [form, setForm] = useState<OfferForm>({
     title: "",
-    description: "",
-    detailedDescription: "",
-    category: "",
     startAt: "",
     startTime: "",
     originalPrice: "",
@@ -572,7 +567,7 @@ export default function CompanyNewOffer() {
           city: b.city,
           contactPhone: b.contactPhone,
           website: b.website,
-          logoUrl: b.logoUrl ?? null,
+          imageUrl: b.imageUrl ?? null,
         });
       } catch {
         if (!cancelled) setPreviewBusiness(null);
@@ -597,12 +592,6 @@ export default function CompanyNewOffer() {
     const loadOrder = async () => {
       try {
         const order = await getOrderById(orderId);
-        const rawDescription = typeof order.description === "string" ? order.description : "";
-        const rawDetailedDescription = typeof order.detailedDescription === "string" ? order.detailedDescription.trim() : "";
-        const descriptionParts = rawDescription.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
-        const shortDescription = descriptionParts.length > 1 ? descriptionParts[0] : rawDescription.trim();
-        const detailedDescription = rawDetailedDescription || (descriptionParts.length > 1 ? descriptionParts.slice(1).join("\n\n") : "");
-
         const orderTimeFrom = order.orderTimeFrom || order.validFrom || "";
         const orderTimeTo = order.orderTimeTo || order.validTo || "";
         const couponLifetimeMs = new Date(order.validTo).getTime() - new Date(orderTimeFrom).getTime();
@@ -612,9 +601,6 @@ export default function CompanyNewOffer() {
 
         setForm({
           title: order.title ?? "",
-          description: shortDescription,
-          detailedDescription,
-          category: typeof order.categoryName === "string" ? order.categoryName : "",
           startAt: orderTimeFrom ? format(new Date(orderTimeFrom), "yyyy-MM-dd") : "",
           startTime: orderTimeFrom ? format(new Date(orderTimeFrom), "HH:mm") : "",
           originalPrice: typeof order.originalPrice === "number" || typeof order.originalPrice === "string" ? String(order.originalPrice) : "",
@@ -655,11 +641,51 @@ export default function CompanyNewOffer() {
     onChange(field, String(next));
   };
 
+  const openPresetPicker = async () => {
+    setPresetPickerOpen(true);
+    if (presetsLoading || presets.length > 0) return;
+    setPresetsLoading(true);
+    try {
+      const response = await listOrderPresets({ take: 50, skip: 0 });
+      const presetsArray = Array.isArray(response)
+        ? response
+        : Array.isArray((response as { presets?: OrderPreset[] }).presets)
+          ? (response as { presets: OrderPreset[] }).presets
+          : [];
+      setPresets(presetsArray);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte hämta presets.";
+      toast.error(message);
+      setPresets([]);
+    } finally {
+      setPresetsLoading(false);
+    }
+  };
+
+  const applyPreset = (preset: OrderPreset) => {
+    const price = typeof preset.price === "number" || typeof preset.price === "string" ? String(preset.price) : "";
+    const originalPrice =
+      typeof preset.originalPrice === "number" || typeof preset.originalPrice === "string"
+        ? String(preset.originalPrice)
+        : "";
+    const claimsTotal = typeof preset.maxRedemptions === "number" ? String(preset.maxRedemptions) : "";
+
+    setForm((prev) => ({
+      ...prev,
+      title: typeof preset.title === "string" ? preset.title : prev.title,
+      discountedPrice: price,
+      originalPrice,
+      claimsTotal,
+    }));
+    setPresetPickerOpen(false);
+    toast.success("Preset laddat.");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.title.trim() || !form.description.trim()) {
-      toast.error("Fyll i titel och kort beskrivning.");
+    if (!form.title.trim()) {
+      toast.error("Fyll i titel.");
       return;
     }
 
@@ -775,12 +801,10 @@ export default function CompanyNewOffer() {
       return;
     }
 
-    const detailedDescription = form.detailedDescription.trim();
-    const description = [form.description.trim(), detailedDescription].filter(Boolean).join("\n\n");
+    const description = form.title.trim();
     const payload: OfferPayload = {
       title: form.title.trim(),
       description,
-      detailedDescription: detailedDescription || undefined,
       price,
       originalPrice,
       orderTimeFrom: orderTimeFromIso,
@@ -809,6 +833,63 @@ export default function CompanyNewOffer() {
       navigate("/company/offers");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte skapa erbjudandet.";
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCreatePreset = async () => {
+    if (!form.title.trim()) {
+      toast.error("Fyll i titel.");
+      return;
+    }
+
+    const businessId = getBusinessId();
+    if (!businessId) {
+      toast.error("Saknar businessId. Registrera/logga in igen.");
+      return;
+    }
+
+    const price = Number(form.discountedPrice);
+    if (!Number.isFinite(price) || price <= 0) {
+      toast.error("Pris måste vara ett tal större än 0.");
+      return;
+    }
+
+    let originalPrice: number | undefined;
+    if (form.originalPrice.trim()) {
+      const parsedOriginalPrice = Number(form.originalPrice);
+      if (!Number.isFinite(parsedOriginalPrice) || parsedOriginalPrice < 0) {
+        toast.error("Ordinarie pris måste vara ett giltigt tal.");
+        return;
+      }
+      originalPrice = parsedOriginalPrice;
+    }
+
+    let maxRedemptions: number | undefined;
+    if (form.claimsTotal.trim()) {
+      const parsedMaxRedemptions = Number(form.claimsTotal);
+      if (!Number.isInteger(parsedMaxRedemptions) || parsedMaxRedemptions <= 0) {
+        toast.error("Max antal kuponger måste vara ett heltal större än 0.");
+        return;
+      }
+      maxRedemptions = parsedMaxRedemptions;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createOrderPreset({
+        title: form.title.trim(),
+        description: form.title.trim(),
+        price,
+        originalPrice,
+        maxRedemptions,
+      });
+      toast.success("Preset skapat.");
+      navigate("/company/offers");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte skapa preset.";
       toast.error(message);
     } finally {
       setIsSubmitting(false);
@@ -878,35 +959,6 @@ export default function CompanyNewOffer() {
                   placeholder="Ex. 15% av biobiljett"
                   value={form.title}
                   onChange={(e) => onChange("title", e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium text-foreground">Kort beskrivning</label>
-                <Textarea
-                  placeholder="Kort text som syns i erbjudandekortet"
-                  value={form.description}
-                  onChange={(e) => onChange("description", e.target.value)}
-                  className="min-h-20"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium text-foreground">Detaljerad beskrivning</label>
-                <Textarea
-                  placeholder="Text som visas efter klick pa Mer"
-                  value={form.detailedDescription}
-                  onChange={(e) => onChange("detailedDescription", e.target.value)}
-                  className="min-h-28"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Kategori</label>
-                <Input
-                  placeholder="Ex. Mat & Dryck"
-                  value={form.category}
-                  onChange={(e) => onChange("category", e.target.value)}
                 />
               </div>
 
@@ -1099,7 +1151,7 @@ export default function CompanyNewOffer() {
                         />
                       </PopoverContent>
                     </Popover>
-                    <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
+                    <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground" />
                   </div>
                 </div>
 
@@ -1143,7 +1195,7 @@ export default function CompanyNewOffer() {
                         />
                       </PopoverContent>
                     </Popover>
-                    <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
+                    <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground" />
                   </div>
                 </div>
               </div>
@@ -1181,6 +1233,24 @@ export default function CompanyNewOffer() {
               <Button type="button" variant="outline" onClick={() => navigate("/company/offers")}>
                 Avbryt
               </Button>
+              {!editOrderId ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSubmitting}
+                  onClick={openPresetPicker}
+                >
+                  Ladda preset
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSubmitting}
+                onClick={handleCreatePreset}
+              >
+                Skapa preset
+              </Button>
               <Button type="submit" disabled={isSubmitting} className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90">
                 <PlusCircle className="h-4 w-4" />
                 {isSubmitting ? (editOrderId ? "Sparar..." : "Skapar...") : editOrderId ? "Spara ändringar" : "Skapa erbjudande"}
@@ -1189,6 +1259,57 @@ export default function CompanyNewOffer() {
           </form>
         </CardContent>
       </Card>
+
+      <Dialog open={presetPickerOpen} onOpenChange={(open) => !isSubmitting && setPresetPickerOpen(open)}>
+        <DialogContent className="max-h-[80vh] max-w-[720px] overflow-hidden border-border bg-card p-0">
+          <div className="border-b border-border px-5 py-4">
+            <DialogHeader className="items-start text-left">
+              <DialogTitle>Ladda preset</DialogTitle>
+              <DialogDescription>Välj ett preset för att fylla i titel, pris och max kuponger.</DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="p-5 overflow-y-auto max-h-[60vh]">
+            {presetsLoading ? (
+              <div className="text-sm text-muted-foreground">Hämtar presets...</div>
+            ) : presets.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Inga presets hittades.</div>
+            ) : (
+              <div className="space-y-2">
+                {presets.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => applyPreset(p)}
+                    className="w-full rounded-xl border border-border bg-background/40 p-4 text-left transition-colors hover:bg-accent/10"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-foreground">{p.title}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Max kuponger: {typeof p.maxRedemptions === "number" ? p.maxRedemptions : "-"}
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        {p.originalPrice !== undefined && p.originalPrice !== null && p.originalPrice !== "" ? (
+                          <div className="text-xs text-muted-foreground line-through">{String(p.originalPrice)} kr</div>
+                        ) : null}
+                        <div className="text-sm font-semibold text-accent">{String(p.price)} kr</div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="border-t border-border px-5 py-4">
+            <Button type="button" variant="outline" onClick={() => setPresetPickerOpen(false)} disabled={isSubmitting}>
+              Stäng
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={previewOpen} onOpenChange={(open) => !isSubmitting && setPreviewOpen(open)}>
         <DialogContent hideClose className="max-h-[85vh] max-w-[840px] overflow-hidden border-border bg-card p-0">
@@ -1208,7 +1329,7 @@ export default function CompanyNewOffer() {
                     claimedCount={0}
                     totalCount={pendingPayload?.maxRedemptions ?? 1}
                     countdownText="13:52:57"
-                    imageUrl={previewBusiness?.logoUrl ?? undefined}
+                    imageUrl={previewBusiness?.imageUrl ?? undefined}
                     ctaLabel="Logga in för att claima!"
                   />
                 </div>

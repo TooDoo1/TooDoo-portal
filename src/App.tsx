@@ -4,6 +4,7 @@ import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { applyMonochrome } from "@/lib/monochrome";
 
 const AdminLayout = lazy(() =>
   import("./components/AdminLayout").then((m) => ({ default: m.AdminLayout })),
@@ -69,46 +70,52 @@ function RouteLoadingFallback() {
   );
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Suspense fallback={<RouteLoadingFallback />}>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/login" element={<LoggIn />} />
-            <Route path="/registration" element={<Registration />} />
-            <Route path="/manager-registration" element={<ManagerRegistration />} />
-            <Route path="/manager/onboard" element={<ManagerRegistration />} />
-            <Route path="/worker/onboard" element={<WorkerOnboard />} />
+const App = () => {
+  useEffect(() => {
+    applyMonochrome();
+  }, []);
 
-            <Route element={<PrivateLayout />}>
-              <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
-                <Route path="/admin" element={<Index />} />
-                <Route path="/admin/logs" element={<AdminLogs />} />
-                <Route path="/companies" element={<Companies />} />
-                <Route path="/pending" element={<Pending />} />
-                <Route path="/category/:name" element={<CategoryPage />} />
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<LoggIn />} />
+              <Route path="/registration" element={<Registration />} />
+              <Route path="/manager-registration" element={<ManagerRegistration />} />
+              <Route path="/manager/onboard" element={<ManagerRegistration />} />
+              <Route path="/worker/onboard" element={<WorkerOnboard />} />
+
+              <Route element={<PrivateLayout />}>
+                <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
+                  <Route path="/admin" element={<Index />} />
+                  <Route path="/admin/logs" element={<AdminLogs />} />
+                  <Route path="/companies" element={<Companies />} />
+                  <Route path="/pending" element={<Pending />} />
+                  <Route path="/category/:name" element={<CategoryPage />} />
+                </Route>
+
+                <Route element={<ProtectedRoute allowedRoles={["MANAGER"]} />}>
+                  <Route path="/company" element={<CompanyDashboard />} />
+                  <Route path="/company/offers" element={<CompanyOffers />} />
+                  <Route path="/company/offers/new" element={<CompanyNewOffer />} />
+                  <Route path="/company/verification" element={<CompanyVerification />} />
+                  <Route path="/company/account" element={<CompanyAccount />} />
+                  <Route path="/company/workers/new" element={<WorkerCreation />} />
+                </Route>
               </Route>
 
-              <Route element={<ProtectedRoute allowedRoles={["MANAGER"]} />}>
-                <Route path="/company" element={<CompanyDashboard />} />
-                <Route path="/company/offers" element={<CompanyOffers />} />
-                <Route path="/company/offers/new" element={<CompanyNewOffer />} />
-                <Route path="/company/verification" element={<CompanyVerification />} />
-                <Route path="/company/account" element={<CompanyAccount />} />
-                <Route path="/company/workers/new" element={<WorkerCreation />} />
-              </Route>
-            </Route>
-
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

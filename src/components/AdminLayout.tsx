@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useLocation } from "react-router-dom";
 import { getAuthEmail } from "@/lib/api";
+import { useMonochrome } from "@/hooks/useMonochrome";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -62,6 +63,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   const sidebarOpen = state === "expanded";
   const location = useLocation();
   const isCompanyRoute = location.pathname.startsWith("/company");
+  const monochrome = useMonochrome();
   const [notificationsOn, setNotificationsOn] = useState(true);
   const [email, setEmail] = useState<string | null>(null);
 
@@ -83,7 +85,11 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
 
   return (
     <div className="flex-1 flex h-screen flex-col overflow-hidden">
-      <header className="sticky top-0 z-30 h-14 flex items-center justify-between border-b border-border bg-card/80 px-4 backdrop-blur-sm">
+      <header
+        className={`sticky top-0 z-30 h-14 flex items-center justify-between border-b border-border px-4 ${
+          monochrome ? "bg-card" : "bg-card/80 backdrop-blur-sm"
+        }`}
+      >
         <div className="flex items-center gap-3 min-w-0">
           <SidebarTrigger className={`h-7 w-7 ${triggerBg} ${triggerFg}`} />
           <div className="hidden sm:flex flex-col leading-tight min-w-0">
@@ -127,6 +133,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
 export function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
   const isCompanyRoute = location.pathname.startsWith("/company");
+  const monochrome = useMonochrome();
   const isPublicRoute =
     location.pathname === "/" ||
     location.pathname === "/login" ||
@@ -142,45 +149,49 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <SidebarProvider>
       <div className="relative min-h-screen flex w-full overflow-hidden bg-background">
-        <div className="pointer-events-none absolute inset-0">
-          {shootingStars.map((star, index) => {
-            const isAccent = index % 2 === 0;
-            const color = isAccent ? "hsl(var(--accent))" : "hsl(var(--primary))";
+        {!monochrome ? (
+          <div className="pointer-events-none absolute inset-0">
+            {shootingStars.map((star, index) => {
+              const isAccent = index % 2 === 0;
+              const color = isAccent ? "hsl(var(--accent))" : "hsl(var(--primary))";
 
-            return (
-              <span
-                key={`${star.top}-${star.left}-${index}`}
-                className="absolute h-[2px] w-36 rounded-full opacity-80"
-                style={{
-                  top: star.top,
-                  left: star.left,
-                  background: `linear-gradient(90deg, transparent, ${color})`,
-                  boxShadow: `0 0 14px ${color}`,
-                  animation: `layout-shooting-star ${star.duration} linear ${star.delay} infinite`,
-                }}
-              />
-            );
-          })}
-        </div>
+              return (
+                <span
+                  key={`${star.top}-${star.left}-${index}`}
+                  className="absolute h-[2px] w-36 rounded-full opacity-80"
+                  style={{
+                    top: star.top,
+                    left: star.left,
+                    background: `linear-gradient(90deg, transparent, ${color})`,
+                    boxShadow: `0 0 14px ${color}`,
+                    animation: `layout-shooting-star ${star.duration} linear ${star.delay} infinite`,
+                  }}
+                />
+              );
+            })}
+          </div>
+        ) : null}
 
-        <style>{`
-          @keyframes layout-shooting-star {
-            0% {
-              transform: translate3d(0, 0, 0) rotate(145deg);
-              opacity: 0;
+        {!monochrome ? (
+          <style>{`
+            @keyframes layout-shooting-star {
+              0% {
+                transform: translate3d(0, 0, 0) rotate(145deg);
+                opacity: 0;
+              }
+              8% {
+                opacity: 0.9;
+              }
+              65% {
+                opacity: 0.7;
+              }
+              100% {
+                transform: translate3d(-95vw, 120vh, 0) rotate(145deg);
+                opacity: 0;
+              }
             }
-            8% {
-              opacity: 0.9;
-            }
-            65% {
-              opacity: 0.7;
-            }
-            100% {
-              transform: translate3d(-95vw, 120vh, 0) rotate(145deg);
-              opacity: 0;
-            }
-          }
-        `}</style>
+          `}</style>
+        ) : null}
 
         {isCompanyRoute ? <CompanySidebar /> : <AdminSidebar />}
         <div className="relative z-10 flex w-full">
