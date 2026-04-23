@@ -13,6 +13,7 @@ import {
 	setBusinessId,
 } from "@/lib/api";
 import { toast } from "sonner";
+import { TimePicker } from "@/components/TimePicker";
 
 const shootingStars = [
 	{ top: "0%", left: "6%", delay: "-0.2s", duration: "5.1s" },
@@ -668,26 +669,18 @@ export default function Registration() {
 												</div>
 
 												<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-													<Input
-														type="time"
+													<TimePicker
+														label="Välj starttid"
 														disabled={weekdayGroup.closed}
 														value={weekdayGroup.from}
-														onChange={(e) => {
-															const from = e.target.value;
-															setWeekdayGroup((prev) => ({ ...prev, from }));
-														}}
-														className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+														onChange={(from) => setWeekdayGroup((prev) => ({ ...prev, from }))}
 													/>
 													<span className="text-xs text-muted-foreground text-center">–</span>
-													<Input
-														type="time"
+													<TimePicker
+														label="Välj sluttid"
 														disabled={weekdayGroup.closed}
 														value={weekdayGroup.to}
-														onChange={(e) => {
-															const to = e.target.value;
-															setWeekdayGroup((prev) => ({ ...prev, to }));
-														}}
-														className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+														onChange={(to) => setWeekdayGroup((prev) => ({ ...prev, to }))}
 													/>
 												</div>
 											</div>
@@ -737,26 +730,22 @@ export default function Registration() {
 														</div>
 
 														<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-															<Input
-																type="time"
+															<TimePicker
+																label="Välj starttid"
 																disabled={value.closed}
 																value={value.from}
-																onChange={(e) => {
-																	const from = e.target.value;
-																	setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }));
-																}}
-																className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+																onChange={(from) =>
+																	setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
+																}
 															/>
 															<span className="text-xs text-muted-foreground text-center">–</span>
-															<Input
-																type="time"
+															<TimePicker
+																label="Välj sluttid"
 																disabled={value.closed}
 																value={value.to}
-																onChange={(e) => {
-																	const to = e.target.value;
-																	setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }));
-																}}
-																className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+																onChange={(to) =>
+																	setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
+																}
 															/>
 														</div>
 													</div>
@@ -809,26 +798,22 @@ export default function Registration() {
 													</div>
 
 													<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-														<Input
-															type="time"
+														<TimePicker
+															label="Välj starttid"
 															disabled={value.closed}
 															value={value.from}
-															onChange={(e) => {
-																const from = e.target.value;
-																setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }));
-															}}
-															className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+															onChange={(from) =>
+																setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
+															}
 														/>
 														<span className="text-xs text-muted-foreground text-center">–</span>
-														<Input
-															type="time"
+														<TimePicker
+															label="Välj sluttid"
 															disabled={value.closed}
 															value={value.to}
-															onChange={(e) => {
-																const to = e.target.value;
-																setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }));
-															}}
-															className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+															onChange={(to) =>
+																setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
+															}
 														/>
 													</div>
 												</div>

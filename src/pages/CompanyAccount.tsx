@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
 import { setMonochromeEnabled } from "@/lib/monochrome";
 import { useMonochrome } from "@/hooks/useMonochrome";
+import { TimePicker } from "@/components/TimePicker";
 import {
   getAuthEmail,
   getBusinessId,
@@ -434,20 +435,18 @@ export default function CompanyAccount() {
                     </button>
 
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                      <Input
-                        type="time"
+                      <TimePicker
+                        label="Välj starttid"
                         disabled={weekdayGroup.closed || isLoading}
                         value={weekdayGroup.from}
-                        onChange={(e) => setWeekdayGroup((prev) => ({ ...prev, from: e.target.value }))}
-                        className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+                        onChange={(from) => setWeekdayGroup((prev) => ({ ...prev, from }))}
                       />
                       <span className="text-xs text-muted-foreground text-center">–</span>
-                      <Input
-                        type="time"
+                      <TimePicker
+                        label="Välj sluttid"
                         disabled={weekdayGroup.closed || isLoading}
                         value={weekdayGroup.to}
-                        onChange={(e) => setWeekdayGroup((prev) => ({ ...prev, to: e.target.value }))}
-                        className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+                        onChange={(to) => setWeekdayGroup((prev) => ({ ...prev, to }))}
                       />
                     </div>
                   </div>
@@ -493,24 +492,22 @@ export default function CompanyAccount() {
                         </button>
 
                         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                          <Input
-                            type="time"
+                          <TimePicker
+                            label="Välj starttid"
                             disabled={value.closed || isLoading}
                             value={value.from}
-                            onChange={(e) =>
-                              setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from: e.target.value } }))
+                            onChange={(from) =>
+                              setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
                             }
-                            className="h-10 bg-background border-border text-foreground disabled:opacity-50"
                           />
                           <span className="text-xs text-muted-foreground text-center">–</span>
-                          <Input
-                            type="time"
+                          <TimePicker
+                            label="Välj sluttid"
                             disabled={value.closed || isLoading}
                             value={value.to}
-                            onChange={(e) =>
-                              setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to: e.target.value } }))
+                            onChange={(to) =>
+                              setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
                             }
-                            className="h-10 bg-background border-border text-foreground disabled:opacity-50"
                           />
                         </div>
                       </div>
@@ -559,24 +556,22 @@ export default function CompanyAccount() {
                       </button>
 
                       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                        <Input
-                          type="time"
+                        <TimePicker
+                          label="Välj starttid"
                           disabled={value.closed || isLoading}
                           value={value.from}
-                          onChange={(e) =>
-                            setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from: e.target.value } }))
+                          onChange={(from) =>
+                            setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
                           }
-                          className="h-10 bg-background border-border text-foreground disabled:opacity-50"
                         />
                         <span className="text-xs text-muted-foreground text-center">–</span>
-                        <Input
-                          type="time"
+                        <TimePicker
+                          label="Välj sluttid"
                           disabled={value.closed || isLoading}
                           value={value.to}
-                          onChange={(e) =>
-                            setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to: e.target.value } }))
+                          onChange={(to) =>
+                            setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
                           }
-                          className="h-10 bg-background border-border text-foreground disabled:opacity-50"
                         />
                       </div>
                     </div>
