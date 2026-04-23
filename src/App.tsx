@@ -1,11 +1,16 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AdminLayout } from "@/components/AdminLayout";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+
+const AdminLayout = lazy(() =>
+  import("./components/AdminLayout").then((m) => ({ default: m.AdminLayout })),
+);
+const ProtectedRoute = lazy(() =>
+  import("./components/ProtectedRoute").then((m) => ({ default: m.ProtectedRoute })),
+);
 
 const Index = lazy(() => import("./pages/Index"));
 const LandingPage = lazy(() => import("./pages/Landingpage"));
@@ -26,6 +31,14 @@ const WorkerOnboard = lazy(() => import("./pages/WorkerOnboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
+
+function PrivateLayout() {
+  return (
+    <AdminLayout>
+      <Outlet />
+    </AdminLayout>
+  );
+}
 
 function RouteLoadingFallback() {
   const [showLoader, setShowLoader] = useState(false);
@@ -62,17 +75,16 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AdminLayout>
-          <Suspense fallback={<RouteLoadingFallback />}>
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/" element={<LoggIn />} />
-              <Route path="/login" element={<LoggIn />} />
-              <Route path="/registration" element={<Registration />} />
-              <Route path="/manager-registration" element={<ManagerRegistration />} />
-              <Route path="/manager/onboard" element={<ManagerRegistration />} />
-              <Route path="/worker/onboard" element={<WorkerOnboard />} />
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoggIn />} />
+            <Route path="/registration" element={<Registration />} />
+            <Route path="/manager-registration" element={<ManagerRegistration />} />
+            <Route path="/manager/onboard" element={<ManagerRegistration />} />
+            <Route path="/worker/onboard" element={<WorkerOnboard />} />
 
+            <Route element={<PrivateLayout />}>
               <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
                 <Route path="/admin" element={<Index />} />
                 <Route path="/admin/logs" element={<AdminLogs />} />
@@ -89,11 +101,11 @@ const App = () => (
                 <Route path="/company/account" element={<CompanyAccount />} />
                 <Route path="/company/workers/new" element={<WorkerCreation />} />
               </Route>
+            </Route>
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </AdminLayout>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

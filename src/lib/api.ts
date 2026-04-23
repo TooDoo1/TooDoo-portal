@@ -263,6 +263,67 @@ export type Business = {
   updatedAt?: string;
 };
 
+// --- FöretagsAPI.se (frontend direct) ---
+type ForetagsApiCompany = {
+  name: string;
+  orgNumber: string;
+  score?: number;
+  postalAddress?: {
+    street?: string;
+    postalCode?: string;
+    city?: string;
+  };
+};
+
+type ForetagsApiSearchResponse = {
+  companies?: ForetagsApiCompany[];
+};
+
+function getForetagsApiKey() {
+  const key = (import.meta.env.VITE_FORETAGS_API_KEY as string | undefined)?.trim();
+  if (!key) {
+    throw new ApiError("Saknar FöretagsAPI-nyckel (VITE_FORETAGS_API_KEY).");
+  }
+  return key;
+}
+
+export function normalizeOrgNumber(input: string) {
+  return (input ?? "").replace(/[^\d]/g, "").trim();
+}
+
+export async function searchCompaniesByOrgNumber(orgNumber: string, limit = 5) {
+  const normalized = normalizeOrgNumber(orgNumber);
+  if (!normalized) {
+    throw new ApiError("Fyll i organisationsnummer.");
+  }
+
+  const response = await fetch("https://data.foretagsapi.se/v1/search", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${getForetagsApiKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      org_number: normalized,
+      limit,
+    }),
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  const payload = contentType.includes("application/json") ? ((await response.json()) as unknown) : null;
+
+  if (!response.ok) {
+    const message =
+      (payload as { error?: string; message?: string } | null)?.error ||
+      (payload as { error?: string; message?: string } | null)?.message ||
+      `FöretagsAPI request failed (${response.status})`;
+    throw new ApiError(message);
+  }
+
+  const data = (payload ?? {}) as ForetagsApiSearchResponse;
+  return (Array.isArray(data.companies) ? data.companies : []) as ForetagsApiCompany[];
+}
+
 export type Order = {
   id: string;
   title: string;

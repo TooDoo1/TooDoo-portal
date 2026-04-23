@@ -14,8 +14,8 @@ import {
 
 const slides = [
   "/Icon.jpg",
-  "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1920&q=80",
-  "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=1920&q=80",
+  "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1200&q=70",
+  "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1200&q=70",
 ];
 
 const iconMap: Record<string, JSX.Element> = {
@@ -83,11 +83,55 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
-    fetch("http://83.248.14.115:4000/deals")
-      .then((res) => res.json())
-      .then((data) => { setDeals(data); setLoading(false); })
-      .catch((err) => { console.error("API error:", err); setLoading(false); });
+    let cancelled = false;
+
+    const run = () => {
+      fetch("http://83.248.14.115:4000/deals")
+        .then((res) => res.json())
+        .then((data) => {
+          if (cancelled) return;
+          setDeals(data);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error("API error:", err);
+          if (!cancelled) setLoading(false);
+        });
+    };
+
+    // Defer non-critical fetch to reduce main-thread work on first paint
+    const w = window as unknown as {
+      requestIdleCallback?: (cb: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof w.requestIdleCallback === "function") {
+      const id = w.requestIdleCallback(run);
+      return () => {
+        cancelled = true;
+        try {
+          w.cancelIdleCallback?.(id);
+        } catch {
+          /* ignore */
+        }
+      };
+    }
+
+    const t = window.setTimeout(run, 800);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
   }, []);
+
+  // Prefetch the next slide image after initial paint
+  useEffect(() => {
+    const next = slides[(current + 1) % slides.length];
+    if (!next || next.startsWith("/")) return;
+    const img = new Image();
+    img.decoding = "async";
+    img.loading = "lazy";
+    img.src = next;
+  }, [current]);
 
   const handleNavEnter = (label: string) => {
     if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
@@ -101,7 +145,6 @@ export default function LandingPage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #000b2a; color: #fff; font-family: 'DM Sans', sans-serif; }
 
@@ -258,13 +301,18 @@ export default function LandingPage() {
 
       {/* HERO */}
       <section style={{ height: "100vh", position: "relative" }}>
-        {slides.map((src, i) => (
-          <div key={i} style={{
-            position: "absolute", inset: 0,
-            backgroundImage: `url(${src})`, backgroundSize: "cover", backgroundPosition: "center",
-            opacity: i === current ? 1 : 0, transition: "1s",
-          }} />
-        ))}
+        <div
+          key={current}
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: `url(${slides[current]})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            opacity: 1,
+            transition: "opacity 0.6s ease",
+          }}
+        />
         {/* Overlay */}
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,11,42,0.45) 0%, rgba(0,11,42,0.65) 60%, rgba(0,11,42,0.92) 100%)", zIndex: 1 }} />
 

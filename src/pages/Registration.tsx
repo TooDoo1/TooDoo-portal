@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import {
 	createBusiness,
 	listCategories,
+	searchCompaniesByOrgNumber,
 	setBusinessId,
 } from "@/lib/api";
 import { toast } from "sonner";
@@ -40,6 +41,18 @@ export default function Registration() {
 	const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+	const [orgNumber, setOrgNumber] = useState("");
+	const [orgSearchLoading, setOrgSearchLoading] = useState(false);
+	const [orgSearchResults, setOrgSearchResults] = useState<
+		Array<{
+			name: string;
+			orgNumber: string;
+			addressLine: string;
+			city: string;
+			street: string;
+		}>
+	>([]);
+	const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(null);
 	const navigate = useNavigate();
 	const longDescRef = useRef<HTMLTextAreaElement>(null);
 	const companyOptions = [
@@ -125,7 +138,10 @@ export default function Registration() {
 		const city = (document.getElementById("companyCity") as HTMLInputElement | null)?.value.trim() ?? "";
 		const address = (document.getElementById("companyAddress") as HTMLInputElement | null)?.value.trim() ?? "";
 		const longDescription = longDescRef.current?.value.trim() ?? "";
-		const companyName = companyOptions.find((option) => option.value === company)?.label || "Annat företag";
+		const companyName =
+			selectedCompanyName?.trim() ||
+			companyOptions.find((option) => option.value === company)?.label ||
+			"Annat företag";
 
 		let normalizedWebsite: string | undefined;
 		if (website) {
@@ -180,6 +196,53 @@ export default function Registration() {
 		} finally {
 			setIsSubmitting(false);
 		}
+	};
+
+	const handleOrgSearch = async () => {
+		const raw = orgNumber.trim();
+		if (!raw) {
+			toast.error("Fyll i organisationsnummer.");
+			return;
+		}
+
+		setOrgSearchLoading(true);
+		try {
+			const companies = await searchCompaniesByOrgNumber(raw, 5);
+			const mapped = companies.map((c) => {
+				const street = c.postalAddress?.street?.trim() ?? "";
+				const postalCode = c.postalAddress?.postalCode?.trim() ?? "";
+				const city = c.postalAddress?.city?.trim() ?? "";
+				const addressLine = [street, [postalCode, city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+
+				return {
+					name: c.name,
+					orgNumber: c.orgNumber,
+					addressLine,
+					city,
+					street,
+				};
+			});
+			setOrgSearchResults(mapped);
+			if (mapped.length === 0) {
+				toast.info("Inga träffar.");
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Kunde inte söka företag.";
+			toast.error(message);
+		} finally {
+			setOrgSearchLoading(false);
+		}
+	};
+
+	const applySelectedCompany = (c: { name: string; city: string; street: string }) => {
+		setSelectedCompanyName(c.name);
+		setCompany("annat");
+		setCompanyOpen(false);
+
+		const cityInput = document.getElementById("companyCity") as HTMLInputElement | null;
+		const addressInput = document.getElementById("companyAddress") as HTMLInputElement | null;
+		if (cityInput && c.city) cityInput.value = c.city;
+		if (addressInput && c.street) addressInput.value = c.street;
 	};
 
 	return (
@@ -376,7 +439,11 @@ export default function Registration() {
 											aria-expanded={companyOpen}
 											className="h-11 w-full rounded-md border border-border bg-background px-3 text-left text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
 										>
-											{company ? companyOptions.find((option) => option.value === company)?.label : "Välj företag"}
+											{selectedCompanyName?.trim()
+												? selectedCompanyName
+												: company
+													? companyOptions.find((option) => option.value === company)?.label
+													: "Välj företag"}
 										</button>
 									</PopoverTrigger>
 									<PopoverContent className="w-[--radix-popover-trigger-width] border-border bg-popover p-0" align="start">
@@ -405,6 +472,55 @@ export default function Registration() {
 										</Command>
 									</PopoverContent>
 								</Popover>
+							</div>
+
+							<div className="space-y-2">
+								<label htmlFor="orgNumber" className="ml-0.5 text-sm font-semibold text-muted-foreground">
+									Organisationsnummer:
+								</label>
+								<div className="flex gap-2">
+									<Input
+										id="orgNumber"
+										value={orgNumber}
+										onChange={(e) => setOrgNumber(e.target.value)}
+										placeholder="556703-7485"
+										className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+									/>
+									<button
+										type="button"
+										disabled={orgSearchLoading}
+										onClick={handleOrgSearch}
+										className="inline-flex h-11 shrink-0 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
+									>
+										{orgSearchLoading ? "Söker..." : "Sök"}
+									</button>
+								</div>
+
+								{orgSearchResults.length > 0 ? (
+									<div className="rounded-xl border border-border bg-background/30 p-2">
+										<div className="space-y-1">
+											{orgSearchResults.map((c) => (
+												<button
+													key={`${c.orgNumber}-${c.name}`}
+													type="button"
+													onClick={() => applySelectedCompany(c)}
+													className="w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent/20"
+												>
+													<div className="flex items-center justify-between gap-3">
+														<div className="min-w-0">
+															<div className="truncate text-sm font-semibold text-foreground">{c.name}</div>
+															<div className="truncate text-xs text-muted-foreground">
+																Org.nr: {c.orgNumber}
+																{c.addressLine ? ` · ${c.addressLine}` : ""}
+															</div>
+														</div>
+														<Check className={cn("h-4 w-4 shrink-0", selectedCompanyName === c.name ? "opacity-100" : "opacity-0")} />
+													</div>
+												</button>
+											))}
+										</div>
+									</div>
+								) : null}
 							</div>
 
 							<div className="space-y-2">
