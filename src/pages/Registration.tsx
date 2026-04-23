@@ -55,6 +55,35 @@ export default function Registration() {
 	const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(null);
 	const navigate = useNavigate();
 	const longDescRef = useRef<HTMLTextAreaElement>(null);
+	const [openingHours, setOpeningHours] = useState<Record<
+		"monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday",
+		{ closed: boolean; from: string; to: string }
+	>>({
+		monday: { closed: false, from: "09:00", to: "17:00" },
+		tuesday: { closed: false, from: "09:00", to: "17:00" },
+		wednesday: { closed: false, from: "09:00", to: "17:00" },
+		thursday: { closed: false, from: "09:00", to: "17:00" },
+		friday: { closed: false, from: "09:00", to: "17:00" },
+		saturday: { closed: true, from: "09:00", to: "17:00" },
+		sunday: { closed: true, from: "09:00", to: "17:00" },
+	});
+	const [groupWeekdays, setGroupWeekdays] = useState(true);
+	const [weekdayGroup, setWeekdayGroup] = useState<{ closed: boolean; from: string; to: string }>({
+		closed: false,
+		from: "09:00",
+		to: "17:00",
+	});
+	const openingHoursLabels: Record<keyof typeof openingHours, string> = {
+		monday: "Måndag",
+		tuesday: "Tisdag",
+		wednesday: "Onsdag",
+		thursday: "Torsdag",
+		friday: "Fredag",
+		saturday: "Lördag",
+		sunday: "Söndag",
+	};
+	const weekdayKeys: Array<keyof typeof openingHours> = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+	const weekendKeys: Array<keyof typeof openingHours> = ["saturday", "sunday"];
 	const companyOptions = [
 		{ value: "toodoo-ab", label: "TooDoo AB" },
 		{ value: "ikea", label: "IKEA" },
@@ -167,6 +196,24 @@ export default function Registration() {
 
 		setIsSubmitting(true);
 		try {
+			const effectiveOpeningHours = groupWeekdays
+				? ({
+						...openingHours,
+						monday: { ...weekdayGroup },
+						tuesday: { ...weekdayGroup },
+						wednesday: { ...weekdayGroup },
+						thursday: { ...weekdayGroup },
+						friday: { ...weekdayGroup },
+					} satisfies typeof openingHours)
+				: openingHours;
+
+			const openingHoursPayload = Object.fromEntries(
+				Object.entries(effectiveOpeningHours)
+					.filter(([, v]) => !v.closed)
+					.map(([day, v]) => [day, { from: v.from, to: v.to }]),
+			);
+			const shouldSendOpeningHours = Object.keys(openingHoursPayload).length > 0;
+
 			const businessResponse = await createBusiness({
 				name: companyName,
 				description: longDescription,
@@ -176,6 +223,7 @@ export default function Registration() {
 				address,
 				city,
 				categoryId: categoryId,
+				...(shouldSendOpeningHours ? { openingHours: openingHoursPayload } : {}),
 			});
 
 			const businessId =
@@ -539,6 +587,258 @@ export default function Registration() {
 									placeholder="Ange adress"
 									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
+							</div>
+
+							<div className="space-y-3 pt-2">
+								<label className="ml-0.5 text-sm font-semibold text-muted-foreground">Öppettider (valfritt):</label>
+								<div className="space-y-2 rounded-xl border border-border bg-background/30 p-3">
+									<div className="flex items-center justify-between gap-3">
+										<button
+											type="button"
+											aria-pressed={groupWeekdays}
+											onClick={() => {
+												const next = !groupWeekdays;
+												setGroupWeekdays(next);
+												if (next) {
+													// When enabling grouping, seed group values from Monday for least surprise.
+													setWeekdayGroup({ ...openingHours.monday });
+												}
+											}}
+											className={cn(
+												"inline-flex h-10 w-full items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
+												"group",
+												groupWeekdays
+													? "border-accent bg-accent text-accent-foreground"
+													: "border-border bg-background text-foreground hover:bg-accent/15",
+											)}
+										>
+											<span
+												className={cn(
+													"grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+													groupWeekdays
+														? "border-accent-foreground/30 bg-accent-foreground/10"
+														: "border-border bg-background/40",
+												)}
+												aria-hidden="true"
+											>
+												{groupWeekdays ? "✓" : ""}
+											</span>
+											<span className="flex flex-col items-start leading-tight">
+												<span>Mån–Fre</span>
+												<span className={cn("text-[11px] font-medium", groupWeekdays ? "text-accent-foreground/80" : "text-muted-foreground")}>
+													Komprimerar vardagar till en rad
+												</span>
+											</span>
+										</button>
+									</div>
+
+									<div className="grid gap-2">
+										{groupWeekdays ? (
+											<div className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg bg-background/40 p-2 sm:grid-cols-[140px_1fr]">
+												<div className="flex items-center gap-3 sm:w-[140px]">
+													<button
+														type="button"
+														aria-pressed={weekdayGroup.closed}
+														onClick={() => setWeekdayGroup((prev) => ({ ...prev, closed: !prev.closed }))}
+														className={cn(
+															"inline-flex h-10 w-full items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
+															weekdayGroup.closed
+																? "border-destructive bg-destructive text-destructive-foreground"
+																: "border-border bg-background text-foreground hover:bg-accent/15",
+														)}
+													>
+														<span
+															className={cn(
+																"grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+																weekdayGroup.closed
+																	? "border-destructive-foreground/30 bg-destructive-foreground/10"
+																	: "border-border bg-background/40",
+															)}
+															aria-hidden="true"
+														>
+															{weekdayGroup.closed ? "✕" : ""}
+														</span>
+														<span className="flex flex-col items-start leading-tight">
+															<span>Mån–Fre</span>
+															<span className={cn("text-[11px] font-medium", weekdayGroup.closed ? "text-destructive-foreground/80" : "text-muted-foreground")}>
+																{weekdayGroup.closed ? "Stängt" : "Öppet"}
+															</span>
+														</span>
+													</button>
+												</div>
+
+												<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+													<Input
+														type="time"
+														disabled={weekdayGroup.closed}
+														value={weekdayGroup.from}
+														onChange={(e) => {
+															const from = e.target.value;
+															setWeekdayGroup((prev) => ({ ...prev, from }));
+														}}
+														className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+													/>
+													<span className="text-xs text-muted-foreground text-center">–</span>
+													<Input
+														type="time"
+														disabled={weekdayGroup.closed}
+														value={weekdayGroup.to}
+														onChange={(e) => {
+															const to = e.target.value;
+															setWeekdayGroup((prev) => ({ ...prev, to }));
+														}}
+														className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+													/>
+												</div>
+											</div>
+										) : (
+											weekdayKeys.map((dayKey) => {
+												const value = openingHours[dayKey];
+												return (
+													<div
+														key={dayKey}
+														className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg bg-background/40 p-2 sm:grid-cols-[140px_1fr]"
+													>
+														<div className="flex items-center gap-3 sm:w-[140px]">
+															<button
+																type="button"
+																aria-pressed={value.closed}
+																onClick={() =>
+																	setOpeningHours((prev) => ({
+																		...prev,
+																		[dayKey]: { ...prev[dayKey], closed: !prev[dayKey].closed },
+																	}))
+																}
+																className={cn(
+																	"inline-flex h-10 w-full items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
+																	value.closed
+																		? "border-destructive bg-destructive text-destructive-foreground"
+																		: "border-border bg-background text-foreground hover:bg-accent/15",
+																)}
+															>
+																<span
+																	className={cn(
+																		"grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+																		value.closed
+																			? "border-destructive-foreground/30 bg-destructive-foreground/10"
+																			: "border-border bg-background/40",
+																	)}
+																	aria-hidden="true"
+																>
+																	{value.closed ? "✕" : ""}
+																</span>
+																<span className="flex flex-col items-start leading-tight">
+																	<span>{openingHoursLabels[dayKey]}</span>
+																	<span className={cn("text-[11px] font-medium", value.closed ? "text-destructive-foreground/80" : "text-muted-foreground")}>
+																		{value.closed ? "Stängt" : "Öppet"}
+																	</span>
+																</span>
+															</button>
+														</div>
+
+														<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+															<Input
+																type="time"
+																disabled={value.closed}
+																value={value.from}
+																onChange={(e) => {
+																	const from = e.target.value;
+																	setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }));
+																}}
+																className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+															/>
+															<span className="text-xs text-muted-foreground text-center">–</span>
+															<Input
+																type="time"
+																disabled={value.closed}
+																value={value.to}
+																onChange={(e) => {
+																	const to = e.target.value;
+																	setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }));
+																}}
+																className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+															/>
+														</div>
+													</div>
+												);
+											})
+										)}
+
+										{weekendKeys.map((dayKey) => {
+											const value = openingHours[dayKey];
+											return (
+												<div
+													key={dayKey}
+													className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg bg-background/40 p-2 sm:grid-cols-[140px_1fr]"
+												>
+													<div className="flex items-center gap-3 sm:w-[140px]">
+														<button
+															type="button"
+															aria-pressed={value.closed}
+															onClick={() =>
+																setOpeningHours((prev) => ({
+																	...prev,
+																	[dayKey]: { ...prev[dayKey], closed: !prev[dayKey].closed },
+																}))
+															}
+															className={cn(
+																"inline-flex h-10 w-full items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
+																value.closed
+																	? "border-destructive bg-destructive text-destructive-foreground"
+																	: "border-border bg-background text-foreground hover:bg-accent/15",
+															)}
+														>
+															<span
+																className={cn(
+																	"grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+																	value.closed
+																		? "border-destructive-foreground/30 bg-destructive-foreground/10"
+																		: "border-border bg-background/40",
+																)}
+																aria-hidden="true"
+															>
+																{value.closed ? "✕" : ""}
+															</span>
+															<span className="flex flex-col items-start leading-tight">
+																<span>{openingHoursLabels[dayKey]}</span>
+																<span className={cn("text-[11px] font-medium", value.closed ? "text-destructive-foreground/80" : "text-muted-foreground")}>
+																	{value.closed ? "Stängt" : "Öppet"}
+																</span>
+															</span>
+														</button>
+													</div>
+
+													<div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+														<Input
+															type="time"
+															disabled={value.closed}
+															value={value.from}
+															onChange={(e) => {
+																const from = e.target.value;
+																setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }));
+															}}
+															className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+														/>
+														<span className="text-xs text-muted-foreground text-center">–</span>
+														<Input
+															type="time"
+															disabled={value.closed}
+															value={value.to}
+															onChange={(e) => {
+																const to = e.target.value;
+																setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }));
+															}}
+															className="h-10 bg-background border-border text-foreground disabled:opacity-50"
+														/>
+													</div>
+												</div>
+											);
+										})}
+									</div>
+								</div>
+								<p className="text-xs text-muted-foreground">
+									Vi skickar bara dagar som inte är markerade som “Stängt”.
+								</p>
 							</div>
 						</div>
 					</div>

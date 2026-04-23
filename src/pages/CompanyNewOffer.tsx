@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { ArrowLeft, CalendarDays, ChevronDown, ChevronUp, PlusCircle } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronDown, ChevronUp, Clock, PlusCircle } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { addDays, format, parseISO, startOfDay } from "date-fns";
 import { toast } from "sonner";
 import { createOrder, getBusinessById, getBusinessId, getOrderById, resolveBusinessId, updateOrder, type Business } from "@/lib/api";
 
@@ -20,12 +20,14 @@ type OfferForm = {
   detailedDescription: string;
   category: string;
   startAt: string;
+  startTime: string;
   originalPrice: string;
   discountedPrice: string;
   claimsTotal: string;
   couponLifetimeMinutes: string;
   couponLifetimeUnit: "minutes" | "hours" | "days";
   expiresAt: string;
+  expiresTime: string;
 };
 
 type OfferPayload = {
@@ -44,6 +46,211 @@ type OfferPayload = {
 type PreviewBusiness = Pick<Business, "name" | "address" | "city" | "contactPhone" | "website"> & {
   logoUrl?: string | null;
 };
+
+function clamp2(value: number) {
+  return String(Math.max(0, Math.min(99, value))).padStart(2, "0");
+}
+
+function normalizeTime(value: string) {
+  const match = (value ?? "").trim().match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!match) return "";
+  const hh = Number(match[1]);
+  const mm = Number(match[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return "";
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return "";
+  return `${clamp2(hh)}:${clamp2(mm)}`;
+}
+
+function compareTime(a: string, b: string) {
+  const na = normalizeTime(a);
+  const nb = normalizeTime(b);
+  if (!na || !nb) return 0;
+  const [ah, am] = na.split(":").map(Number);
+  const [bh, bm] = nb.split(":").map(Number);
+  return ah !== bh ? ah - bh : am - bm;
+}
+
+function ceilToStep(time: string, stepMinutes: number) {
+  const n = normalizeTime(time);
+  if (!n) return "";
+  const [hStr, mStr] = n.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  const total = h * 60 + m;
+  const stepped = Math.ceil(total / stepMinutes) * stepMinutes;
+  const hh = Math.floor(stepped / 60);
+  const mm = stepped % 60;
+  if (hh > 23) return "23:59";
+  return `${clamp2(hh)}:${clamp2(mm)}`;
+}
+
+function addMinutesToTime(time: string, minutesToAdd: number) {
+  const n = normalizeTime(time);
+  if (!n) return "";
+  const [hStr, mStr] = n.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  const total = h * 60 + m + minutesToAdd;
+  const clamped = Math.max(0, Math.min(23 * 60 + 59, total));
+  const hh = Math.floor(clamped / 60);
+  const mm = clamped % 60;
+  return `${clamp2(hh)}:${clamp2(mm)}`;
+}
+
+function toLocalIsoWithOffset(date: Date) {
+  // Backend-safe ISO string that preserves the local wall-clock time by including offset, e.g. 2026-04-23T11:40:00+02:00
+  return format(date, "yyyy-MM-dd'T'HH:mm:ssxxx");
+}
+
+function TimePicker({
+  value,
+  onChange,
+  disabled,
+  label,
+  minTime,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  disabled?: boolean;
+  label: string;
+  minTime?: string;
+}) {
+  const normalized = normalizeTime(value);
+  const [open, setOpen] = useState(false);
+
+  const [hh, mm] = normalized ? normalized.split(":") : ["", ""];
+  const hours = Array.from({ length: 24 }, (_, i) => clamp2(i));
+  const minuteStep = 5;
+  const minutes = Array.from({ length: 60 / minuteStep }, (_, i) => clamp2(i * minuteStep));
+  const effectiveMinTime = minTime ? ceilToStep(minTime, minuteStep) : "";
+  const effectiveMinHour = effectiveMinTime ? effectiveMinTime.split(":")[0] : "";
+  const effectiveMinMinute = effectiveMinTime ? effectiveMinTime.split(":")[1] : "";
+  const selectedMinuteForHour = mm ? mm : null;
+
+  const setPart = (nextH: string, nextM: string) => {
+    const next = normalizeTime(`${nextH}:${nextM}`);
+    if (!next) return;
+    if (effectiveMinTime && compareTime(next, effectiveMinTime) < 0) return;
+    onChange(next);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={(next) => !disabled && setOpen(next)}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className={cn(
+            "relative h-11 w-full rounded-md border bg-background px-3 pr-10 text-left text-sm text-foreground transition-colors focus-visible:outline-none",
+            disabled ? "border-border opacity-50" : "border-border focus-visible:ring-2 focus-visible:ring-accent",
+          )}
+          aria-label={label}
+        >
+          {normalized || "Välj tid"}
+          <Clock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="start" className="w-56 border-border bg-popover p-2">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <div className="px-1 text-[11px] font-semibold text-muted-foreground">Timme</div>
+            <div className="max-h-56 overflow-auto rounded-md border border-border bg-background/40 p-1">
+              {hours.map((h) => {
+                const disabledHour =
+                  Boolean(effectiveMinTime) &&
+                  (Number(h) < Number(effectiveMinHour) ||
+                    (h === effectiveMinHour &&
+                      selectedMinuteForHour !== null &&
+                      Number(selectedMinuteForHour) < Number(effectiveMinMinute)));
+
+                return (
+                  <button
+                    key={h}
+                    type="button"
+                    disabled={disabledHour}
+                    onClick={() => {
+                      // If minutes aren't selected yet, pick a sensible default that respects minTime.
+                      const nextMinute =
+                        mm ||
+                        (effectiveMinTime && h === effectiveMinHour ? effectiveMinMinute : "00");
+                      setPart(h, nextMinute);
+                    }}
+                    className={cn(
+                      "flex w-full items-center justify-center rounded-md px-2 py-1.5 text-sm font-semibold transition-colors",
+                      h === hh ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/15",
+                      disabledHour ? "opacity-40 pointer-events-none" : "",
+                    )}
+                  >
+                    {h}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="px-1 text-[11px] font-semibold text-muted-foreground">Minut</div>
+            <div className="max-h-56 overflow-auto rounded-md border border-border bg-background/40 p-1">
+              {minutes.map((m) => {
+                const hasSelectedHour = Boolean(hh);
+                const minH = effectiveMinHour ? Number(effectiveMinHour) : null;
+                const minM = effectiveMinMinute ? Number(effectiveMinMinute) : null;
+                const minuteTooEarlyForMinHour = minH !== null && minM !== null && Number(m) < minM;
+                const selectedHourIsMinHour = hasSelectedHour && effectiveMinHour && hh === effectiveMinHour;
+
+                const disabledMinute =
+                  Boolean(effectiveMinTime) && selectedHourIsMinHour && minM !== null && Number(m) < minM;
+
+                const defaultHourForMinute = (() => {
+                  if (hasSelectedHour) return hh;
+                  if (!effectiveMinTime || minH === null || minM === null) return "12";
+                  if (minH >= 23 && minuteTooEarlyForMinHour) return effectiveMinHour; // edge-case: can't roll past 23
+                  return minuteTooEarlyForMinHour ? clamp2(minH + 1) : effectiveMinHour;
+                })();
+
+                return (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={disabledMinute}
+                  onClick={() => setPart(defaultHourForMinute, m)}
+                  className={cn(
+                    "flex w-full items-center justify-center rounded-md px-2 py-1.5 text-sm font-semibold transition-colors",
+                    m === mm ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent/15",
+                    disabledMinute ? "opacity-40 pointer-events-none" : "",
+                  )}
+                >
+                  {m}
+                </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            className="rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-accent/15 hover:text-foreground"
+            onClick={() => {
+              onChange("");
+              setOpen(false);
+            }}
+          >
+            Rensa
+          </button>
+          <button
+            type="button"
+            className="rounded-md bg-accent px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent/90"
+            onClick={() => setOpen(false)}
+          >
+            Klar
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 type OfferPreviewCardProps = {
   businessName: string;
@@ -333,20 +540,22 @@ export default function CompanyNewOffer() {
   const [previewBusiness, setPreviewBusiness] = useState<PreviewBusiness | null>(null);
   const [isLoadingOffer, setIsLoadingOffer] = useState(false);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
-  const today = new Date();
-  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  const today = startOfDay(new Date());
+  const tomorrow = addDays(today, 1);
   const [form, setForm] = useState<OfferForm>({
     title: "",
     description: "",
     detailedDescription: "",
     category: "",
     startAt: "",
+    startTime: "",
     originalPrice: "",
     discountedPrice: "",
     claimsTotal: "",
     couponLifetimeMinutes: "60",
     couponLifetimeUnit: "minutes",
     expiresAt: "",
+    expiresTime: "",
   });
 
   useEffect(() => {
@@ -407,12 +616,14 @@ export default function CompanyNewOffer() {
           detailedDescription,
           category: typeof order.categoryName === "string" ? order.categoryName : "",
           startAt: orderTimeFrom ? format(new Date(orderTimeFrom), "yyyy-MM-dd") : "",
+          startTime: orderTimeFrom ? format(new Date(orderTimeFrom), "HH:mm") : "",
           originalPrice: typeof order.originalPrice === "number" || typeof order.originalPrice === "string" ? String(order.originalPrice) : "",
           discountedPrice: typeof order.price === "number" || typeof order.price === "string" ? String(order.price) : "",
           claimsTotal: typeof order.maxRedemptions === "number" ? String(order.maxRedemptions) : "",
           couponLifetimeMinutes: String(couponLifetimeMinutes),
           couponLifetimeUnit: "minutes",
           expiresAt: orderTimeTo ? format(new Date(orderTimeTo), "yyyy-MM-dd") : "",
+          expiresTime: orderTimeTo ? format(new Date(orderTimeTo), "HH:mm") : "",
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Kunde inte läsa erbjudandet.";
@@ -425,11 +636,11 @@ export default function CompanyNewOffer() {
 
     void loadOrder();
   }, [location.search, navigate]);
-  const startDateForEndPicker = form.startAt ? new Date(form.startAt) : null;
+  const startDateForEndPicker = form.startAt ? parseISO(form.startAt) : null;
   const expiresMinDate = startDateForEndPicker && !Number.isNaN(startDateForEndPicker.getTime())
     ? startDateForEndPicker
     : tomorrow;
-  const expiresDateForStartPicker = form.expiresAt ? new Date(form.expiresAt) : null;
+  const expiresDateForStartPicker = form.expiresAt ? parseISO(form.expiresAt) : null;
   const startMaxDate = expiresDateForStartPicker && !Number.isNaN(expiresDateForStartPicker.getTime())
     ? expiresDateForStartPicker
     : null;
@@ -503,12 +714,40 @@ export default function CompanyNewOffer() {
     }
 
     if (!form.startAt) {
+      toast.error("Välj ett startdatum för erbjudandet.");
+      return;
+    }
+
+    if (!form.startTime) {
       toast.error("Välj en starttid för erbjudandet.");
       return;
     }
 
-    const orderTimeFromDate = new Date(form.startAt);
-    const validToDate = new Date(`${form.expiresAt}T23:59:59`);
+    if (!form.expiresTime) {
+      toast.error("Välj en sluttid för erbjudandet.");
+      return;
+    }
+
+    if (form.startAt && form.expiresAt && form.startAt === form.expiresAt) {
+      // Same day is allowed, but end must be after start.
+      if (compareTime(form.expiresTime, addMinutesToTime(form.startTime, 1)) < 0) {
+        toast.error("Sluttid måste vara efter starttid när datumen är samma dag.");
+        return;
+      }
+    }
+
+    if (form.startAt === format(new Date(), "yyyy-MM-dd")) {
+      const now = new Date();
+      const nowTime = `${clamp2(now.getHours())}:${clamp2(now.getMinutes())}`;
+      const effectiveMin = ceilToStep(nowTime, 5);
+      if (effectiveMin && compareTime(form.startTime, effectiveMin) < 0) {
+        toast.error(`Starttid kan inte vara tidigare än ${effectiveMin} idag.`);
+        return;
+      }
+    }
+
+    const orderTimeFromDate = new Date(`${form.startAt}T${form.startTime}`);
+    const validToDate = new Date(`${form.expiresAt}T${form.expiresTime}:00`);
     if (Number.isNaN(orderTimeFromDate.getTime()) || Number.isNaN(validToDate.getTime())) {
       toast.error("Starttid eller slutdatum är ogiltigt.");
       return;
@@ -520,11 +759,11 @@ export default function CompanyNewOffer() {
     }
 
     const nowDate = new Date();
-    const nowIso = nowDate.toISOString();
-    const orderTimeFromIso = orderTimeFromDate.toISOString();
-    const validToIso = validToDate.toISOString();
+    const nowIso = toLocalIsoWithOffset(nowDate);
+    const orderTimeFromIso = toLocalIsoWithOffset(orderTimeFromDate);
+    const validToIso = toLocalIsoWithOffset(validToDate);
     const couponValidToDate = new Date(orderTimeFromDate.getTime() + couponLifetimeValue * couponLifetimeMultiplier);
-    const couponValidToIso = couponValidToDate.toISOString();
+    const couponValidToIso = toLocalIsoWithOffset(couponValidToDate);
 
     if (validToDate.getTime() <= Date.now()) {
       toast.error("Slutdatum måste vara i framtiden.");
@@ -840,10 +1079,10 @@ export default function CompanyNewOffer() {
                         </div>
                         <Calendar
                           mode="single"
-                          selected={form.startAt ? new Date(form.startAt) : undefined}
+                          selected={form.startAt ? parseISO(form.startAt) : undefined}
                           modifiers={
                             form.expiresAt
-                              ? { endDate: new Date(form.expiresAt) }
+                              ? { endDate: parseISO(form.expiresAt) }
                               : undefined
                           }
                           modifiersClassNames={{
@@ -884,10 +1123,10 @@ export default function CompanyNewOffer() {
                       <PopoverContent className="w-auto border-border bg-popover p-0" align="start">
                         <Calendar
                           mode="single"
-                          selected={form.expiresAt ? new Date(form.expiresAt) : undefined}
+                          selected={form.expiresAt ? parseISO(form.expiresAt) : undefined}
                           modifiers={
                             form.startAt
-                              ? { startDate: new Date(form.startAt) }
+                              ? { startDate: parseISO(form.startAt) }
                               : undefined
                           }
                           modifiersClassNames={{
@@ -906,6 +1145,34 @@ export default function CompanyNewOffer() {
                     </Popover>
                     <CalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white" />
                   </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 md:col-span-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Starttid</label>
+                  <TimePicker
+                    label="Välj starttid"
+                    value={form.startTime}
+                    onChange={(next) => onChange("startTime", next)}
+                    disabled={!form.startAt}
+                    minTime={form.startAt === format(new Date(), "yyyy-MM-dd") ? `${clamp2(new Date().getHours())}:${clamp2(new Date().getMinutes())}` : undefined}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Sluttid</label>
+                  <TimePicker
+                    label="Välj sluttid"
+                    value={form.expiresTime}
+                    onChange={(next) => onChange("expiresTime", next)}
+                    disabled={!form.expiresAt}
+                    minTime={
+                      form.expiresAt && form.startAt && form.expiresAt === form.startAt && form.startTime
+                        ? addMinutesToTime(form.startTime, 1)
+                        : undefined
+                    }
+                  />
                 </div>
               </div>
             </div>
@@ -961,9 +1228,13 @@ export default function CompanyNewOffer() {
                 </div>
                 <div className="rounded-xl border border-border bg-background/40 p-4">
                   <div className="text-xs text-muted-foreground">Start</div>
-                  <div className="text-sm font-semibold text-foreground">{form.startAt || "-"}</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {form.startAt ? `${form.startAt}${form.startTime ? ` ${form.startTime}` : ""}` : "-"}
+                  </div>
                   <div className="mt-3 text-xs text-muted-foreground">Utgång</div>
-                  <div className="text-sm font-semibold text-foreground">{form.expiresAt || "-"}</div>
+                  <div className="text-sm font-semibold text-foreground">
+                    {form.expiresAt ? `${form.expiresAt}${form.expiresTime ? ` ${form.expiresTime}` : ""}` : "-"}
+                  </div>
                   <div className="mt-3 text-xs text-muted-foreground">Kupong livstid</div>
                   <div className="text-sm font-semibold text-foreground">
                     {form.couponLifetimeMinutes} {form.couponLifetimeUnit}

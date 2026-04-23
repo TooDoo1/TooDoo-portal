@@ -66,7 +66,10 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, withAuth = fa
   const payload = contentType.includes("application/json") ? await response.json() : null;
 
   if (!response.ok) {
-    throw toApiError(payload, `Request failed (${response.status})`);
+    const apiError = toApiError(payload, `Request failed (${response.status})`);
+    // Attach high-signal context to the message so UI errors are actionable.
+    apiError.message = `${apiError.message} [${response.status} ${init.method ?? "GET"} ${path}]`;
+    throw apiError;
   }
 
   return payload as T;
@@ -230,6 +233,7 @@ export type CreateBusinessRequest = {
   address: string;
   city: string;
   logoUrl?: string;
+  openingHours?: Record<string, unknown>;
   categoryId: string;
 };
 
