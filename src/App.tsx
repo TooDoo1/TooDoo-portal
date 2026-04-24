@@ -17,6 +17,7 @@ const LoggIn = lazy(() => import("./pages/LoggIn"));
 const Registration = lazy(() => import("./pages/Registration"));
 const ManagerRegistration = lazy(() => import("./pages/ManagerRegistration"));
 const CompanyDashboard = lazy(() => import("./pages/CompanyDashboard"));
+const CompanyRevenue = lazy(() => import("./pages/CompanyRevenue"));
 const CompanyOffers = lazy(() => import("./pages/CompanyOffers"));
 const CompanyNewOffer = lazy(() => import("./pages/CompanyNewOffer"));
 const CompanyVerification = lazy(() => import("./pages/CompanyVerification"));
@@ -34,7 +35,6 @@ function RouteLoadingFallback() {
     const timer = window.setTimeout(() => {
       setShowLoader(true);
     }, 100);
-
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -66,7 +66,6 @@ const App = () => (
           <Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
               <Route path="/" element={<LandingPage />} />
-              <Route path="/" element={<LoggIn />} />
               <Route path="/login" element={<LoggIn />} />
               <Route path="/registration" element={<Registration />} />
               <Route path="/manager-registration" element={<ManagerRegistration />} />
@@ -88,6 +87,7 @@ const App = () => (
                 <Route path="/company/verification" element={<CompanyVerification />} />
                 <Route path="/company/account" element={<CompanyAccount />} />
                 <Route path="/company/workers/new" element={<WorkerCreation />} />
+                <Route path="/company/revenue" element={<CompanyRevenue />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

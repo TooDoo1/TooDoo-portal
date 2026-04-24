@@ -132,22 +132,27 @@ export default function LandingPage() {
 
         /* Dropdown */
         .nav-dropdown {
-          position: absolute;
-          top: calc(100% + 8px);
-          left: 50%;
-          transform: translateX(-50%);
-          min-width: 180px;
-          background: #0a1535;
-          border: 0.5px solid rgba(255,255,255,0.1);
-          border-radius: 12px;
-          padding: 6px;
-          box-shadow: 0 16px 40px rgba(0,0,0,0.5);
-          opacity: 0;
-          transform: translateX(-50%) translateY(-6px);
-          pointer-events: none;
-          transition: opacity 0.2s ease, transform 0.2s ease;
-          z-index: 200;
-        }
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  
+  min-width: 260px;   
+  max-width: 320px;   
+
+  background: #0a1535;
+  border: 0.5px solid rgba(255,255,255,0.1);
+  border-radius: 14px; 
+  padding: 14px;      
+
+  box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+
+  opacity: 0;
+  transform: translateX(-50%) translateY(-6px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 200;
+}
         .nav-dropdown.open {
           opacity: 1;
           transform: translateX(-50%) translateY(0);
@@ -222,10 +227,58 @@ export default function LandingPage() {
                   <ChevronDown size={14} style={{ opacity: 0.6, transition: "transform 0.2s", transform: openNav === nav.label ? "rotate(180deg)" : "rotate(0deg)" }} />
                 </button>
                 <div className={`nav-dropdown ${openNav === nav.label ? "open" : ""}`}>
-                  {nav.items.map((item) => (
-                    <div key={item} className="nav-dropdown-item">{item}</div>
-                  ))}
-                </div>
+  {nav.label === "Om oss" && (
+    <div style={{
+      padding: "14px",
+      fontSize: 13,
+      lineHeight: 1.6,
+      color: "rgba(255,255,255,0.75)",
+      maxWidth: 240
+    }}>
+      TooDoo samlar lokala deals, upplevelser och erbjudanden på ett ställe.
+      Vi gör det enkelt för dig att upptäcka vad som händer i din stad – snabbt,
+      smidigt och inspirerande.
+    </div>
+  )}
+</div>
+<div className={`nav-dropdown ${openNav === nav.label ? "open" : ""}`}>
+  
+  {nav.label === "Företag" && (
+    <>
+      {/* Text */}
+      <div style={{
+        fontSize: 13,
+        lineHeight: 1.6,
+        color: "rgba(255,255,255,0.75)",
+        marginBottom: 12
+      }}>
+        Nå ut till nya kunder och marknadsför dina erbjudanden direkt i TooDoo.
+        Skapa konto och börja växa ditt företag idag.
+      </div>
+
+      {/* Knapp */}
+      <button
+        onClick={() => navigate("/login")}
+        style={{
+          width: "100%",
+          padding: "10px 14px",
+          borderRadius: 8,
+          border: "none",
+          background: "#ff3b30",
+          color: "#fff",
+          fontWeight: 600,
+          cursor: "pointer",
+          transition: "all 0.2s ease"
+        }}
+        onMouseOver={e => (e.currentTarget.style.background = "#e6352b")}
+        onMouseOut={e => (e.currentTarget.style.background = "#ff3b30")}
+      >
+        Logga in som företag
+      </button>
+    </>
+  )}
+
+</div>
               </div>
             ))}
           </div>
