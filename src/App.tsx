@@ -26,6 +26,7 @@ const CompanyDashboard = lazy(() => import("./pages/CompanyDashboard"));
 const CompanyOffers = lazy(() => import("./pages/CompanyOffers"));
 const CompanyNewOffer = lazy(() => import("./pages/CompanyNewOffer"));
 const CompanyVerification = lazy(() => import("./pages/CompanyVerification"));
+const CompanyInvoices = lazy(() => import("./pages/CompanyInvoices"));
 const CompanyAccount = lazy(() => import("./pages/CompanyAccount"));
 const WorkerCreation = lazy(() => import("./pages/WorkerCreation"));
 const WorkerOnboard = lazy(() => import("./pages/WorkerOnboard"));
@@ -106,6 +107,7 @@ const App = () => {
                   <Route path="/company/offers" element={<CompanyOffers />} />
                   <Route path="/company/offers/new" element={<CompanyNewOffer />} />
                   <Route path="/company/verification" element={<CompanyVerification />} />
+                  <Route path="/company/invoices" element={<CompanyInvoices />} />
                   <Route path="/company/account" element={<CompanyAccount />} />
                   <Route path="/company/workers/new" element={<WorkerCreation />} />
                 </Route>
