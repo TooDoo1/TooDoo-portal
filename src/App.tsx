@@ -29,6 +29,7 @@ const CompanyVerification = lazy(() => import("./pages/CompanyVerification"));
 const CompanyAccount = lazy(() => import("./pages/CompanyAccount"));
 const WorkerCreation = lazy(() => import("./pages/WorkerCreation"));
 const WorkerOnboard = lazy(() => import("./pages/WorkerOnboard"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -85,6 +86,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoggIn />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/registration" element={<Registration />} />
               <Route path="/manager-registration" element={<ManagerRegistration />} />
               <Route path="/manager/onboard" element={<ManagerRegistration />} />

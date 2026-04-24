@@ -444,6 +444,38 @@ export async function registerManager(body: RegisterManagerRequest) {
   });
 }
 
+export type ForgotPasswordTokenRequest = {
+  email: string;
+};
+
+export type ForgotPasswordTokenResponse = {
+  passwordResetToken: string;
+};
+
+export async function forgotPasswordToken(body: ForgotPasswordTokenRequest) {
+  return apiRequest<ForgotPasswordTokenResponse>("/user/forgot-password/token", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export type ForgotPasswordResetRequest = {
+  email: string;
+  password: string;
+  token: string;
+};
+
+export type ForgotPasswordResetResponse = {
+  message?: string;
+};
+
+export async function forgotPasswordReset(body: ForgotPasswordResetRequest) {
+  return apiRequest<ForgotPasswordResetResponse>("/user/forgot-password/reset", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export async function loginUser(body: LoginRequest) {
   return apiRequest<LoginResponse>("/user/login", {
     method: "POST",
@@ -531,6 +563,22 @@ export async function removeWorkerFromBusiness(userId: string) {
   return apiRequest<Record<string, unknown>>(
     `/user/worker/${encodeURIComponent(userId)}/remove-business`,
     { method: "DELETE" },
+    true,
+  );
+}
+
+export type ChangeMyPasswordRequest = {
+  currentPassword: string;
+  newPassword: string;
+};
+
+export async function changeMyPassword(body: ChangeMyPasswordRequest) {
+  return apiRequest<Record<string, unknown>>(
+    "/user/me/password",
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
+    },
     true,
   );
 }
@@ -685,12 +733,41 @@ export type LogEntry = {
 };
 
 export async function listLogs(params: { status?: LogStatus; take?: number; skip?: number } = {}) {
-  const query = new URLSearchParams();
-  if (params.status) query.set("status", params.status);
-  if (typeof params.take === "number") query.set("take", String(params.take));
-  if (typeof params.skip === "number") query.set("skip", String(params.skip));
-  const qs = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<LogEntry[] | { logs: LogEntry[]; total?: number }>(`/log${qs}`, { method: "GET" }, true);
+  const run = async (queryParams: Record<string, string | undefined>) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(queryParams)) {
+      if (value !== undefined && value !== "") query.set(key, value);
+    }
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return apiRequest<LogEntry[] | { logs: LogEntry[]; total?: number }>(`/log${qs}`, { method: "GET" }, true);
+  };
+
+  const status = params.status;
+  const take = typeof params.take === "number" ? String(params.take) : undefined;
+  const skip = typeof params.skip === "number" ? String(params.skip) : undefined;
+
+  try {
+    // Expected contract per README.
+    return await run({ status, take, skip });
+  } catch (error) {
+    // Some backend deployments validate query schema strictly and may use different key names.
+    const apiError = error as ApiError;
+    const isAdditionalProps =
+      apiError?.name === "ApiError" &&
+      apiError?.message?.includes("Validation Error") &&
+      Array.isArray(apiError?.details) &&
+      apiError.details.some((d) => d?.field?.includes("additionalProperties"));
+
+    if (!isAdditionalProps) throw error;
+
+    // Try alternative pagination keys.
+    try {
+      return await run({ status, limit: take, offset: skip });
+    } catch {
+      // Last resort: no pagination in query.
+      return await run({ status });
+    }
+  }
 }
 
 export async function validateClaim(qrCode: string) {
