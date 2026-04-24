@@ -21,6 +21,7 @@ type OfferForm = {
   originalPrice: string;
   discountedPrice: string;
   claimsTotal: string;
+  perPersonRedemptions: string;
   couponLifetimeMinutes: string;
   couponLifetimeUnit: "minutes" | "hours" | "days";
   expiresAt: string;
@@ -37,6 +38,7 @@ type OfferPayload = {
   validFrom: string;
   validTo: string;
   maxRedemptions?: number;
+  perPersonRedemptions?: number;
 };
 
 type PreviewBusiness = Pick<Business, "name" | "address" | "city" | "contactPhone" | "website"> & {
@@ -398,6 +400,7 @@ export default function CompanyNewOffer() {
     originalPrice: "",
     discountedPrice: "",
     claimsTotal: "",
+    perPersonRedemptions: "",
     couponLifetimeMinutes: "60",
     couponLifetimeUnit: "minutes",
     expiresAt: "",
@@ -457,6 +460,9 @@ export default function CompanyNewOffer() {
           originalPrice: typeof order.originalPrice === "number" || typeof order.originalPrice === "string" ? String(order.originalPrice) : "",
           discountedPrice: typeof order.price === "number" || typeof order.price === "string" ? String(order.price) : "",
           claimsTotal: typeof order.maxRedemptions === "number" ? String(order.maxRedemptions) : "",
+          perPersonRedemptions: typeof (order as unknown as { perPersonRedemptions?: unknown }).perPersonRedemptions === "number"
+            ? String((order as unknown as { perPersonRedemptions: number }).perPersonRedemptions)
+            : "",
           couponLifetimeMinutes: String(couponLifetimeMinutes),
           couponLifetimeUnit: "minutes",
           expiresAt: orderTimeTo ? format(new Date(orderTimeTo), "yyyy-MM-dd") : "",
@@ -490,6 +496,12 @@ export default function CompanyNewOffer() {
     const current = Number(form[field] || 0);
     const next = Math.max(0, current + delta);
     onChange(field, String(next));
+  };
+
+  const stepPerPersonRedemptions = (delta: number) => {
+    const current = Number(form.perPersonRedemptions || 0);
+    const next = Math.max(0, current + delta);
+    onChange("perPersonRedemptions", String(next));
   };
 
   const openPresetPicker = async () => {
@@ -570,6 +582,16 @@ export default function CompanyNewOffer() {
         return;
       }
       maxRedemptions = parsedMaxRedemptions;
+    }
+
+    let perPersonRedemptions: number | undefined;
+    if (form.perPersonRedemptions.trim()) {
+      const parsed = Number(form.perPersonRedemptions);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        toast.error("Per person redemptions måste vara ett heltal större än 0.");
+        return;
+      }
+      perPersonRedemptions = parsed;
     }
 
     const couponLifetimeValue = Number(form.couponLifetimeMinutes);
@@ -663,6 +685,7 @@ export default function CompanyNewOffer() {
       validFrom: orderTimeFromIso,
       validTo: couponValidToIso,
       maxRedemptions,
+      perPersonRedemptions,
     };
 
     setPendingPayload(payload);
@@ -909,6 +932,39 @@ export default function CompanyNewOffer() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Per person redemptions (valfritt)</label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="1"
+                    value={form.perPersonRedemptions}
+                    onChange={(e) => onChange("perPersonRedemptions", e.target.value)}
+                    className="h-11 bg-background border-border pr-10 text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <div className="absolute right-1 top-1/2 flex -translate-y-1/2 flex-col overflow-hidden rounded-sm border border-border bg-card">
+                    <button
+                      type="button"
+                      className="flex h-4 w-5 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => stepPerPersonRedemptions(1)}
+                      aria-label="Okat per person redemptions"
+                    >
+                      <ChevronUp className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      className="flex h-4 w-5 items-center justify-center border-t border-border text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => stepPerPersonRedemptions(-1)}
+                      aria-label="Minskat per person redemptions"
+                    >
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">Begränsar hur många gånger samma person kan använda erbjudandet.</p>
               </div>
 
               <div className="space-y-2">

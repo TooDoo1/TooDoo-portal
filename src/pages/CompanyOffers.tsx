@@ -74,11 +74,22 @@ const mapOrderToOffer = (order: Order): Offer => {
         : "active";
 
   const claimed =
-    getOrderMetric(order, ["claimsClaimed", "claimedCount", "claimsCreated", "claimCount", "qrCount"]) ??
-    0;
+    getOrderMetric(order, [
+      "claimsClaimed",
+      "claimedCount",
+      "claimsCreated",
+      "claimCount",
+      "qrCount",
+      "claimsCount",
+      "claimed",
+    ]) ?? 0;
   const used =
     getOrderMetric(order, ["claimsUsed", "usedCount", "redeemedCount", "redemptionCount"]) ??
     0;
+
+  // Claimed must never be lower than used.
+  const safeUsed = Math.max(0, Math.floor(used));
+  const safeClaimed = Math.max(0, Math.floor(Math.max(claimed, used)));
 
   return {
     id: order.id,
@@ -90,9 +101,9 @@ const mapOrderToOffer = (order: Order): Offer => {
     expiresAt: order.orderTimeTo || order.validTo,
     views: 0,
     clicks: 0,
-    // If backend doesn't send claimed counts, fall back to used (at least redeems update).
-    claimsClaimed: Math.max(0, Math.floor(claimed || used)),
-    claimsUsed: Math.max(0, Math.floor(used)),
+    // If backend doesn't send claimed counts, at least track used.
+    claimsClaimed: safeClaimed,
+    claimsUsed: safeUsed,
     claimsTotal,
     originalPrice,
     discountedPrice: price,

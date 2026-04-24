@@ -342,6 +342,7 @@ export type Order = {
   validFrom: string;
   validTo: string;
   maxRedemptions?: number;
+  perPersonRedemptions?: number;
   businessId: string;
   [key: string]: unknown;
 };
@@ -357,6 +358,7 @@ export type CreateOrderRequest = {
   validFrom: string;
   validTo: string;
   maxRedemptions?: number;
+  perPersonRedemptions?: number;
 };
 
 export type UpdateOrderRequest = {
@@ -370,8 +372,34 @@ export type UpdateOrderRequest = {
   validFrom?: string;
   validTo?: string;
   maxRedemptions?: number;
+  perPersonRedemptions?: number;
   isActive?: boolean;
 };
+
+export type InvoicePaymentStatus = "PENDING" | "PAID" | "OVERDUE" | "LATE";
+
+export type Invoice = {
+  id: string;
+  businessId?: string;
+  paymentStatus?: InvoicePaymentStatus;
+  pricePercentage?: number;
+  totalPrice?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+};
+
+export async function listInvoices(params: { businessId?: string; paymentStatus?: InvoicePaymentStatus } = {}) {
+  const query = new URLSearchParams();
+  if (params.businessId) query.set("businessId", params.businessId);
+  if (params.paymentStatus) query.set("paymentStatus", params.paymentStatus);
+  const qs = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<Invoice[] | { invoices: Invoice[]; total?: number }>(`/invoices${qs}`, { method: "GET" }, true);
+}
+
+export async function getInvoiceById(invoiceId: string) {
+  return apiRequest<Invoice>(`/invoices/${encodeURIComponent(invoiceId)}`, { method: "GET" }, true);
+}
 
 export type OrderPreset = {
   id: string;
@@ -656,7 +684,7 @@ export async function listOrders(categoryName?: string, businessId?: string) {
     params.set("businessId", businessId);
   }
   const query = params.toString() ? `?${params.toString()}` : "";
-  return apiRequest<Order[]>(`/orders${query}`, { method: "GET" });
+  return apiRequest<Order[]>(`/orders${query}`, { method: "GET" }, Boolean(businessId));
 }
 
 export async function createOrderPreset(body: CreateOrderPresetRequest) {
