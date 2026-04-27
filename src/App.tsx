@@ -1,10 +1,11 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Outlet, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { applyMonochrome } from "@/lib/monochrome";
+import { useMonochrome } from "@/hooks/useMonochrome";
 
 const AdminLayout = lazy(() =>
   import("./components/AdminLayout").then((m) => ({ default: m.AdminLayout })),
@@ -26,9 +27,11 @@ const CompanyDashboard = lazy(() => import("./pages/CompanyDashboard"));
 const CompanyOffers = lazy(() => import("./pages/CompanyOffers"));
 const CompanyNewOffer = lazy(() => import("./pages/CompanyNewOffer"));
 const CompanyVerification = lazy(() => import("./pages/CompanyVerification"));
+const CompanyInvoices = lazy(() => import("./pages/CompanyInvoices"));
 const CompanyAccount = lazy(() => import("./pages/CompanyAccount"));
 const WorkerCreation = lazy(() => import("./pages/WorkerCreation"));
 const WorkerOnboard = lazy(() => import("./pages/WorkerOnboard"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -70,21 +73,39 @@ function RouteLoadingFallback() {
   );
 }
 
-const App = () => {
-  useEffect(() => {
-    applyMonochrome();
-  }, []);
+function AppearanceController() {
+  const location = useLocation();
+  const monochrome = useMonochrome();
+  const pathname = location.pathname;
+  const isPublicRoute =
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname === "/registration" ||
+    pathname === "/reset-password" ||
+    pathname === "/manager-registration" ||
+    pathname === "/manager/onboard" ||
+    pathname === "/worker/onboard";
 
+  useEffect(() => {
+    applyMonochrome(isPublicRoute ? false : monochrome);
+  }, [isPublicRoute, monochrome]);
+
+  return null;
+}
+
+const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <AppearanceController />
           <Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoggIn />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/registration" element={<Registration />} />
               <Route path="/manager-registration" element={<ManagerRegistration />} />
               <Route path="/manager/onboard" element={<ManagerRegistration />} />
@@ -104,6 +125,7 @@ const App = () => {
                   <Route path="/company/offers" element={<CompanyOffers />} />
                   <Route path="/company/offers/new" element={<CompanyNewOffer />} />
                   <Route path="/company/verification" element={<CompanyVerification />} />
+                  <Route path="/company/invoices" element={<CompanyInvoices />} />
                   <Route path="/company/account" element={<CompanyAccount />} />
                   <Route path="/company/workers/new" element={<WorkerCreation />} />
                 </Route>

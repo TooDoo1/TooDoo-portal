@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useLocation } from "react-router-dom";
 import { getAuthEmail } from "@/lib/api";
 import { useMonochrome } from "@/hooks/useMonochrome";
+import { useMeteors } from "@/hooks/useMeteors";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -53,6 +54,7 @@ function formatPageTitle(pathname: string, isCompanyRoute: boolean) {
   if (pathname === "/company/offers") return "Erbjudanden";
   if (pathname === "/company/offers/new") return "Nytt erbjudande";
   if (pathname === "/company/verification") return "Verifiering";
+  if (pathname === "/company/invoices") return "Fakturor";
   if (pathname === "/company/workers/new") return "Arbetare";
   if (pathname === "/company/account") return "Mitt företag";
   return isCompanyRoute ? "Företag" : "Admin";
@@ -134,6 +136,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
   const isCompanyRoute = location.pathname.startsWith("/company");
   const monochrome = useMonochrome();
+  const meteorsEnabled = useMeteors();
   const isPublicRoute =
     location.pathname === "/" ||
     location.pathname === "/login" ||
@@ -149,7 +152,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <SidebarProvider>
       <div className="relative min-h-screen flex w-full overflow-hidden bg-background">
-        {!monochrome ? (
+        {!monochrome && meteorsEnabled ? (
           <div className="pointer-events-none absolute inset-0">
             {shootingStars.map((star, index) => {
               const isAccent = index % 2 === 0;
@@ -172,7 +175,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </div>
         ) : null}
 
-        {!monochrome ? (
+        {!monochrome && meteorsEnabled ? (
           <style>{`
             @keyframes layout-shooting-star {
               0% {

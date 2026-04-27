@@ -342,6 +342,7 @@ export type Order = {
   validFrom: string;
   validTo: string;
   maxRedemptions?: number;
+  perPersonRedemptions?: number;
   businessId: string;
   [key: string]: unknown;
 };
@@ -357,6 +358,7 @@ export type CreateOrderRequest = {
   validFrom: string;
   validTo: string;
   maxRedemptions?: number;
+  perPersonRedemptions?: number;
 };
 
 export type UpdateOrderRequest = {
@@ -370,8 +372,34 @@ export type UpdateOrderRequest = {
   validFrom?: string;
   validTo?: string;
   maxRedemptions?: number;
+  perPersonRedemptions?: number;
   isActive?: boolean;
 };
+
+export type InvoicePaymentStatus = "PENDING" | "PAID" | "OVERDUE" | "LATE";
+
+export type Invoice = {
+  id: string;
+  businessId?: string;
+  paymentStatus?: InvoicePaymentStatus;
+  pricePercentage?: number;
+  totalPrice?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+};
+
+export async function listInvoices(params: { businessId?: string; paymentStatus?: InvoicePaymentStatus } = {}) {
+  const query = new URLSearchParams();
+  if (params.businessId) query.set("businessId", params.businessId);
+  if (params.paymentStatus) query.set("paymentStatus", params.paymentStatus);
+  const qs = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<Invoice[] | { invoices: Invoice[]; total?: number }>(`/invoices${qs}`, { method: "GET" }, true);
+}
+
+export async function getInvoiceById(invoiceId: string) {
+  return apiRequest<Invoice>(`/invoices/${encodeURIComponent(invoiceId)}`, { method: "GET" }, true);
+}
 
 export type OrderPreset = {
   id: string;
@@ -439,6 +467,38 @@ export async function registerUser(body: RegisterRequest) {
 
 export async function registerManager(body: RegisterManagerRequest) {
   return apiRequest<Record<string, unknown>>("/user/register/manager", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export type ForgotPasswordTokenRequest = {
+  email: string;
+};
+
+export type ForgotPasswordTokenResponse = {
+  passwordResetToken: string;
+};
+
+export async function forgotPasswordToken(body: ForgotPasswordTokenRequest) {
+  return apiRequest<ForgotPasswordTokenResponse>("/user/forgot-password/token", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export type ForgotPasswordResetRequest = {
+  email: string;
+  password: string;
+  token: string;
+};
+
+export type ForgotPasswordResetResponse = {
+  message?: string;
+};
+
+export async function forgotPasswordReset(body: ForgotPasswordResetRequest) {
+  return apiRequest<ForgotPasswordResetResponse>("/user/forgot-password/reset", {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -535,6 +595,22 @@ export async function removeWorkerFromBusiness(userId: string) {
   );
 }
 
+export type ChangeMyPasswordRequest = {
+  currentPassword: string;
+  newPassword: string;
+};
+
+export async function changeMyPassword(body: ChangeMyPasswordRequest) {
+  return apiRequest<Record<string, unknown>>(
+    "/user/me/password",
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
+    },
+    true,
+  );
+}
+
 export async function listCategories(name?: string) {
   const query = name ? `?name=${encodeURIComponent(name)}` : "";
   return apiRequest<Category[]>(`/category${query}`, { method: "GET" });
@@ -608,7 +684,7 @@ export async function listOrders(categoryName?: string, businessId?: string) {
     params.set("businessId", businessId);
   }
   const query = params.toString() ? `?${params.toString()}` : "";
-  return apiRequest<Order[]>(`/orders${query}`, { method: "GET" });
+  return apiRequest<Order[]>(`/orders${query}`, { method: "GET" }, Boolean(businessId));
 }
 
 export async function createOrderPreset(body: CreateOrderPresetRequest) {
@@ -685,12 +761,41 @@ export type LogEntry = {
 };
 
 export async function listLogs(params: { status?: LogStatus; take?: number; skip?: number } = {}) {
-  const query = new URLSearchParams();
-  if (params.status) query.set("status", params.status);
-  if (typeof params.take === "number") query.set("take", String(params.take));
-  if (typeof params.skip === "number") query.set("skip", String(params.skip));
-  const qs = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<LogEntry[] | { logs: LogEntry[]; total?: number }>(`/log${qs}`, { method: "GET" }, true);
+  const run = async (queryParams: Record<string, string | undefined>) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(queryParams)) {
+      if (value !== undefined && value !== "") query.set(key, value);
+    }
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    return apiRequest<LogEntry[] | { logs: LogEntry[]; total?: number }>(`/log${qs}`, { method: "GET" }, true);
+  };
+
+  const status = params.status;
+  const take = typeof params.take === "number" ? String(params.take) : undefined;
+  const skip = typeof params.skip === "number" ? String(params.skip) : undefined;
+
+  try {
+    // Expected contract per README.
+    return await run({ status, take, skip });
+  } catch (error) {
+    // Some backend deployments validate query schema strictly and may use different key names.
+    const apiError = error as ApiError;
+    const isAdditionalProps =
+      apiError?.name === "ApiError" &&
+      apiError?.message?.includes("Validation Error") &&
+      Array.isArray(apiError?.details) &&
+      apiError.details.some((d) => d?.field?.includes("additionalProperties"));
+
+    if (!isAdditionalProps) throw error;
+
+    // Try alternative pagination keys.
+    try {
+      return await run({ status, limit: take, offset: skip });
+    } catch {
+      // Last resort: no pagination in query.
+      return await run({ status });
+    }
+  }
 }
 
 export async function validateClaim(qrCode: string) {

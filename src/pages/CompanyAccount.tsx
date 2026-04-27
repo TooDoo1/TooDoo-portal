@@ -7,11 +7,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/StatusBadge";
 import { cn } from "@/lib/utils";
 import { setMonochromeEnabled } from "@/lib/monochrome";
+import { setMeteorsEnabled } from "@/lib/meteors";
 import { useMonochrome } from "@/hooks/useMonochrome";
+import { useMeteors } from "@/hooks/useMeteors";
 import { TimePicker } from "@/components/TimePicker";
 import {
   getAuthEmail,
   getBusinessId,
+  changeMyPassword,
   getUserByEmail,
   listBusinesses,
   listCategories,
@@ -56,6 +59,18 @@ const openingHoursLabels: Record<OpeningHoursDayKey, string> = {
 
 const weekdayKeys: OpeningHoursDayKey[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 const weekendKeys: OpeningHoursDayKey[] = ["saturday", "sunday"];
+
+function compareTime(a: string, b: string) {
+  const matchA = (a ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  const matchB = (b ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!matchA || !matchB) return 0;
+  const ah = Number(matchA[1]);
+  const am = Number(matchA[2]);
+  const bh = Number(matchB[1]);
+  const bm = Number(matchB[2]);
+  if (![ah, am, bh, bm].every((n) => Number.isFinite(n))) return 0;
+  return ah !== bh ? ah - bh : am - bm;
+}
 
 function toOpeningHoursState(value: Business["openingHours"]): OpeningHoursState {
   const base: OpeningHoursState = structuredClone(defaultOpeningHours);
@@ -132,10 +147,15 @@ export default function CompanyAccount() {
   const [weekdayGroup, setWeekdayGroup] = useState<OpeningHoursDayValue>({ closed: false, from: "09:00", to: "17:00" });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [businessId, setActiveBusinessId] = useState<string | null>(null);
   const [categoryName, setCategoryName] = useState<string>("");
   const [status, setStatus] = useState<BusinessStatus | undefined>(undefined);
   const monochrome = useMonochrome();
+  const meteorsEnabled = useMeteors();
 
   const updateField = (field: keyof CompanyAccountForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -289,6 +309,40 @@ export default function CompanyAccount() {
     toast.info("Ändringar återställda.");
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const current = currentPassword.trim();
+    const next = newPassword.trim();
+    const confirm = confirmNewPassword.trim();
+
+    if (!current || !next || !confirm) {
+      toast.error("Fyll i nuvarande lösenord och nytt lösenord.");
+      return;
+    }
+    if (next.length < 8) {
+      toast.error("Nytt lösenord måste vara minst 8 tecken.");
+      return;
+    }
+    if (next !== confirm) {
+      toast.error("Nya lösenorden matchar inte.");
+      return;
+    }
+
+    setIsSavingPassword(true);
+    try {
+      await changeMyPassword({ currentPassword: current, newPassword: next });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      toast.success("Lösenord uppdaterat.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte uppdatera lösenord.";
+      toast.error(message);
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
+
   const isDirty =
     JSON.stringify(form) !== JSON.stringify(originalForm) ||
     JSON.stringify(openingHours) !== JSON.stringify(originalOpeningHours) ||
@@ -353,6 +407,46 @@ export default function CompanyAccount() {
                   {monochrome ? "✓" : ""}
                 </span>
                 {monochrome ? "På" : "Av"}
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <span className="h-4 w-4 text-muted-foreground grid place-items-center leading-none" aria-hidden="true">
+                    ✦
+                  </span>
+                  Meteorer i bakgrunden
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Visar animerade meteorer bakom sidan.
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-pressed={meteorsEnabled}
+                onClick={() => {
+                  setMeteorsEnabled(!meteorsEnabled);
+                }}
+                className={cn(
+                  "inline-flex h-10 items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
+                  meteorsEnabled
+                    ? "border-accent bg-accent text-accent-foreground"
+                    : "border-border bg-background text-foreground hover:bg-accent/15",
+                )}
+              >
+                <span
+                  className={cn(
+                    "grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
+                    meteorsEnabled
+                      ? "border-accent-foreground/30 bg-accent-foreground/10"
+                      : "border-border bg-background/40",
+                  )}
+                  aria-hidden="true"
+                >
+                  {meteorsEnabled ? "✓" : ""}
+                </span>
+                {meteorsEnabled ? "På" : "Av"}
               </button>
             </div>
           </CardContent>
@@ -439,14 +533,31 @@ export default function CompanyAccount() {
                         label="Välj starttid"
                         disabled={weekdayGroup.closed || isLoading}
                         value={weekdayGroup.from}
-                        onChange={(from) => setWeekdayGroup((prev) => ({ ...prev, from }))}
+                        onChange={(from) =>
+                          setWeekdayGroup((prev) => {
+                            const next = { ...prev, from };
+                            if (!next.closed && next.to && compareTime(next.from, next.to) > 0) {
+                              next.to = next.from;
+                            }
+                            return next;
+                          })
+                        }
                       />
                       <span className="text-xs text-muted-foreground text-center">–</span>
                       <TimePicker
                         label="Välj sluttid"
                         disabled={weekdayGroup.closed || isLoading}
                         value={weekdayGroup.to}
-                        onChange={(to) => setWeekdayGroup((prev) => ({ ...prev, to }))}
+                        minTime={weekdayGroup.from || undefined}
+                        onChange={(to) =>
+                          setWeekdayGroup((prev) => {
+                            const next = { ...prev, to };
+                            if (!next.closed && next.from && compareTime(next.from, next.to) > 0) {
+                              next.to = next.from;
+                            }
+                            return next;
+                          })
+                        }
                       />
                     </div>
                   </div>
@@ -497,7 +608,13 @@ export default function CompanyAccount() {
                             disabled={value.closed || isLoading}
                             value={value.from}
                             onChange={(from) =>
-                              setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
+                              setOpeningHours((prev) => {
+                                const nextDay = { ...prev[dayKey], from };
+                                if (!nextDay.closed && nextDay.to && compareTime(nextDay.from, nextDay.to) > 0) {
+                                  nextDay.to = nextDay.from;
+                                }
+                                return { ...prev, [dayKey]: nextDay };
+                              })
                             }
                           />
                           <span className="text-xs text-muted-foreground text-center">–</span>
@@ -505,8 +622,15 @@ export default function CompanyAccount() {
                             label="Välj sluttid"
                             disabled={value.closed || isLoading}
                             value={value.to}
+                            minTime={value.from || undefined}
                             onChange={(to) =>
-                              setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
+                              setOpeningHours((prev) => {
+                                const nextDay = { ...prev[dayKey], to };
+                                if (!nextDay.closed && nextDay.from && compareTime(nextDay.from, nextDay.to) > 0) {
+                                  nextDay.to = nextDay.from;
+                                }
+                                return { ...prev, [dayKey]: nextDay };
+                              })
                             }
                           />
                         </div>
@@ -561,7 +685,13 @@ export default function CompanyAccount() {
                           disabled={value.closed || isLoading}
                           value={value.from}
                           onChange={(from) =>
-                            setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
+                            setOpeningHours((prev) => {
+                              const nextDay = { ...prev[dayKey], from };
+                              if (!nextDay.closed && nextDay.to && compareTime(nextDay.from, nextDay.to) > 0) {
+                                nextDay.to = nextDay.from;
+                              }
+                              return { ...prev, [dayKey]: nextDay };
+                            })
                           }
                         />
                         <span className="text-xs text-muted-foreground text-center">–</span>
@@ -569,8 +699,15 @@ export default function CompanyAccount() {
                           label="Välj sluttid"
                           disabled={value.closed || isLoading}
                           value={value.to}
+                          minTime={value.from || undefined}
                           onChange={(to) =>
-                            setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
+                            setOpeningHours((prev) => {
+                              const nextDay = { ...prev[dayKey], to };
+                              if (!nextDay.closed && nextDay.from && compareTime(nextDay.from, nextDay.to) > 0) {
+                                nextDay.to = nextDay.from;
+                              }
+                              return { ...prev, [dayKey]: nextDay };
+                            })
                           }
                         />
                       </div>
@@ -721,6 +858,61 @@ export default function CompanyAccount() {
               />
               <p className="text-xs text-muted-foreground">Syns på ditt företags publika sida.</p>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground">Byt lösenord</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Nuvarande lösenord</label>
+                  <Input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    disabled={isLoading || isSavingPassword}
+                    placeholder="••••••••"
+                    className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Nytt lösenord</label>
+                  <Input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    disabled={isLoading || isSavingPassword}
+                    placeholder="Minst 8 tecken"
+                    className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Bekräfta nytt lösenord</label>
+                  <Input
+                    type="password"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    disabled={isLoading || isSavingPassword}
+                    placeholder="Upprepa lösenord"
+                    className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  disabled={isLoading || isSavingPassword}
+                  className="bg-accent text-accent-foreground hover:bg-accent/90"
+                >
+                  {isSavingPassword ? "Sparar..." : "Uppdatera lösenord"}
+                </Button>
+              </div>
+            </form>
           </CardContent>
         </Card>
 

@@ -74,6 +74,18 @@ export default function Registration() {
 		from: "09:00",
 		to: "17:00",
 	});
+
+	const compareTime = (a: string, b: string) => {
+		const matchA = (a ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
+		const matchB = (b ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
+		if (!matchA || !matchB) return 0;
+		const ah = Number(matchA[1]);
+		const am = Number(matchA[2]);
+		const bh = Number(matchB[1]);
+		const bm = Number(matchB[2]);
+		if (![ah, am, bh, bm].every((n) => Number.isFinite(n))) return 0;
+		return ah !== bh ? ah - bh : am - bm;
+	};
 	const openingHoursLabels: Record<keyof typeof openingHours, string> = {
 		monday: "Måndag",
 		tuesday: "Tisdag",
@@ -673,14 +685,30 @@ export default function Registration() {
 														label="Välj starttid"
 														disabled={weekdayGroup.closed}
 														value={weekdayGroup.from}
-														onChange={(from) => setWeekdayGroup((prev) => ({ ...prev, from }))}
+														onChange={(from) =>
+															setWeekdayGroup((prev) => {
+																const next = { ...prev, from };
+																if (!next.closed && next.to && compareTime(next.from, next.to) > 0) {
+																	next.to = next.from;
+																}
+																return next;
+															})
+														}
 													/>
 													<span className="text-xs text-muted-foreground text-center">–</span>
 													<TimePicker
 														label="Välj sluttid"
 														disabled={weekdayGroup.closed}
 														value={weekdayGroup.to}
-														onChange={(to) => setWeekdayGroup((prev) => ({ ...prev, to }))}
+														onChange={(to) =>
+															setWeekdayGroup((prev) => {
+																const next = { ...prev, to };
+																if (!next.closed && next.from && compareTime(next.from, next.to) > 0) {
+																	next.from = next.to;
+																}
+																return next;
+															})
+														}
 													/>
 												</div>
 											</div>
@@ -735,7 +763,13 @@ export default function Registration() {
 																disabled={value.closed}
 																value={value.from}
 																onChange={(from) =>
-																	setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
+																	setOpeningHours((prev) => {
+																		const nextDay = { ...prev[dayKey], from };
+																		if (!nextDay.closed && nextDay.to && compareTime(nextDay.from, nextDay.to) > 0) {
+																			nextDay.to = nextDay.from;
+																		}
+																		return { ...prev, [dayKey]: nextDay };
+																	})
 																}
 															/>
 															<span className="text-xs text-muted-foreground text-center">–</span>
@@ -744,7 +778,13 @@ export default function Registration() {
 																disabled={value.closed}
 																value={value.to}
 																onChange={(to) =>
-																	setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
+																	setOpeningHours((prev) => {
+																		const nextDay = { ...prev[dayKey], to };
+																		if (!nextDay.closed && nextDay.from && compareTime(nextDay.from, nextDay.to) > 0) {
+																			nextDay.from = nextDay.to;
+																		}
+																		return { ...prev, [dayKey]: nextDay };
+																	})
 																}
 															/>
 														</div>
@@ -803,7 +843,13 @@ export default function Registration() {
 															disabled={value.closed}
 															value={value.from}
 															onChange={(from) =>
-																setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
+																setOpeningHours((prev) => {
+																	const nextDay = { ...prev[dayKey], from };
+																	if (!nextDay.closed && nextDay.to && compareTime(nextDay.from, nextDay.to) > 0) {
+																		nextDay.to = nextDay.from;
+																	}
+																	return { ...prev, [dayKey]: nextDay };
+																})
 															}
 														/>
 														<span className="text-xs text-muted-foreground text-center">–</span>
@@ -812,7 +858,13 @@ export default function Registration() {
 															disabled={value.closed}
 															value={value.to}
 															onChange={(to) =>
-																setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
+																setOpeningHours((prev) => {
+																	const nextDay = { ...prev[dayKey], to };
+																	if (!nextDay.closed && nextDay.from && compareTime(nextDay.from, nextDay.to) > 0) {
+																		nextDay.from = nextDay.to;
+																	}
+																	return { ...prev, [dayKey]: nextDay };
+																})
 															}
 														/>
 													</div>

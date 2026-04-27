@@ -3,7 +3,16 @@ import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getUserByEmail, loginPortal, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
+import { forgotPasswordReset, forgotPasswordToken, getUserByEmail, loginPortal, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
 import { toast } from "sonner";
 
 const shootingStars = [
@@ -43,6 +52,13 @@ export default function LoggIn() {
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [forgotOpen, setForgotOpen] = useState(false);
+	const [forgotEmail, setForgotEmail] = useState("");
+	const [forgotStep, setForgotStep] = useState<"request" | "reset">("request");
+	const [forgotResetToken, setForgotResetToken] = useState<string | null>(null);
+	const [forgotNewPassword, setForgotNewPassword] = useState("");
+	const [forgotConfirmPassword, setForgotConfirmPassword] = useState("");
+	const [forgotIsSubmitting, setForgotIsSubmitting] = useState(false);
 	const navigate = useNavigate();
 
 	const handleLogin = async (e: React.FormEvent) => {
@@ -77,6 +93,66 @@ export default function LoggIn() {
 			toast.error(message);
 		} finally {
 			setIsSubmitting(false);
+		}
+	};
+
+	const handleForgotPasswordRequest = async (e: React.FormEvent) => {
+		e.preventDefault();
+		const value = forgotEmail.trim();
+		if (!value) {
+			toast.error("Fyll i din e-postadress.");
+			return;
+		}
+
+		setForgotIsSubmitting(true);
+		try {
+			const res = await forgotPasswordToken({ email: value });
+			const token = typeof res?.passwordResetToken === "string" ? res.passwordResetToken : "";
+			if (!token) {
+				throw new Error("Kunde inte skapa reset-token.");
+			}
+			// Token is kept only in memory and never shown to the user.
+			setForgotResetToken(token);
+			setForgotStep("reset");
+			toast.success("Välj ett nytt lösenord.");
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Kunde inte skapa reset-token.";
+			toast.error(message);
+		} finally {
+			setForgotIsSubmitting(false);
+		}
+	};
+
+	const handleForgotPasswordReset = async (e: React.FormEvent) => {
+		e.preventDefault();
+		const value = forgotEmail.trim();
+		const token = forgotResetToken ?? "";
+		const next = forgotNewPassword.trim();
+		const confirm = forgotConfirmPassword.trim();
+
+		if (!value || !token || !next || !confirm) {
+			toast.error("Fyll i e-post och nytt lösenord.");
+			return;
+		}
+		if (next.length < 8) {
+			toast.error("Nytt lösenord måste vara minst 8 tecken.");
+			return;
+		}
+		if (next !== confirm) {
+			toast.error("Lösenorden matchar inte.");
+			return;
+		}
+
+		setForgotIsSubmitting(true);
+		try {
+			await forgotPasswordReset({ email: value, token, password: next });
+			toast.success("Lösenord återställt. Logga in med ditt nya lösenord.");
+			setForgotOpen(false);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Kunde inte återställa lösenord.";
+			toast.error(message);
+		} finally {
+			setForgotIsSubmitting(false);
 		}
 	};
 
@@ -181,6 +257,103 @@ export default function LoggIn() {
 									>
 										{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
 									</button>
+								</div>
+								<div className="flex justify-end">
+									<Dialog
+										open={forgotOpen}
+										onOpenChange={(open) => {
+											setForgotOpen(open);
+											if (open) {
+												setForgotStep("request");
+												setForgotResetToken(null);
+												setForgotNewPassword("");
+												setForgotConfirmPassword("");
+											}
+										}}
+									>
+										<DialogTrigger asChild>
+											<button
+												type="button"
+												className="text-xs font-semibold text-accent underline underline-offset-4 hover:opacity-90"
+												onClick={() => {
+													setForgotEmail(email.trim());
+													setForgotOpen(true);
+												}}
+											>
+												Glömt lösenord?
+											</button>
+										</DialogTrigger>
+										<DialogContent className="sm:max-w-md">
+											<DialogHeader>
+												<DialogTitle>Glömt lösenord</DialogTitle>
+												<DialogDescription>
+													{forgotStep === "request"
+														? "Skriv din e-post så kan du välja ett nytt lösenord direkt."
+														: "Välj ett nytt lösenord."}
+												</DialogDescription>
+											</DialogHeader>
+											<form
+												onSubmit={forgotStep === "request" ? handleForgotPasswordRequest : handleForgotPasswordReset}
+												className="space-y-3"
+											>
+												<div className="space-y-2">
+													<label htmlFor="forgotEmail" className="text-sm font-semibold text-foreground">
+														E-post
+													</label>
+													<Input
+														id="forgotEmail"
+														value={forgotEmail}
+														onChange={(e) => setForgotEmail(e.target.value)}
+														disabled={forgotIsSubmitting}
+														placeholder="Din e-postadress"
+														className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+													/>
+												</div>
+
+												{forgotStep === "reset" && (
+													<>
+														<div className="space-y-2">
+															<label htmlFor="forgotNewPassword" className="text-sm font-semibold text-foreground">
+																Nytt lösenord
+															</label>
+															<Input
+																id="forgotNewPassword"
+																type="password"
+																value={forgotNewPassword}
+																onChange={(e) => setForgotNewPassword(e.target.value)}
+																disabled={forgotIsSubmitting}
+																placeholder="Minst 8 tecken"
+																className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+															/>
+														</div>
+														<div className="space-y-2">
+															<label htmlFor="forgotConfirmPassword" className="text-sm font-semibold text-foreground">
+																Bekräfta nytt lösenord
+															</label>
+															<Input
+																id="forgotConfirmPassword"
+																type="password"
+																value={forgotConfirmPassword}
+																onChange={(e) => setForgotConfirmPassword(e.target.value)}
+																disabled={forgotIsSubmitting}
+																placeholder="Upprepa lösenord"
+																className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+															/>
+														</div>
+													</>
+												)}
+
+												<DialogFooter className="gap-2 sm:gap-0">
+													<Button type="button" variant="outline" onClick={() => setForgotOpen(false)}>
+														Avbryt
+													</Button>
+													<Button type="submit" disabled={forgotIsSubmitting}>
+														{forgotIsSubmitting ? "Jobbar…" : forgotStep === "request" ? "Fortsätt" : "Spara nytt lösenord"}
+													</Button>
+												</DialogFooter>
+											</form>
+										</DialogContent>
+									</Dialog>
 								</div>
 							</div>
 
