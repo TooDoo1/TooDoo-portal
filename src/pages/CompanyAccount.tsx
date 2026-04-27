@@ -58,6 +58,18 @@ const openingHoursLabels: Record<OpeningHoursDayKey, string> = {
 const weekdayKeys: OpeningHoursDayKey[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 const weekendKeys: OpeningHoursDayKey[] = ["saturday", "sunday"];
 
+function compareTime(a: string, b: string) {
+  const matchA = (a ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  const matchB = (b ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!matchA || !matchB) return 0;
+  const ah = Number(matchA[1]);
+  const am = Number(matchA[2]);
+  const bh = Number(matchB[1]);
+  const bm = Number(matchB[2]);
+  if (![ah, am, bh, bm].every((n) => Number.isFinite(n))) return 0;
+  return ah !== bh ? ah - bh : am - bm;
+}
+
 function toOpeningHoursState(value: Business["openingHours"]): OpeningHoursState {
   const base: OpeningHoursState = structuredClone(defaultOpeningHours);
   const raw = (value ?? {}) as Record<string, unknown>;
@@ -478,14 +490,30 @@ export default function CompanyAccount() {
                         label="Välj starttid"
                         disabled={weekdayGroup.closed || isLoading}
                         value={weekdayGroup.from}
-                        onChange={(from) => setWeekdayGroup((prev) => ({ ...prev, from }))}
+                        onChange={(from) =>
+                          setWeekdayGroup((prev) => {
+                            const next = { ...prev, from };
+                            if (!next.closed && next.to && compareTime(next.from, next.to) > 0) {
+                              next.to = next.from;
+                            }
+                            return next;
+                          })
+                        }
                       />
                       <span className="text-xs text-muted-foreground text-center">–</span>
                       <TimePicker
                         label="Välj sluttid"
                         disabled={weekdayGroup.closed || isLoading}
                         value={weekdayGroup.to}
-                        onChange={(to) => setWeekdayGroup((prev) => ({ ...prev, to }))}
+                        onChange={(to) =>
+                          setWeekdayGroup((prev) => {
+                            const next = { ...prev, to };
+                            if (!next.closed && next.from && compareTime(next.from, next.to) > 0) {
+                              next.from = next.to;
+                            }
+                            return next;
+                          })
+                        }
                       />
                     </div>
                   </div>
@@ -536,7 +564,13 @@ export default function CompanyAccount() {
                             disabled={value.closed || isLoading}
                             value={value.from}
                             onChange={(from) =>
-                              setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
+                              setOpeningHours((prev) => {
+                                const nextDay = { ...prev[dayKey], from };
+                                if (!nextDay.closed && nextDay.to && compareTime(nextDay.from, nextDay.to) > 0) {
+                                  nextDay.to = nextDay.from;
+                                }
+                                return { ...prev, [dayKey]: nextDay };
+                              })
                             }
                           />
                           <span className="text-xs text-muted-foreground text-center">–</span>
@@ -545,7 +579,13 @@ export default function CompanyAccount() {
                             disabled={value.closed || isLoading}
                             value={value.to}
                             onChange={(to) =>
-                              setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
+                              setOpeningHours((prev) => {
+                                const nextDay = { ...prev[dayKey], to };
+                                if (!nextDay.closed && nextDay.from && compareTime(nextDay.from, nextDay.to) > 0) {
+                                  nextDay.from = nextDay.to;
+                                }
+                                return { ...prev, [dayKey]: nextDay };
+                              })
                             }
                           />
                         </div>
@@ -600,7 +640,13 @@ export default function CompanyAccount() {
                           disabled={value.closed || isLoading}
                           value={value.from}
                           onChange={(from) =>
-                            setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], from } }))
+                            setOpeningHours((prev) => {
+                              const nextDay = { ...prev[dayKey], from };
+                              if (!nextDay.closed && nextDay.to && compareTime(nextDay.from, nextDay.to) > 0) {
+                                nextDay.to = nextDay.from;
+                              }
+                              return { ...prev, [dayKey]: nextDay };
+                            })
                           }
                         />
                         <span className="text-xs text-muted-foreground text-center">–</span>
@@ -609,7 +655,13 @@ export default function CompanyAccount() {
                           disabled={value.closed || isLoading}
                           value={value.to}
                           onChange={(to) =>
-                            setOpeningHours((prev) => ({ ...prev, [dayKey]: { ...prev[dayKey], to } }))
+                            setOpeningHours((prev) => {
+                              const nextDay = { ...prev[dayKey], to };
+                              if (!nextDay.closed && nextDay.from && compareTime(nextDay.from, nextDay.to) > 0) {
+                                nextDay.from = nextDay.to;
+                              }
+                              return { ...prev, [dayKey]: nextDay };
+                            })
                           }
                         />
                       </div>
