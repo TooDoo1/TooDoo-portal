@@ -19,6 +19,7 @@ const LandingPage = lazy(() => import("./pages/Landingpage"));
 const Companies = lazy(() => import("./pages/Companies"));
 const Pending = lazy(() => import("./pages/Pending"));
 const AdminLogs = lazy(() => import("./pages/AdminLogs"));
+const AdminInvoices = lazy(() => import("./pages/AdminInvoices"));
 const CategoryPage = lazy(() => import("./pages/CategoryPage"));
 const LoggIn = lazy(() => import("./pages/LoggIn"));
 const Registration = lazy(() => import("./pages/Registration"));
@@ -115,6 +116,7 @@ const App = () => {
                 <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
                   <Route path="/admin" element={<Index />} />
                   <Route path="/admin/logs" element={<AdminLogs />} />
+                  <Route path="/admin/invoices" element={<AdminInvoices />} />
                   <Route path="/companies" element={<Companies />} />
                   <Route path="/pending" element={<Pending />} />
                   <Route path="/category/:name" element={<CategoryPage />} />

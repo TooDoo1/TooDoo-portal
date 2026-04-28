@@ -17,7 +17,17 @@ import {
   Download,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getBusinessId, listOrders, type Order } from "@/lib/api";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  listInvoices,
+  getInvoiceById,
+  getBusinessRedemptions,
+  resolveBusinessId,
+  type Invoice,
+  type InvoicePaymentStatus,
+  type Redemption,
+} from "@/lib/api";
+import { toast } from "sonner";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -39,24 +49,67 @@ function startOfWeek(date: Date): Date {
   return d;
 }
 
-const DISCOUNT = 0.1; // 10%
+function toNumber(value: unknown) {
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(n) ? n : 0;
+}
+
+function toMonthKey(input: unknown) {
+  const d = new Date(String(input ?? ""));
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function formatKr(value: number) {
+  const n = Number.isFinite(value) ? value : 0;
+  const hasDecimals = Math.abs(n % 1) > 1e-9;
+  return n.toLocaleString("sv-SE", {
+    minimumFractionDigits: hasDecimals ? 1 : 0,
+    maximumFractionDigits: hasDecimals ? 1 : 0,
+  });
+}
+
+function getInvoiceBreakdown(inv: Invoice, grossOverride?: number | null) {
+  const PERCENT = 10; // TooDoo takes 10%
+  const gross =
+    typeof grossOverride === "number" && Number.isFinite(grossOverride) ? grossOverride : null;
+
+  if (gross !== null) {
+    const fee = (gross * PERCENT) / 100;
+    const earnings = Math.max(0, gross - fee);
+    return { fee, gross, earnings, pct: PERCENT };
+  }
+
+  // Fallback: if we can't map redemptions->invoice, infer gross from invoice total
+  const fee = toNumber(inv.totalPrice);
+  const inferredGross = PERCENT > 0 ? (fee * 100) / PERCENT : 0;
+  const earnings = Math.max(0, inferredGross - fee);
+  return { fee, gross: inferredGross, earnings, pct: PERCENT };
+}
+
+function formatPaymentStatus(status: InvoicePaymentStatus | undefined) {
+  switch (status) {
+    case "PAID":
+      return { label: "Betald", className: "bg-success/15 text-success" };
+    case "OVERDUE":
+      return { label: "Försenad", className: "bg-destructive/15 text-destructive" };
+    case "LATE":
+      return { label: "Sen", className: "bg-destructive/15 text-destructive" };
+    case "PENDING":
+    default:
+      return { label: "Väntande", className: "bg-warning/15 text-warning" };
+  }
+}
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
 interface WeekData {
   week: string;
-  intäkt: number;
-  deals: number;
-}
-
-interface InvoiceRow {
-  id: string;
-  orderId: string;
-  timestamp: string;
-  gross: number;
-  discount: number;
-  net: number;
-  status: "Betald" | "Väntande";
+  earnings: number;
+  fee: number;
+  fakturor: number;
 }
 
 // ─── custom tooltip ──────────────────────────────────────────────────────────
@@ -67,10 +120,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     <div className="bg-card border border-border/60 rounded-xl px-4 py-3 shadow-xl text-sm">
       <p className="text-muted-foreground mb-1 font-medium">{label}</p>
       <p className="text-foreground font-bold">
-        {Number(payload[0]?.value ?? 0).toLocaleString("sv-SE")} kr
+        {formatKr(Number(payload[0]?.value ?? 0))} kr
       </p>
       <p className="text-muted-foreground text-xs">
-        {payload[1]?.value ?? 0} deals
+        {formatKr(Number(payload[1]?.value ?? 0))} kr avgift • {payload[2]?.value ?? 0} fakturor
       </p>
     </div>
   );
@@ -78,24 +131,70 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 // ─── main component ──────────────────────────────────────────────────────────
 
-export default function CompanyRevenue() {
-  const [orders, setOrders] = useState<Order[]>([]);
+export default function CompanyInvoices() {
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [redemptions, setRedemptions] = useState<Redemption[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   useEffect(() => {
     const load = async () => {
       try {
-        const businessId = getBusinessId();
-        const data = await listOrders(undefined, businessId ?? undefined);
-        setOrders(data);
+        const businessId = await resolveBusinessId();
+        if (!businessId) throw new Error("Saknar businessId.");
+        const [response, reds] = await Promise.all([
+          listInvoices({ businessId }),
+          getBusinessRedemptions(businessId),
+        ]);
+        const list = Array.isArray(response)
+          ? response
+          : Array.isArray((response as { invoices?: Invoice[] }).invoices)
+            ? (response as { invoices: Invoice[] }).invoices
+            : [];
+        setInvoices(list);
+        setRedemptions(Array.isArray(reds) ? reds : []);
       } catch {
-        setOrders([]);
+        setInvoices([]);
+        setRedemptions([]);
       } finally {
         setLoading(false);
       }
     };
     void load();
   }, []);
+
+  const grossByInvoiceId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of redemptions) {
+      const invoiceId = String((r as unknown as { invoiceId?: unknown }).invoiceId ?? "");
+      if (!invoiceId) continue;
+      const price = toNumber((r as unknown as { order?: { price?: unknown } }).order?.price);
+      if (!price) continue;
+      map.set(invoiceId, (map.get(invoiceId) ?? 0) + price);
+    }
+    return map;
+  }, [redemptions]);
+
+  const grossByMonth = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of redemptions) {
+      const key = toMonthKey((r as unknown as { redeemedAt?: unknown }).redeemedAt);
+      if (!key) continue;
+      const price = toNumber((r as unknown as { order?: { price?: unknown } }).order?.price);
+      if (!price) continue;
+      map.set(key, (map.get(key) ?? 0) + price);
+    }
+    return map;
+  }, [redemptions]);
+
+  const getGrossOverrideForInvoice = (inv: Invoice) => {
+    const byId = grossByInvoiceId.get(String(inv.id));
+    if (typeof byId === "number" && Number.isFinite(byId) && byId > 0) return byId;
+    const monthKey = toMonthKey(inv.createdAt);
+    const byMonth = grossByMonth.get(monthKey);
+    return typeof byMonth === "number" && Number.isFinite(byMonth) && byMonth > 0 ? byMonth : null;
+  };
 
   // ── Build 8-week chart data ───────────────────────────────────────────────
   const weeklyData = useMemo((): WeekData[] => {
@@ -109,132 +208,112 @@ export default function CompanyRevenue() {
       const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
       const label = getWeekLabel(weekStart);
 
-      const weekOrders = orders.filter((o) => {
-        const t = new Date(String(o.createdAt ?? o.validFrom ?? "")).getTime();
-        return t >= weekStart.getTime() && t < weekEnd.getTime();
+      const weekInvoices = invoices.filter((inv) => {
+        const t = new Date(String(inv.createdAt ?? "")).getTime();
+        return Number.isFinite(t) && t >= weekStart.getTime() && t < weekEnd.getTime();
       });
 
-      // If no real data, spread orders across weeks for a realistic mock
-      const ordersForWeek =
-        weekOrders.length > 0
-          ? weekOrders
-          : orders.slice(0, Math.floor(Math.random() * 3));
-
-      const intäkt = ordersForWeek.reduce(
-        (sum, o) => sum + Number(o.price ?? 0),
+      const fee = weekInvoices.reduce(
+        (sum, inv) => sum + getInvoiceBreakdown(inv, getGrossOverrideForInvoice(inv)).fee,
         0,
       );
-
-      weeks.push({ week: label, intäkt, deals: ordersForWeek.length });
-    }
-
-    // If all zeros (no createdAt field), generate plausible mock from orders
-    const allZero = weeks.every((w) => w.intäkt === 0 && w.deals === 0);
-    if (allZero && orders.length > 0) {
-      const basePrice =
-        orders.reduce((s, o) => s + Number(o.price ?? 299), 0) / orders.length;
-      return weeks.map((w, i) => ({
-        ...w,
-        intäkt: Math.round(basePrice * (2 + Math.sin(i) * 1.5 + i * 0.4)),
-        deals: 2 + ((i * 3) % 5),
-      }));
+      const earnings = weekInvoices.reduce(
+        (sum, inv) =>
+          sum + (getInvoiceBreakdown(inv, getGrossOverrideForInvoice(inv)).earnings ?? 0),
+        0,
+      );
+      weeks.push({ week: label, earnings, fee, fakturor: weekInvoices.length });
     }
 
     return weeks;
-  }, [orders]);
+  }, [invoices, grossByInvoiceId, grossByMonth]);
 
   // ── Summary stats ─────────────────────────────────────────────────────────
-  const totalGross = useMemo(
-    () => weeklyData.reduce((s, w) => s + w.intäkt, 0),
+  const totalEarnings = useMemo(
+    () => weeklyData.reduce((s, w) => s + w.earnings, 0),
+    [weeklyData],
+  );
+  const totalFee = useMemo(
+    () => weeklyData.reduce((s, w) => s + w.fee, 0),
     [weeklyData],
   );
   const totalDeals = useMemo(
-    () => weeklyData.reduce((s, w) => s + w.deals, 0),
+    () => weeklyData.reduce((s, w) => s + w.fakturor, 0),
     [weeklyData],
   );
-  const lastWeek = weeklyData[weeklyData.length - 1]?.intäkt ?? 0;
-  const prevWeek = weeklyData[weeklyData.length - 2]?.intäkt ?? 0;
+  const lastWeek = weeklyData[weeklyData.length - 1]?.earnings ?? 0;
+  const prevWeek = weeklyData[weeklyData.length - 2]?.earnings ?? 0;
   const weekGrowth =
     prevWeek > 0 ? Math.round(((lastWeek - prevWeek) / prevWeek) * 100) : 0;
 
-  // ── Build invoice rows ────────────────────────────────────────────────────
-  const invoices = useMemo((): InvoiceRow[] => {
-    const source =
-      orders.length > 0
-        ? orders
-        : // mock rows if API empty
-          Array.from({ length: 6 }, (_, i) => ({
-            id: `mock-${i}`,
-            price: 199 + i * 50,
-            maxRedemptions: 1,
-            createdAt: new Date(
-              Date.now() - i * 86400000 * 2,
-            ).toISOString(),
-            validTo: new Date(
-              Date.now() + 86400000 * 7,
-            ).toISOString(),
-            validFrom: new Date().toISOString(),
-          })) as unknown as Order[];
-
-    return source.map((o, idx) => {
-      const gross = Number(o.price ?? 0);
-      const discount = Math.round(gross * DISCOUNT);
-      const net = gross - discount;
-      const ts = String(o.createdAt ?? o.validFrom ?? new Date().toISOString());
-      return {
-        id: `INV-${String(idx + 1).padStart(4, "0")}`,
-        orderId: String(o.id ?? `ORD-${idx}`),
-        timestamp: ts,
-        gross,
-        discount,
-        net,
-        status:
-          new Date(String(o.validTo ?? "")).getTime() < Date.now()
-            ? "Betald"
-            : "Väntande",
-      };
-    });
-  }, [orders]);
-
   const summaryStats = [
     {
-      label: "Total intäkt (8v)",
-      value: `${totalGross.toLocaleString("sv-SE")} kr`,
+      label: "Din intäkt (8v)",
+      value: `${formatKr(totalEarnings)} kr`,
       detail: `${weekGrowth >= 0 ? "+" : ""}${weekGrowth}% vs förra veckan`,
       icon: CircleDollarSign,
       color: "bg-primary/15 text-primary",
       positive: weekGrowth >= 0,
     },
     {
-      label: "Deals inlösta (8v)",
+      label: "Fakturor (8v)",
       value: totalDeals,
-      detail: "Unika ordrar",
+      detail: "Antal fakturor skapade",
       icon: BadgeCheck,
       color: "bg-success/15 text-success",
       positive: true,
     },
     {
       label: "Denna vecka",
-      value: `${lastWeek.toLocaleString("sv-SE")} kr`,
+      value: `${formatKr(lastWeek)} kr`,
       detail: "Senaste 7 dagarna",
       icon: TrendingUp,
       color: "bg-accent/15 text-accent",
       positive: true,
     },
     {
-      label: "Fakturor totalt",
-      value: invoices.length,
-      detail: `${invoices.filter((i) => i.status === "Betald").length} betalda`,
+      label: "Avgift (8v)",
+      value: `${formatKr(totalFee)} kr`,
+      detail: `${invoices.filter((i) => i.paymentStatus === "PAID").length} betalda fakturor`,
       icon: Receipt,
       color: "bg-warning/15 text-warning",
       positive: true,
     },
   ];
 
+  useEffect(() => {
+    if (!selectedInvoiceId) {
+      setSelectedInvoice(null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadDetails = async () => {
+      setDetailsLoading(true);
+      try {
+        const inv = await getInvoiceById(selectedInvoiceId);
+        if (cancelled) return;
+        setSelectedInvoice(inv);
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : "Kunde inte läsa fakturan.";
+          toast.error(message);
+        }
+        setSelectedInvoiceId(null);
+      } finally {
+        if (!cancelled) setDetailsLoading(false);
+      }
+    };
+    void loadDetails();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedInvoiceId]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
-        Laddar intäktsdata…
+        Laddar fakturor…
       </div>
     );
   }
@@ -290,7 +369,7 @@ export default function CompanyRevenue() {
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="flex items-center gap-2">
             <TrendingUp size={18} className="text-accent" />
-            Intäkt per vecka
+            Din intäkt per vecka
           </CardTitle>
           <span className="text-xs text-muted-foreground">Senaste 8 veckorna</span>
         </CardHeader>
@@ -332,7 +411,7 @@ export default function CompanyRevenue() {
               <Tooltip content={<CustomTooltip />} />
               <Area
                 type="monotone"
-                dataKey="intäkt"
+                dataKey="earnings"
                 stroke="hsl(var(--primary))"
                 strokeWidth={2.5}
                 fill="url(#colorRevenue)"
@@ -341,7 +420,7 @@ export default function CompanyRevenue() {
               />
               <Area
                 type="monotone"
-                dataKey="deals"
+                dataKey="fee"
                 stroke="hsl(var(--accent))"
                 strokeWidth={1.5}
                 fill="url(#colorDeals)"
@@ -352,11 +431,11 @@ export default function CompanyRevenue() {
           <div className="flex items-center gap-6 mt-3 justify-end">
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="w-3 h-0.5 rounded-full bg-primary inline-block" />
-              Intäkt (kr)
+              Din intäkt (kr)
             </span>
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="w-3 h-0.5 rounded-full bg-accent inline-block" />
-              Antal deals
+              Avgift (kr)
             </span>
           </div>
         </CardContent>
@@ -376,13 +455,14 @@ export default function CompanyRevenue() {
         </CardHeader>
         <CardContent className="p-0">
           {/* Table header */}
-          <div className="grid grid-cols-6 gap-2 px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border/50">
+          <div className="grid grid-cols-7 gap-2 px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border/50">
             <span>Faktura</span>
-            <span>Order-ID</span>
-            <span>Tidpunkt</span>
-            <span className="text-right">Brutto</span>
-            <span className="text-right">Rabatt (10%)</span>
-            <span className="text-right">Netto / Status</span>
+            <span>Skapad</span>
+            <span className="text-right">Omsättning</span>
+            <span className="text-right">Avgift</span>
+            <span className="text-right">Din intäkt</span>
+            <span className="text-right">Procent</span>
+            <span className="text-right">Status</span>
           </div>
 
           {invoices.length === 0 ? (
@@ -392,79 +472,148 @@ export default function CompanyRevenue() {
           ) : (
             <div className="divide-y divide-border/40">
               {invoices.map((inv) => (
-                <div
+                (() => {
+                  const b = getInvoiceBreakdown(inv, getGrossOverrideForInvoice(inv));
+                  const grossText = b.gross !== null ? `${formatKr(b.gross)} kr` : "—";
+                  const feeText = `${formatKr(b.fee)} kr`;
+                  const earningsText = b.earnings !== null ? `${formatKr(b.earnings)} kr` : "—";
+                  const earningsMuted = b.earnings === null;
+                  return (
+                <button
+                  type="button"
                   key={inv.id}
-                  className="grid grid-cols-6 gap-2 px-5 py-3.5 text-sm hover:bg-muted/30 transition-colors items-center"
+                  onClick={() => setSelectedInvoiceId(inv.id)}
+                  className="w-full text-left grid grid-cols-7 gap-2 px-5 py-3.5 text-sm hover:bg-muted/30 transition-colors items-center"
                 >
                   {/* Faktura nr */}
                   <span className="font-mono font-semibold text-foreground text-xs">
-                    {inv.id}
+                    {String(inv.id)}
                   </span>
 
-                  {/* Order ID */}
-                  <span className="text-muted-foreground font-mono text-xs truncate">
-                    {inv.orderId}
-                  </span>
-
-                  {/* Timestamp */}
+                  {/* Skapad */}
                   <span className="text-muted-foreground text-xs">
-                    {new Date(inv.timestamp).toLocaleDateString("sv-SE", {
+                    {inv.createdAt
+                      ? new Date(inv.createdAt).toLocaleDateString("sv-SE", {
                       day: "numeric",
                       month: "short",
+                      year: "numeric",
                       hour: "2-digit",
                       minute: "2-digit",
-                    })}
+                    })
+                      : "—"}
                   </span>
 
-                  {/* Brutto */}
+                  {/* Omsättning */}
+                  <span className="text-right text-muted-foreground">{grossText}</span>
+
+                  {/* Avgift */}
+                  <span className="text-right font-semibold text-foreground">{feeText}</span>
+
+                  {/* Din intäkt */}
+                  <span className={`text-right font-semibold ${earningsMuted ? "text-muted-foreground" : "text-foreground"}`}>
+                    {earningsText}
+                  </span>
+
+                  {/* Procent */}
                   <span className="text-right text-muted-foreground">
-                    {inv.gross.toLocaleString("sv-SE")} kr
+                    {b.pct !== null ? `${b.pct}%` : "—"}
                   </span>
 
-                  {/* Rabatt */}
-                  <span className="text-right text-destructive font-medium">
-                    −{inv.discount.toLocaleString("sv-SE")} kr
-                  </span>
-
-                  {/* Netto + status */}
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="font-bold text-foreground">
-                      {inv.net.toLocaleString("sv-SE")} kr
-                    </span>
-                    <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        inv.status === "Betald"
-                          ? "bg-success/15 text-success"
-                          : "bg-warning/15 text-warning"
-                      }`}
-                    >
-                      {inv.status}
-                    </span>
+                  {/* Status */}
+                  <div className="flex justify-end">
+                    {(() => {
+                      const s = formatPaymentStatus(inv.paymentStatus);
+                      return (
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${s.className}`}>
+                          {s.label}
+                        </span>
+                      );
+                    })()}
                   </div>
-                </div>
+                </button>
+                  );
+                })()
               ))}
             </div>
           )}
 
           {/* Footer sum */}
           {invoices.length > 0 && (
-            <div className="grid grid-cols-6 gap-2 px-5 py-3.5 border-t border-border bg-muted/20 rounded-b-xl text-sm font-semibold">
-              <span className="col-span-3 text-muted-foreground">
+            <div className="grid grid-cols-7 gap-2 px-5 py-3.5 border-t border-border bg-muted/20 rounded-b-xl text-sm font-semibold">
+              <span className="col-span-2 text-muted-foreground">
                 Totalt ({invoices.length} fakturor)
               </span>
+              <span />
               <span className="text-right text-muted-foreground">
-                {invoices.reduce((s, i) => s + i.gross, 0).toLocaleString("sv-SE")} kr
-              </span>
-              <span className="text-right text-destructive">
-                −{invoices.reduce((s, i) => s + i.discount, 0).toLocaleString("sv-SE")} kr
+                {formatKr(invoices.reduce((s, i) => s + (getInvoiceBreakdown(i, getGrossOverrideForInvoice(i)).gross ?? 0), 0))} kr
               </span>
               <span className="text-right text-foreground">
-                {invoices.reduce((s, i) => s + i.net, 0).toLocaleString("sv-SE")} kr
+                {formatKr(invoices.reduce((s, i) => s + getInvoiceBreakdown(i, getGrossOverrideForInvoice(i)).fee, 0))} kr
               </span>
+              <span className="text-right text-foreground">
+                {formatKr(invoices.reduce((s, i) => s + (getInvoiceBreakdown(i, getGrossOverrideForInvoice(i)).earnings ?? 0), 0))} kr
+              </span>
+              <span />
             </div>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(selectedInvoiceId)} onOpenChange={(open) => !open && setSelectedInvoiceId(null)}>
+        <DialogContent className="border-border bg-card">
+          <DialogHeader>
+            <DialogTitle>Faktura</DialogTitle>
+          </DialogHeader>
+
+          {detailsLoading ? (
+            <div className="text-sm text-muted-foreground">Laddar faktura…</div>
+          ) : selectedInvoice ? (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-border bg-background/40 p-4">
+                <div className="text-xs text-muted-foreground">ID</div>
+                <div className="font-mono text-sm font-semibold text-foreground">{String(selectedInvoice.id)}</div>
+                <div className="mt-3 text-xs text-muted-foreground">Skapad</div>
+                <div className="text-sm font-semibold text-foreground">
+                  {selectedInvoice.createdAt ? new Date(selectedInvoice.createdAt).toLocaleString("sv-SE") : "—"}
+                </div>
+                <div className="mt-3 text-xs text-muted-foreground">Status</div>
+                <div className="text-sm font-semibold text-foreground">
+                  {formatPaymentStatus(selectedInvoice.paymentStatus).label}
+                </div>
+                <div className="mt-3 text-xs text-muted-foreground">Total</div>
+                <div className="text-sm font-semibold text-foreground">
+                  {formatKr(toNumber(selectedInvoice.totalPrice))} kr
+                </div>
+
+                <div className="mt-3 text-xs text-muted-foreground">Omsättning / Din intäkt</div>
+                <div className="text-sm font-semibold text-foreground">
+                  {(() => {
+                    const b = getInvoiceBreakdown(selectedInvoice, getGrossOverrideForInvoice(selectedInvoice));
+                    if (b.gross === null || b.earnings === null) return "—";
+                    return `${formatKr(b.gross)} kr / ${formatKr(b.earnings)} kr`;
+                  })()}
+                </div>
+
+                <div className="mt-2 text-[11px] text-muted-foreground">
+                  Avgiften baseras på fakturans procent (din intäkt = omsättning − avgift).
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">Kunde inte läsa fakturan.</div>
+          )}
+
+          <DialogFooter>
+            <button
+              type="button"
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground hover:bg-accent/10"
+              onClick={() => setSelectedInvoiceId(null)}
+            >
+              Stäng
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

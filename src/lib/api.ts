@@ -401,6 +401,17 @@ export async function getInvoiceById(invoiceId: string) {
   return apiRequest<Invoice>(`/invoices/${encodeURIComponent(invoiceId)}`, { method: "GET" }, true);
 }
 
+export async function updateInvoicePercentage(invoiceId: string, pricePercentage: number) {
+  return apiRequest<Invoice>(
+    `/invoices/${encodeURIComponent(invoiceId)}/percentage`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ pricePercentage }),
+    },
+    true,
+  );
+}
+
 export type OrderPreset = {
   id: string;
   title: string;
