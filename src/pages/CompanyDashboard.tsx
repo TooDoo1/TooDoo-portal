@@ -69,6 +69,7 @@ export default function CompanyDashboard() {
       detail: `${orders.length - activeOffers.length} utgångna`,
       icon: Gift,
       color: "bg-accent/15 text-accent",
+      to: null as string | null,
     },
     {
       label: "Aktiverade kuponger",
@@ -76,6 +77,7 @@ export default function CompanyDashboard() {
       detail: "Från maxRedemptions",
       icon: BadgeCheck,
       color: "bg-success/15 text-success",
+      to: null as string | null,
     },
     {
       label: "Ej använda kuponger",
@@ -83,13 +85,15 @@ export default function CompanyDashboard() {
       detail: "Kräver claim-statistik endpoint",
       icon: Wallet,
       color: "bg-warning/15 text-warning",
+      to: null as string | null,
     },
     {
       label: "Vecko intäkt",
       value: `${totalEarnings.toLocaleString("sv-SE")} kr`,
-      detail: "Summerad från orderpris",
+      detail: "Klicka för att se detaljer →",
       icon: CircleDollarSign,
       color: "bg-primary/15 text-primary",
+      to: "/company/invoices" as string | null,
     },
   ];
 
@@ -101,25 +105,35 @@ export default function CompanyDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.label} className="card-hover bg-card border-border">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
-                  <p className="text-2xl font-bold text-foreground tracking-tight">{stat.value}</p>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <ArrowUpRight className="h-3 w-3 text-success" />
-                    {stat.detail}
+        {stats.map((stat) => {
+          const card = (
+            <Card key={stat.label} className={`h-full bg-card border-border ${stat.to ? "card-hover cursor-pointer" : ""}`}>
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
+                    <p className="text-2xl font-bold text-foreground tracking-tight">{stat.value}</p>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <ArrowUpRight className="h-3 w-3 text-success" />
+                      {stat.detail}
+                    </div>
+                  </div>
+                  <div className={`${stat.color} p-3 rounded-xl`}>
+                    <stat.icon className="h-5 w-5" />
                   </div>
                 </div>
-                <div className={`${stat.color} p-3 rounded-xl`}>
-                  <stat.icon className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+
+          return stat.to ? (
+            <Link key={stat.label} to={stat.to} className="block h-full">
+              {card}
+            </Link>
+          ) : (
+            <div key={stat.label} className="h-full">{card}</div>
+          );
+        })}
       </div>
 
       <div>
