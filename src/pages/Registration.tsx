@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -54,6 +54,10 @@ export default function Registration() {
 		}>
 	>([]);
 	const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(null);
+	const [imageUrl, setImageUrl] = useState("");
+	const [imageFile, setImageFile] = useState<File | null>(null);
+	const [uploadedImageUrl, setUploadedImageUrl] = useState("");
+	const imageFileInputRef = useRef<HTMLInputElement | null>(null);
 	const navigate = useNavigate();
 	const longDescRef = useRef<HTMLTextAreaElement>(null);
 	const [openingHours, setOpeningHours] = useState<Record<
@@ -173,6 +177,24 @@ export default function Registration() {
 		void loadCategories();
 	}, []);
 
+	const imageFilePreviewUrl = useMemo(() => {
+		if (!imageFile) return "";
+		return URL.createObjectURL(imageFile);
+	}, [imageFile]);
+
+	useEffect(() => {
+		if (!imageFilePreviewUrl) return;
+		return () => URL.revokeObjectURL(imageFilePreviewUrl);
+	}, [imageFilePreviewUrl]);
+
+	useEffect(() => {
+		if (!imageFilePreviewUrl) {
+			setUploadedImageUrl("");
+			return;
+		}
+		setUploadedImageUrl(imageFilePreviewUrl);
+	}, [imageFilePreviewUrl]);
+
 	const handleRegister = async () => {
 		const email = (document.getElementById("email") as HTMLInputElement | null)?.value.trim() ?? "";
 		const phone = (document.getElementById("phonenumber") as HTMLInputElement | null)?.value.trim() ?? "";
@@ -207,6 +229,18 @@ export default function Registration() {
 			return;
 		}
 
+		const trimmedImageUrl = imageUrl.trim();
+		const wantsUpload = Boolean(imageFile);
+		if (!wantsUpload && trimmedImageUrl) {
+			try {
+				// eslint-disable-next-line no-new
+				new URL(trimmedImageUrl);
+			} catch {
+				toast.error("Bild URL måste vara en giltig URL.");
+				return;
+			}
+		}
+
 		setIsSubmitting(true);
 		try {
 			const effectiveOpeningHours = groupWeekdays
@@ -236,6 +270,9 @@ export default function Registration() {
 				address,
 				city,
 				categoryId: categoryId,
+				imageSourceType: wantsUpload ? "UPLOADED" : trimmedImageUrl ? "EXTERNAL_URL" : undefined,
+				imageUrl: wantsUpload ? undefined : trimmedImageUrl ? trimmedImageUrl : undefined,
+				imageFile: wantsUpload ? imageFile ?? undefined : undefined,
 				...(shouldSendOpeningHours ? { openingHours: openingHoursPayload } : {}),
 			});
 
@@ -600,6 +637,83 @@ export default function Registration() {
 									placeholder="Ange adress"
 									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
+							</div>
+
+							<div className="space-y-2">
+								<label className="ml-0.5 text-sm font-semibold text-muted-foreground">
+									Bild URL <span className="text-xs text-muted-foreground">(valfritt)</span>
+								</label>
+								<div className="flex gap-2">
+									<Input
+										placeholder="https://example.com/image.png"
+										value={imageFile ? uploadedImageUrl : imageUrl}
+										onChange={(e) => {
+											const next = e.target.value;
+											if (imageFile) {
+												// If the user edits the field, switch to URL mode.
+												if (!next.trim()) {
+													setImageFile(null);
+													setUploadedImageUrl("");
+													setImageUrl("");
+													return;
+												}
+												if (next !== uploadedImageUrl) {
+													setImageFile(null);
+													setUploadedImageUrl("");
+													setImageUrl(next);
+												}
+												return;
+											}
+											setImageUrl(next);
+										}}
+										className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+									/>
+									<button
+										type="button"
+										onClick={() => imageFileInputRef.current?.click()}
+										className="inline-flex h-11 shrink-0 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+										disabled={isSubmitting}
+									>
+										Ladda upp
+									</button>
+									<input
+										ref={imageFileInputRef}
+										type="file"
+										accept="image/*"
+										className="hidden"
+										disabled={isSubmitting}
+										onChange={(e) => {
+											const file = e.target.files?.[0] ?? null;
+											setImageFile(file);
+											if (file) setImageUrl("");
+											if (imageFileInputRef.current) imageFileInputRef.current.value = "";
+										}}
+									/>
+								</div>
+
+								{imageUrl.trim() ? (
+									<div className="mt-2 flex items-center gap-3">
+										<div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
+											<img
+												src={imageUrl}
+												alt="Image preview"
+												className="h-full w-full object-contain"
+												onError={(e) => {
+													(e.currentTarget as HTMLImageElement).style.display = "none";
+												}}
+											/>
+										</div>
+										<p className="text-xs text-muted-foreground">Förhandsvisning</p>
+									</div>
+								) : null}
+								{!imageUrl.trim() && imageFilePreviewUrl ? (
+									<div className="mt-2 flex items-center gap-3">
+										<div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
+											<img src={imageFilePreviewUrl} alt="Image preview" className="h-full w-full object-contain" />
+										</div>
+										<p className="text-xs text-muted-foreground">Förhandsvisning</p>
+									</div>
+								) : null}
 							</div>
 
 							<div className="space-y-3 pt-2">

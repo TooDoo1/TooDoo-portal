@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ArrowLeft, CalendarDays, ChevronDown, ChevronUp, PlusCircle } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { useInvoiceDefaultPercentage } from "@/hooks/useInvoiceDefaultPercentage
 
 type OfferForm = {
   title: string;
+  imageUrl: string;
   startAt: string;
   startTime: string;
   originalPrice: string;
@@ -34,6 +35,9 @@ type OfferPayload = {
   description: string;
   price: number;
   originalPrice?: number;
+  imageSourceType?: "EXTERNAL_URL" | "UPLOADED";
+  imageUrl?: string;
+  imageFile?: File;
   orderTimeFrom: string;
   orderTimeTo: string;
   validFrom: string;
@@ -101,6 +105,40 @@ function toLocalIsoWithOffset(date: Date) {
   return format(date, "yyyy-MM-dd'T'HH:mm:ssxxx");
 }
 
+function getOrderImageUrl(order: Record<string, unknown>) {
+  const candidates: unknown[] = [
+    order.imageUrl,
+    (order as Record<string, unknown>)["image_url"],
+    (order as Record<string, unknown>)["imageURL"],
+    (order as { imageAsset?: { url?: unknown } }).imageAsset?.url,
+    (order as { imageAsset?: { publicUrl?: unknown } }).imageAsset?.publicUrl,
+    (order as Record<string, unknown>)["image"],
+    (order as { image?: { url?: unknown } }).image?.url,
+    (order as { image?: { publicUrl?: unknown } }).image?.publicUrl,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim();
+  }
+  return "";
+}
+
+function getPresetImageUrl(preset: Record<string, unknown>) {
+  const candidates: unknown[] = [
+    preset.imageUrl,
+    (preset as Record<string, unknown>)["image_url"],
+    (preset as Record<string, unknown>)["imageURL"],
+    (preset as { imageAsset?: { url?: unknown } }).imageAsset?.url,
+    (preset as { imageAsset?: { publicUrl?: unknown } }).imageAsset?.publicUrl,
+    (preset as Record<string, unknown>)["image"],
+    (preset as { image?: { url?: unknown } }).image?.url,
+    (preset as { image?: { publicUrl?: unknown } }).image?.publicUrl,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim()) return c.trim();
+  }
+  return "";
+}
+
 type OfferPreviewCardProps = {
   businessName: string;
   offerText: string;
@@ -124,6 +162,7 @@ function OfferPreviewCard({
   imageUrl,
   ctaLabel = "Logga in för att claima!",
 }: OfferPreviewCardProps) {
+  const [imageFailed, setImageFailed] = useState(false);
   const progress =
     totalCount > 0 ? Math.max(0, Math.min(100, (claimedCount / totalCount) * 100)) : 0;
 
@@ -143,8 +182,13 @@ function OfferPreviewCard({
           <div style={previewStyles.card}>
             <div style={previewStyles.cardTop}>
               <div style={previewStyles.thumbWrap}>
-                {imageUrl ? (
-                  <img alt="" src={imageUrl} style={previewStyles.thumbImg} />
+                {imageUrl && !imageFailed ? (
+                  <img
+                    alt=""
+                    src={imageUrl}
+                    style={previewStyles.thumbImg}
+                    onError={() => setImageFailed(true)}
+                  />
                 ) : (
                   <div style={previewStyles.thumbFallback} />
                 )}
@@ -393,10 +437,30 @@ export default function CompanyNewOffer() {
   const [previewBusiness, setPreviewBusiness] = useState<PreviewBusiness | null>(null);
   const [isLoadingOffer, setIsLoadingOffer] = useState(false);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
+  const [editLocked, setEditLocked] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState("");
+  const imageFileInputRef = useRef<HTMLInputElement | null>(null);
+  const imageFilePreviewUrl = useMemo(() => {
+    if (!imageFile) return "";
+    return URL.createObjectURL(imageFile);
+  }, [imageFile]);
+  useEffect(() => {
+    if (!imageFilePreviewUrl) return;
+    return () => URL.revokeObjectURL(imageFilePreviewUrl);
+  }, [imageFilePreviewUrl]);
+  useEffect(() => {
+    if (!imageFilePreviewUrl) {
+      setUploadedImageUrl("");
+      return;
+    }
+    setUploadedImageUrl(imageFilePreviewUrl);
+  }, [imageFilePreviewUrl]);
   const today = startOfDay(new Date());
   const tomorrow = addDays(today, 1);
   const [form, setForm] = useState<OfferForm>({
     title: "",
+    imageUrl: "",
     startAt: "",
     startTime: "",
     originalPrice: "",
@@ -444,10 +508,19 @@ export default function CompanyNewOffer() {
 
     setEditOrderId(orderId);
     setIsLoadingOffer(true);
+    setEditLocked(false);
 
     const loadOrder = async () => {
       try {
         const order = await getOrderById(orderId);
+        const isActive = (() => {
+          const raw = (order as unknown as { isActive?: unknown }).isActive;
+          if (typeof raw === "boolean") return raw;
+          if (typeof raw === "string") return raw.toLowerCase() === "true";
+          return false;
+        })();
+        setEditLocked(isActive);
+        if (isActive) toast.info("Aktivt erbjudande kan inte redigeras.");
         const orderTimeFrom = order.orderTimeFrom || order.validFrom || "";
         const orderTimeTo = order.orderTimeTo || order.validTo || "";
         const couponLifetimeMs = new Date(order.validTo).getTime() - new Date(orderTimeFrom).getTime();
@@ -457,6 +530,7 @@ export default function CompanyNewOffer() {
 
         setForm({
           title: order.title ?? "",
+          imageUrl: getOrderImageUrl(order as unknown as Record<string, unknown>),
           startAt: orderTimeFrom ? format(new Date(orderTimeFrom), "yyyy-MM-dd") : "",
           startTime: orderTimeFrom ? format(new Date(orderTimeFrom), "HH:mm") : "",
           originalPrice: typeof order.originalPrice === "number" || typeof order.originalPrice === "string" ? String(order.originalPrice) : "",
@@ -470,6 +544,8 @@ export default function CompanyNewOffer() {
           expiresAt: orderTimeTo ? format(new Date(orderTimeTo), "yyyy-MM-dd") : "",
           expiresTime: orderTimeTo ? format(new Date(orderTimeTo), "HH:mm") : "",
         });
+        setImageFile(null);
+        setUploadedImageUrl("");
       } catch (error) {
         const message = error instanceof Error ? error.message : "Kunde inte läsa erbjudandet.";
         toast.error(message);
@@ -538,6 +614,7 @@ export default function CompanyNewOffer() {
     setForm((prev) => ({
       ...prev,
       title: typeof preset.title === "string" ? preset.title : prev.title,
+      imageUrl: getPresetImageUrl(preset as unknown as Record<string, unknown>) || prev.imageUrl,
       discountedPrice: price,
       originalPrice,
       claimsTotal,
@@ -549,9 +626,25 @@ export default function CompanyNewOffer() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (editLocked) {
+      toast.error("Kan inte redigera aktivt erbjudande.");
+      return;
+    }
+
     if (!form.title.trim()) {
       toast.error("Fyll i titel.");
       return;
+    }
+
+    const trimmedImageUrl = form.imageUrl.trim();
+    if (trimmedImageUrl) {
+      try {
+        // eslint-disable-next-line no-new
+        new URL(trimmedImageUrl);
+      } catch {
+        toast.error("Bild URL måste vara en giltig URL.");
+        return;
+      }
     }
 
     const businessId = getBusinessId();
@@ -677,11 +770,15 @@ export default function CompanyNewOffer() {
     }
 
     const description = form.title.trim();
+    const wantsUpload = Boolean(imageFile);
     const payload: OfferPayload = {
       title: form.title.trim(),
       description,
       price,
       originalPrice,
+      imageSourceType: wantsUpload ? "UPLOADED" : trimmedImageUrl ? "EXTERNAL_URL" : undefined,
+      imageUrl: wantsUpload ? undefined : trimmedImageUrl ? trimmedImageUrl : undefined,
+      imageFile: wantsUpload ? imageFile ?? undefined : undefined,
       orderTimeFrom: orderTimeFromIso,
       orderTimeTo: validToIso,
       validFrom: orderTimeFromIso,
@@ -753,6 +850,18 @@ export default function CompanyNewOffer() {
       maxRedemptions = parsedMaxRedemptions;
     }
 
+    const trimmedImageUrl = form.imageUrl.trim();
+    if (trimmedImageUrl) {
+      try {
+        // eslint-disable-next-line no-new
+        new URL(trimmedImageUrl);
+      } catch {
+        toast.error("Bild URL måste vara en giltig URL.");
+        return;
+      }
+    }
+    const wantsUpload = Boolean(imageFile);
+
     setIsSubmitting(true);
     try {
       await createOrderPreset({
@@ -761,6 +870,9 @@ export default function CompanyNewOffer() {
         price,
         originalPrice,
         maxRedemptions,
+        imageSourceType: wantsUpload ? "UPLOADED" : trimmedImageUrl ? "EXTERNAL_URL" : undefined,
+        imageUrl: wantsUpload ? undefined : trimmedImageUrl ? trimmedImageUrl : undefined,
+        imageFile: wantsUpload ? imageFile ?? undefined : undefined,
       });
       toast.success("Preset skapat.");
       navigate("/company/offers");
@@ -836,6 +948,58 @@ export default function CompanyNewOffer() {
                   value={form.title}
                   onChange={(e) => onChange("title", e.target.value)}
                 />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium text-foreground">
+                  Bild URL <span className="text-xs text-muted-foreground">(valfritt)</span>
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="https://example.com/image.jpg"
+                    value={imageFile ? uploadedImageUrl : form.imageUrl}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      if (imageFile) {
+                        // If the user edits the field, switch to URL mode.
+                        if (!next.trim()) {
+                          setImageFile(null);
+                          setUploadedImageUrl("");
+                          onChange("imageUrl", "");
+                          return;
+                        }
+                        if (next !== uploadedImageUrl) {
+                          setImageFile(null);
+                          setUploadedImageUrl("");
+                          onChange("imageUrl", next);
+                        }
+                        return;
+                      }
+                      onChange("imageUrl", next);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="default"
+                    className="shrink-0 bg-blue-600 text-white hover:bg-blue-700"
+                    onClick={() => imageFileInputRef.current?.click()}
+                  >
+                    Ladda upp
+                  </Button>
+                  <input
+                    ref={imageFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      setImageFile(file);
+                      if (file) onChange("imageUrl", "");
+                      if (imageFileInputRef.current) imageFileInputRef.current.value = "";
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Används som bild för erbjudandet i appen.</p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2 md:col-span-2">
@@ -1160,10 +1324,12 @@ export default function CompanyNewOffer() {
               >
                 Skapa preset
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90">
-                <PlusCircle className="h-4 w-4" />
-                {isSubmitting ? (editOrderId ? "Sparar..." : "Skapar...") : editOrderId ? "Spara ändringar" : "Skapa erbjudande"}
-              </Button>
+              {!editLocked ? (
+                <Button type="submit" disabled={isSubmitting} className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90">
+                  <PlusCircle className="h-4 w-4" />
+                  {isSubmitting ? (editOrderId ? "Sparar..." : "Skapar...") : editOrderId ? "Spara ändringar" : "Skapa erbjudande"}
+                </Button>
+              ) : null}
             </div>
           </form>
         </CardContent>
@@ -1238,7 +1404,7 @@ export default function CompanyNewOffer() {
                     claimedCount={0}
                     totalCount={pendingPayload?.maxRedemptions ?? 1}
                     countdownText="13:52:57"
-                    imageUrl={previewBusiness?.imageUrl ?? undefined}
+                    imageUrl={imageFilePreviewUrl ? imageFilePreviewUrl : form.imageUrl.trim() ? form.imageUrl.trim() : undefined}
                     ctaLabel="Logga in för att claima!"
                   />
                 </div>
@@ -1294,7 +1460,7 @@ export default function CompanyNewOffer() {
                 </button>
                 <Button
                   type="button"
-                  disabled={isSubmitting || !pendingPayload}
+                  disabled={isSubmitting || !pendingPayload || editLocked}
                   className="bg-accent text-accent-foreground hover:bg-accent/90"
                   onClick={confirmCreateOrUpdate}
                 >
