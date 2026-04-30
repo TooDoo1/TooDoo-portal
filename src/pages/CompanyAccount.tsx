@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Building2, ImageIcon, Mail, MapPin, Moon, Phone, Save, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,7 @@ import {
   getBusinessId,
   changeMyPassword,
   getUserByEmail,
-  listBusinesses,
+  getBusinessById,
   listCategories,
   setBusinessId,
   updateBusiness,
@@ -59,6 +59,17 @@ const openingHoursLabels: Record<OpeningHoursDayKey, string> = {
 
 const weekdayKeys: OpeningHoursDayKey[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 const weekendKeys: OpeningHoursDayKey[] = ["saturday", "sunday"];
+
+function getBusinessImageUrl(business: Business) {
+  if (typeof business.imageUrl === "string" && business.imageUrl.trim()) return business.imageUrl.trim();
+  const asset = (business as unknown as { imageAsset?: { url?: unknown } }).imageAsset;
+  if (asset && typeof asset.url === "string" && asset.url.trim()) return asset.url.trim();
+  const publicUrl = (business as unknown as { imageAsset?: { publicUrl?: unknown } }).imageAsset?.publicUrl;
+  if (typeof publicUrl === "string" && publicUrl.trim()) return publicUrl.trim();
+  const imagePublicUrl = (business as unknown as { image?: { publicUrl?: unknown } }).image?.publicUrl;
+  if (typeof imagePublicUrl === "string" && imagePublicUrl.trim()) return imagePublicUrl.trim();
+  return "";
+}
 
 function compareTime(a: string, b: string) {
   const matchA = (a ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
@@ -141,6 +152,9 @@ function mapStatusToBadge(status: BusinessStatus | undefined) {
 export default function CompanyAccount() {
   const [form, setForm] = useState<CompanyAccountForm>(emptyForm);
   const [originalForm, setOriginalForm] = useState<CompanyAccountForm>(emptyForm);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState("");
+  const imageFileInputRef = useRef<HTMLInputElement | null>(null);
   const [openingHours, setOpeningHours] = useState<OpeningHoursState>(defaultOpeningHours);
   const [originalOpeningHours, setOriginalOpeningHours] = useState<OpeningHoursState>(defaultOpeningHours);
   const [groupWeekdays, setGroupWeekdays] = useState(true);
@@ -156,6 +170,24 @@ export default function CompanyAccount() {
   const [status, setStatus] = useState<BusinessStatus | undefined>(undefined);
   const monochrome = useMonochrome();
   const meteorsEnabled = useMeteors();
+
+  const imageFilePreviewUrl = useMemo(() => {
+    if (!imageFile) return "";
+    return URL.createObjectURL(imageFile);
+  }, [imageFile]);
+
+  useEffect(() => {
+    if (!imageFilePreviewUrl) return;
+    return () => URL.revokeObjectURL(imageFilePreviewUrl);
+  }, [imageFilePreviewUrl]);
+
+  useEffect(() => {
+    if (!imageFilePreviewUrl) {
+      setUploadedImageUrl("");
+      return;
+    }
+    setUploadedImageUrl(imageFilePreviewUrl);
+  }, [imageFilePreviewUrl]);
 
   const updateField = (field: keyof CompanyAccountForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -182,8 +214,10 @@ export default function CompanyAccount() {
           throw new Error("Saknar businessId. Logga in igen.");
         }
 
-        const [businesses, categories] = await Promise.all([listBusinesses(), listCategories()]);
-        const business = businesses.find((b) => b.id === resolvedBusinessId);
+        const [business, categories] = await Promise.all([
+          getBusinessById(resolvedBusinessId),
+          listCategories(),
+        ]);
 
         if (!business) {
           throw new Error("Kunde inte hitta ditt företag.");
@@ -192,7 +226,12 @@ export default function CompanyAccount() {
         const categoryById = new Map(categories.map((cat) => [cat.id, cat.name]));
         const resolvedCategory = business.categoryName ?? categoryById.get(business.categoryId) ?? "";
 
-        const nextForm = businessToForm(business);
+        const nextForm = {
+          ...businessToForm(business),
+          imageUrl: getBusinessImageUrl(business),
+        };
+        setImageFile(null);
+        setUploadedImageUrl("");
         const nextOpeningHours = toOpeningHoursState(business.openingHours);
         setActiveBusinessId(business.id);
         setCategoryName(resolvedCategory);
@@ -255,6 +294,7 @@ export default function CompanyAccount() {
 
     const trimmedWebsite = form.website.trim();
     const trimmedImageUrl = form.imageUrl.trim();
+    const wantsUpload = Boolean(imageFile);
     const effectiveOpeningHours: OpeningHoursState = groupWeekdays
       ? {
           ...openingHours,
@@ -277,7 +317,9 @@ export default function CompanyAccount() {
         website: trimmedWebsite ? trimmedWebsite : null,
         address: trimmedAddress,
         city: trimmedCity,
-        imageUrl: trimmedImageUrl ? trimmedImageUrl : undefined,
+        imageSourceType: wantsUpload ? "UPLOADED" : trimmedImageUrl ? "EXTERNAL_URL" : undefined,
+        imageUrl: wantsUpload ? undefined : trimmedImageUrl ? trimmedImageUrl : undefined,
+        imageFile: wantsUpload ? imageFile ?? undefined : undefined,
         openingHours: openingHoursPayload,
       });
 
@@ -287,11 +329,15 @@ export default function CompanyAccount() {
         description: updated.description ?? trimmedDescription,
         contactEmail: updated.contactEmail ?? trimmedEmail,
         contactPhone: updated.contactPhone ?? trimmedPhone,
+        website: updated.website ?? (trimmedWebsite ? trimmedWebsite : null),
         address: updated.address ?? trimmedAddress,
         city: updated.city ?? trimmedCity,
+        imageUrl: getBusinessImageUrl(updated) || (!wantsUpload && trimmedImageUrl ? trimmedImageUrl : null),
       });
       setForm(nextForm);
       setOriginalForm(nextForm);
+      setImageFile(null);
+      setUploadedImageUrl("");
       if (updated.status) setStatus(updated.status);
       toast.success("Kontoinformation uppdaterad.");
     } catch (error) {
@@ -743,13 +789,55 @@ export default function CompanyAccount() {
                 <ImageIcon className="h-4 w-4 text-muted-foreground" />
                 Bild URL <span className="text-xs text-muted-foreground">(valfri)</span>
               </label>
-              <Input
-                value={form.imageUrl}
-                onChange={(e) => updateField("imageUrl", e.target.value)}
-                disabled={isLoading}
-                placeholder="https://example.com/image.png"
-                className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-              />
+              <div className="flex gap-2">
+                <Input
+                  value={imageFile ? uploadedImageUrl : form.imageUrl}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    if (imageFile) {
+                      // If the user edits the field, switch to URL mode.
+                      if (!next.trim()) {
+                        setImageFile(null);
+                        setUploadedImageUrl("");
+                        updateField("imageUrl", "");
+                        return;
+                      }
+                      if (next !== uploadedImageUrl) {
+                        setImageFile(null);
+                        setUploadedImageUrl("");
+                        updateField("imageUrl", next);
+                      }
+                      return;
+                    }
+                    updateField("imageUrl", next);
+                  }}
+                  disabled={isLoading}
+                  placeholder="https://example.com/image.png"
+                  className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+                />
+                <Button
+                  type="button"
+                  variant="default"
+                  disabled={isLoading}
+                  className="h-11 shrink-0 bg-blue-600 text-white hover:bg-blue-700"
+                  onClick={() => imageFileInputRef.current?.click()}
+                >
+                  Ladda upp
+                </Button>
+                <input
+                  ref={imageFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  disabled={isLoading}
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setImageFile(file);
+                    if (file) updateField("imageUrl", "");
+                    if (imageFileInputRef.current) imageFileInputRef.current.value = "";
+                  }}
+                />
+              </div>
               {form.imageUrl.trim() && (
                 <div className="mt-2 flex items-center gap-3">
                   <div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
@@ -765,6 +853,14 @@ export default function CompanyAccount() {
                   <p className="text-xs text-muted-foreground">Förhandsvisning</p>
                 </div>
               )}
+              {!form.imageUrl.trim() && imageFilePreviewUrl ? (
+                <div className="mt-2 flex items-center gap-3">
+                  <div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
+                    <img src={imageFilePreviewUrl} alt="Image preview" className="h-full w-full object-contain" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Förhandsvisning (uppladdad)</p>
+                </div>
+              ) : null}
             </div>
           </CardContent>
         </Card>

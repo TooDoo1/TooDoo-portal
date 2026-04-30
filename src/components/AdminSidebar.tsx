@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, ClipboardList, LayoutDashboard, LogOut, ScrollText, ShieldCheck } from "lucide-react";
+import { Building2, ClipboardList, LayoutDashboard, LogOut, ReceiptText, ScrollText, ShieldCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { clearAuthStorage, getAuthEmail, getAuthRole } from "@/lib/api";
@@ -37,6 +37,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { title: "Företag", url: "/companies", icon: Building2 },
       { title: "Väntande", url: "/pending", icon: ClipboardList },
+      { title: "Fakturor", url: "/admin/invoices", icon: ReceiptText },
     ],
   },
   {
