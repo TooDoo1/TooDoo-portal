@@ -34,6 +34,52 @@ const shootingStars = [
 	{ top: "92%", left: "100%", delay: "-6.6s", duration: "6.3s" },
 ];
 
+function BusinessAppPreviewCard({
+	companyName,
+	categoryName,
+	imageUrl,
+}: {
+	companyName: string;
+	categoryName: string;
+	imageUrl?: string;
+}) {
+	const [imageFailed, setImageFailed] = useState(false);
+
+	return (
+		<div className="mt-4">
+			<div className="mx-auto w-full max-w-[420px] rounded-[34px] border border-border bg-gradient-to-b from-slate-950/40 to-slate-900/10 p-4 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.65)]">
+				<div className="rounded-[28px] bg-background/80 p-4">
+					<div className="text-sm font-semibold text-foreground">Förhandsvisning (app)</div>
+					<div className="mt-3 rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+						<div className="h-28 bg-muted relative">
+							{imageUrl && !imageFailed ? (
+								<img
+									src={imageUrl}
+									alt=""
+									className="h-full w-full object-cover"
+									onError={() => setImageFailed(true)}
+								/>
+							) : (
+								<div className="h-full w-full bg-muted" />
+							)}
+							<div className="absolute left-3 top-3 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white">
+								Erbjudande
+							</div>
+						</div>
+						<div className="p-4">
+							<div className="text-lg font-bold text-foreground">{companyName}</div>
+							<div className="text-sm text-muted-foreground">{categoryName || "Kategori"}</div>
+						</div>
+					</div>
+					<div className="mt-2 text-xs text-muted-foreground">
+						Bilden beskärs automatiskt i appen (cover).
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export default function Registration() {
 	const [company, setCompany] = useState("");
 	const [companyOpen, setCompanyOpen] = useState(false);
@@ -342,6 +388,13 @@ export default function Registration() {
 		if (cityInput && c.city) cityInput.value = c.city;
 		if (addressInput && c.street) addressInput.value = c.street;
 	};
+
+	const previewCompanyName =
+		selectedCompanyName?.trim() ||
+		(company ? companyOptions.find((option) => option.value === company)?.label : "") ||
+		"Ditt företag";
+	const previewCategoryName = categoryOptions.find((c) => c.id === categoryId)?.name ?? "";
+	const previewImageUrl = imageFilePreviewUrl || imageUrl.trim() || "";
 
 	return (
 		<div className="relative min-h-screen overflow-hidden bg-background text-foreground">
@@ -691,29 +744,11 @@ export default function Registration() {
 									/>
 								</div>
 
-								{imageUrl.trim() ? (
-									<div className="mt-2 flex items-center gap-3">
-										<div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
-											<img
-												src={imageUrl}
-												alt="Image preview"
-												className="h-full w-full object-contain"
-												onError={(e) => {
-													(e.currentTarget as HTMLImageElement).style.display = "none";
-												}}
-											/>
-										</div>
-										<p className="text-xs text-muted-foreground">Förhandsvisning</p>
-									</div>
-								) : null}
-								{!imageUrl.trim() && imageFilePreviewUrl ? (
-									<div className="mt-2 flex items-center gap-3">
-										<div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
-											<img src={imageFilePreviewUrl} alt="Image preview" className="h-full w-full object-contain" />
-										</div>
-										<p className="text-xs text-muted-foreground">Förhandsvisning</p>
-									</div>
-								) : null}
+								<BusinessAppPreviewCard
+									companyName={previewCompanyName}
+									categoryName={previewCategoryName}
+									imageUrl={previewImageUrl || undefined}
+								/>
 							</div>
 
 							<div className="space-y-3 pt-2">
