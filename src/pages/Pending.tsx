@@ -106,28 +106,17 @@ export default function Pending() {
         return;
       }
 
-      const subject =
-        action === "approve"
-          ? "Ditt företag blev godkänt"
-          : "Förfrågan nekades";
-
-      const body = action === "approve"
-        ? (() => {
-            // Generate a short-lived invite token and include it in the onboarding link.
-            return inviteManagerToBusiness(company.email, company.id).then((response) => {
-              if (!response.inviteToken) {
-                throw new Error("Kunde inte skapa inbjudningslänk.");
-              }
-
-              const managerRegistrationLink = `${window.location.origin}/manager/onboard?email=${encodeURIComponent(company.email)}&inviteToken=${encodeURIComponent(response.inviteToken)}`;
-              return `Ditt företag blev godkänt. Skapa ditt manager konto här: ${managerRegistrationLink}`;
-            });
-          })()
-        : Promise.resolve("Förfrågan nekades. Ta kontakt med admin för mer information.");
-
-      const resolvedBody = await body;
-
-      window.location.href = `mailto:${encodeURIComponent(company.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(resolvedBody)}`;
+      if (action === "approve") {
+        // Send invite via the seamless invite endpoint
+        const inviteResponse = await inviteManagerToBusiness(company.email, company.id);
+        
+        if (inviteResponse.emailSent) {
+          toast.success(`Inbjudan skickad till ${company.email}`);
+        } else {
+          const errorMsg = inviteResponse.emailError || "Okänt fel";
+          toast.warning(`Inbjudan skapades men kunde inte skicka e-post: ${errorMsg}`);
+        }
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte uppdatera företagsstatus.";
       toast.error(message);

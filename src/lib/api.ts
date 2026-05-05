@@ -119,19 +119,24 @@ function appendFormValue(form: FormData, key: string, value: unknown) {
     form.append(key, value);
     return;
   }
-  if (typeof value === "object") {
-    const appendObject = (prefix: string, obj: any) => {
+  if (typeof value === "object" && !Array.isArray(value)) {
+    // Recursively flatten nested objects into bracket notation for form data
+    const flattenObject = (obj: Record<string, unknown>, prefix: string) => {
       for (const [k, v] of Object.entries(obj)) {
         if (v === undefined || v === null) continue;
-        const formKey = `${prefix}[${k}]`;
-        if (typeof v === "object" && !(v instanceof File)) {
-          appendObject(formKey, v);
+        
+        const fieldName = prefix ? `${prefix}[${k}]` : k;
+        
+        if (v instanceof File) {
+          form.append(fieldName, v);
+        } else if (typeof v === "object" && !Array.isArray(v)) {
+          flattenObject(v as Record<string, unknown>, fieldName);
         } else {
-          form.append(formKey, String(v));
+          form.append(fieldName, String(v));
         }
       }
     };
-    appendObject(key, value);
+    flattenObject(value as Record<string, unknown>, key);
     return;
   }
   form.append(key, String(value));
@@ -267,14 +272,25 @@ export type AssignManagerBusinessRequest = {
 
 export type InviteManagerToBusinessResponse = {
   inviteToken: string;
+  inviteUrl?: string;
   expiresInSeconds?: number;
+  emailSent?: boolean;
+  emailError?: string;
+  emailErrorDetail?: string;
 };
 
 export type InviteWorkerToBusinessResponse = {
   inviteToken: string;
+  inviteUrl?: string;
   expiresInSeconds?: number;
+  emailSent?: boolean;
+  emailError?: string;
+  emailErrorDetail?: string;
   recipientExists?: boolean;
   recipientIsUser?: boolean;
+  recipientState?: "USER" | "MISSING" | "NON_USER";
+  requiresRegistration?: boolean;
+  canRedeemNow?: boolean;
 };
 
 export type RedeemManagerInviteRequest = {

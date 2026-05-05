@@ -43,30 +43,14 @@ export default function WorkerCreation() {
 
     setIsSubmitting(true);
     try {
-      const subject = "Du har blivit inbjuden som arbetare";
+      const inviteResponse = await inviteWorkerToBusiness(trimmed);
 
-      let inviteToken: string | null = null;
-      let userExists = false;
-
-      try {
-        const inviteResponse = await inviteWorkerToBusiness(trimmed);
-        inviteToken = inviteResponse.inviteToken ?? null;
-        userExists = inviteResponse.recipientExists === true;
-      } catch {
-        userExists = false;
+      if (inviteResponse.emailSent) {
+        toast.success(`Inbjudan skickad till ${trimmed}`);
+      } else {
+        const errorMsg = inviteResponse.emailError || "Okänt fel";
+        toast.warning(`Inbjudan skapades men kunde inte skicka e-post: ${errorMsg}`);
       }
-
-      const params = new URLSearchParams({ email: trimmed });
-      if (inviteToken) params.set("inviteToken", inviteToken);
-      if (userExists) params.set("existing", "true");
-
-      const onboardLink = `${window.location.origin}/worker/onboard?${params.toString()}`;
-      const body = userExists
-        ? `Hej!\n\nDu har blivit inbjuden att arbeta hos oss. Logga in via länken nedan:\n\n${onboardLink}`
-        : `Hej!\n\nDu har blivit inbjuden att arbeta hos oss. Skapa ditt konto via länken nedan:\n\n${onboardLink}`;
-
-      window.location.href = `mailto:${encodeURIComponent(trimmed)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      toast.success("Inbjudan skapad! E-postklient öppnas.");
 
       setEmail("");
     } catch (error) {
