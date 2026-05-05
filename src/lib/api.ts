@@ -120,7 +120,18 @@ function appendFormValue(form: FormData, key: string, value: unknown) {
     return;
   }
   if (typeof value === "object") {
-    form.append(key, JSON.stringify(value));
+    const appendObject = (prefix: string, obj: any) => {
+      for (const [k, v] of Object.entries(obj)) {
+        if (v === undefined || v === null) continue;
+        const formKey = `${prefix}[${k}]`;
+        if (typeof v === "object" && !(v instanceof File)) {
+          appendObject(formKey, v);
+        } else {
+          form.append(formKey, String(v));
+        }
+      }
+    };
+    appendObject(key, value);
     return;
   }
   form.append(key, String(value));
