@@ -13,7 +13,6 @@ import { addDays, format, parseISO, startOfDay } from "date-fns";
 import { toast } from "sonner";
 import { createOrder, createOrderPreset, getBusinessById, getBusinessId, getOrderById, listOrderPresets, resolveBusinessId, updateOrder, type Business, type OrderPreset } from "@/lib/api";
 import { TimePicker } from "@/components/TimePicker";
-import { useInvoiceDefaultPercentage } from "@/hooks/useInvoiceDefaultPercentage";
 
 type OfferForm = {
   title: string;
@@ -425,7 +424,6 @@ const previewStyles: Record<string, CSSProperties> = {
 export default function CompanyNewOffer() {
   const navigate = useNavigate();
   const location = useLocation();
-  const invoicePercent = useInvoiceDefaultPercentage();
   const [startOpen, setStartOpen] = useState(false);
   const [expiresOpen, setExpiresOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1434,10 +1432,6 @@ export default function CompanyNewOffer() {
                   <div className="mt-3 text-xs text-muted-foreground">Kupong livstid</div>
                   <div className="text-sm font-semibold text-foreground">
                     {form.couponLifetimeMinutes} {form.couponLifetimeUnit}
-                  </div>
-                  <div className="mt-3 text-xs text-[#ff3b30]">Viktigt</div>
-                  <div className="text-sm font-semibold text-foreground">
-                    TooDoo tar {invoicePercent}% av vad erbjudandet är värt. En faktura kommer skapas i fakturor.
                   </div>
                 </div>
               </div>

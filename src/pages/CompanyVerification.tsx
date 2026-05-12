@@ -239,9 +239,24 @@ export default function CompanyVerification() {
             <p className="text-sm text-muted-foreground text-center py-8">Inga erbjudanden hittades.</p>
           ) : (
             <div className="space-y-3">
-              {orders.map((order) => {
+              {orders
+                .filter((order) => {
+                  // Hide orders that expired more than 24 hours ago.
+                  const expiresStr = (order as any).orderTimeTo || (order as any).validTo || "";
+                  if (expiresStr) {
+                    const expires = new Date(expiresStr).getTime();
+                    if (!Number.isNaN(expires)) {
+                      const oneDayMs = 24 * 60 * 60 * 1000;
+                      if (expires + oneDayMs < Date.now()) return false;
+                    }
+                  }
+                  return true;
+                })
+                .map((order) => {
                 const now = Date.now();
-                const isExpired = new Date(order.validTo).getTime() < now;
+                const expiresStr = (order as any).orderTimeTo || (order as any).validTo || "";
+                const expiresTs = expiresStr ? new Date(expiresStr).getTime() : NaN;
+                const isExpired = !Number.isNaN(expiresTs) ? expiresTs < now : false;
                 const claimed = Number(order.claimedRedemptions ?? 0);
                 const max = Number(order.maxRedemptions ?? 0);
                 const orderRedemptions = redemptionsByOrder.get(order.id) ?? [];

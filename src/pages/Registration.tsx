@@ -3,11 +3,14 @@ import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { BusinessAppPreviewCard } from "@/components/BusinessAppPreviewCard";
 import {
 	createBusiness,
+	getBusinessDefaultImages,
 	listCategories,
 	searchCompaniesByOrgNumber,
 	setBusinessId,
@@ -34,52 +37,6 @@ const shootingStars = [
 	{ top: "92%", left: "100%", delay: "-6.6s", duration: "6.3s" },
 ];
 
-function BusinessAppPreviewCard({
-	companyName,
-	categoryName,
-	imageUrl,
-}: {
-	companyName: string;
-	categoryName: string;
-	imageUrl?: string;
-}) {
-	const [imageFailed, setImageFailed] = useState(false);
-
-	return (
-		<div className="mt-4">
-			<div className="mx-auto w-full max-w-[420px] rounded-[34px] border border-border bg-gradient-to-b from-slate-950/40 to-slate-900/10 p-4 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.65)]">
-				<div className="rounded-[28px] bg-background/80 p-4">
-					<div className="text-sm font-semibold text-foreground">Förhandsvisning (app)</div>
-					<div className="mt-3 rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
-						<div className="h-28 bg-muted relative">
-							{imageUrl && !imageFailed ? (
-								<img
-									src={imageUrl}
-									alt=""
-									className="h-full w-full object-cover"
-									onError={() => setImageFailed(true)}
-								/>
-							) : (
-								<div className="h-full w-full bg-muted" />
-							)}
-							<div className="absolute left-3 top-3 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white">
-								Erbjudande
-							</div>
-						</div>
-						<div className="p-4">
-							<div className="text-lg font-bold text-foreground">{companyName}</div>
-							<div className="text-sm text-muted-foreground">{categoryName || "Kategori"}</div>
-						</div>
-					</div>
-					<div className="mt-2 text-xs text-muted-foreground">
-						Bilden beskärs automatiskt i appen (cover).
-					</div>
-				</div>
-			</div>
-		</div>
-	);
-}
-
 export default function Registration() {
 	const [company, setCompany] = useState("");
 	const [companyOpen, setCompanyOpen] = useState(false);
@@ -100,10 +57,10 @@ export default function Registration() {
 		}>
 	>([]);
 	const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(null);
-	const [imageUrl, setImageUrl] = useState("");
-	const [imageFile, setImageFile] = useState<File | null>(null);
-	const [uploadedImageUrl, setUploadedImageUrl] = useState("");
-	const imageFileInputRef = useRef<HTMLInputElement | null>(null);
+	const [defaultImageUrls, setDefaultImageUrls] = useState<string[]>([]);
+	const [selectedDefaultImageUrl, setSelectedDefaultImageUrl] = useState("");
+	const [isLoadingDefaultImages, setIsLoadingDefaultImages] = useState(false);
+	const [isDefaultImageGalleryOpen, setIsDefaultImageGalleryOpen] = useState(false);
 	const navigate = useNavigate();
 	const longDescRef = useRef<HTMLTextAreaElement>(null);
 	const [openingHours, setOpeningHours] = useState<Record<
@@ -223,23 +180,29 @@ export default function Registration() {
 		void loadCategories();
 	}, []);
 
-	const imageFilePreviewUrl = useMemo(() => {
-		if (!imageFile) return "";
-		return URL.createObjectURL(imageFile);
-	}, [imageFile]);
-
 	useEffect(() => {
-		if (!imageFilePreviewUrl) return;
-		return () => URL.revokeObjectURL(imageFilePreviewUrl);
-	}, [imageFilePreviewUrl]);
-
-	useEffect(() => {
-		if (!imageFilePreviewUrl) {
-			setUploadedImageUrl("");
+		if (!categoryId) {
+			setDefaultImageUrls([]);
+			setSelectedDefaultImageUrl("");
 			return;
 		}
-		setUploadedImageUrl(imageFilePreviewUrl);
-	}, [imageFilePreviewUrl]);
+
+		const loadDefaultImages = async () => {
+			setIsLoadingDefaultImages(true);
+			try {
+				const response = await getBusinessDefaultImages(categoryId);
+				const images = Array.isArray(response.images) ? response.images : [];
+				setDefaultImageUrls(images);
+				setSelectedDefaultImageUrl((prev) => (prev && images.includes(prev) ? prev : images[0] ?? ""));
+			} catch {
+				setDefaultImageUrls([]);
+				setSelectedDefaultImageUrl("");
+			}
+			setIsLoadingDefaultImages(false);
+		};
+
+		void loadDefaultImages();
+	}, [categoryId]);
 
 	const handleRegister = async () => {
 		const email = (document.getElementById("email") as HTMLInputElement | null)?.value.trim() ?? "";
@@ -275,9 +238,8 @@ export default function Registration() {
 			return;
 		}
 
-		const trimmedImageUrl = imageUrl.trim();
-		const wantsUpload = Boolean(imageFile);
-		if (!wantsUpload && trimmedImageUrl) {
+		const trimmedImageUrl = selectedDefaultImageUrl.trim();
+		if (trimmedImageUrl) {
 			try {
 				// eslint-disable-next-line no-new
 				new URL(trimmedImageUrl);
@@ -316,9 +278,8 @@ export default function Registration() {
 				address,
 				city,
 				categoryId: categoryId,
-				imageSourceType: wantsUpload ? "UPLOADED" : trimmedImageUrl ? "EXTERNAL_URL" : undefined,
-				imageUrl: wantsUpload ? undefined : trimmedImageUrl ? trimmedImageUrl : undefined,
-				imageFile: wantsUpload ? imageFile ?? undefined : undefined,
+				imageSourceType: trimmedImageUrl ? "EXTERNAL_URL" : undefined,
+				imageUrl: trimmedImageUrl || undefined,
 				...(shouldSendOpeningHours ? { openingHours: openingHoursPayload } : {}),
 			});
 
@@ -394,7 +355,7 @@ export default function Registration() {
 		(company ? companyOptions.find((option) => option.value === company)?.label : "") ||
 		"Ditt företag";
 	const previewCategoryName = categoryOptions.find((c) => c.id === categoryId)?.name ?? "";
-	const previewImageUrl = imageFilePreviewUrl || imageUrl.trim() || "";
+	const previewImageUrl = selectedDefaultImageUrl.trim() || defaultImageUrls[0] || "";
 
 	return (
 		<div className="relative min-h-screen overflow-hidden bg-background text-foreground">
@@ -694,54 +655,60 @@ export default function Registration() {
 
 							<div className="space-y-2">
 								<label className="ml-0.5 text-sm font-semibold text-muted-foreground">
-									Bild URL <span className="text-xs text-muted-foreground">(valfritt)</span>
+									Välj standardbild <span className="text-xs text-muted-foreground">(baserat på kategori)</span>
 								</label>
-								<div className="flex gap-2">
-									<Input
-										placeholder="https://example.com/image.png"
-										value={imageFile ? uploadedImageUrl : imageUrl}
-										onChange={(e) => {
-											const next = e.target.value;
-											if (imageFile) {
-												// If the user edits the field, switch to URL mode.
-												if (!next.trim()) {
-													setImageFile(null);
-													setUploadedImageUrl("");
-													setImageUrl("");
-													return;
-												}
-												if (next !== uploadedImageUrl) {
-													setImageFile(null);
-													setUploadedImageUrl("");
-													setImageUrl(next);
-												}
-												return;
-											}
-											setImageUrl(next);
-										}}
-										className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-									/>
-									<button
-										type="button"
-										onClick={() => imageFileInputRef.current?.click()}
-										className="inline-flex h-11 shrink-0 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-										disabled={isSubmitting}
-									>
-										Ladda upp
-									</button>
-									<input
-										ref={imageFileInputRef}
-										type="file"
-										accept="image/*"
-										className="hidden"
-										disabled={isSubmitting}
-										onChange={(e) => {
-											const file = e.target.files?.[0] ?? null;
-											setImageFile(file);
-											if (file) setImageUrl("");
-											if (imageFileInputRef.current) imageFileInputRef.current.value = "";
-										}}
-									/>
+								<div className="flex items-center gap-2">
+									<Dialog open={isDefaultImageGalleryOpen} onOpenChange={setIsDefaultImageGalleryOpen}>
+										<DialogTrigger asChild>
+											<button
+												type="button"
+												className="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+												disabled={isLoadingDefaultImages}
+											>
+												{isLoadingDefaultImages ? "Laddar..." : "Öppna galleri"}
+											</button>
+										</DialogTrigger>
+										<DialogContent className="max-w-3xl border-border bg-card">
+											<DialogHeader>
+												<DialogTitle>Standardbilder</DialogTitle>
+												<DialogDescription>
+													Välj en förvald bild för kategorin {previewCategoryName || "vald kategori"}.
+												</DialogDescription>
+											</DialogHeader>
+											{defaultImageUrls.length > 0 ? (
+												<div className="grid max-h-[60vh] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+													{defaultImageUrls.map((url) => {
+														const selected = selectedDefaultImageUrl === url;
+														return (
+															<button
+																key={url}
+																type="button"
+																onClick={() => {
+																	setSelectedDefaultImageUrl(url);
+																	setIsDefaultImageGalleryOpen(false);
+																}}
+																className={cn(
+																	"overflow-hidden rounded-lg border-2 bg-background transition",
+																	selected ? "border-accent" : "border-border hover:border-accent/50",
+																)}
+															>
+																<img src={url} alt="Standardbild" className="h-28 w-full object-cover" />
+															</button>
+														);
+													})}
+												</div>
+											) : (
+												<div className="rounded-xl border border-border bg-background/30 p-3 text-sm text-muted-foreground">
+													Inga standardbilder hittades för vald kategori. TooDoo sätter en standardbild automatiskt.
+												</div>
+											)}
+										</DialogContent>
+									</Dialog>
+									{selectedDefaultImageUrl ? (
+										<span className="text-xs text-muted-foreground">1 bild vald</span>
+									) : (
+										<span className="text-xs text-muted-foreground">Ingen bild vald</span>
+									)}
 								</div>
 
 								<BusinessAppPreviewCard

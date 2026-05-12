@@ -231,6 +231,17 @@ export default function CompanyOffers() {
   }, [fetchOrders]);
 
   const filteredOffers = offers.filter((offer) => {
+    // If the offer has expired more than 24 hours ago, don't show it.
+    if (offer.expiresAt) {
+      const expires = new Date(offer.expiresAt).getTime();
+      if (!Number.isNaN(expires)) {
+        const oneDayMs = 24 * 60 * 60 * 1000;
+        if (expires + oneDayMs < Date.now()) {
+          return false;
+        }
+      }
+    }
+
     if (filterStatus === "all") return true;
     if (filterStatus === "presets") return false;
     return offer.status === filterStatus;

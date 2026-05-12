@@ -20,6 +20,7 @@ const Companies = lazy(() => import("./pages/Companies"));
 const Pending = lazy(() => import("./pages/Pending"));
 const AdminLogs = lazy(() => import("./pages/AdminLogs"));
 const AdminInvoices = lazy(() => import("./pages/AdminInvoices"));
+const AdminQualityControl = lazy(() => import("./pages/AdminQualityControl"));
 const CategoryPage = lazy(() => import("./pages/CategoryPage"));
 const LoggIn = lazy(() => import("./pages/LoggIn"));
 const Registration = lazy(() => import("./pages/Registration"));
@@ -117,6 +118,7 @@ const App = () => {
                   <Route path="/admin" element={<Index />} />
                   <Route path="/admin/logs" element={<AdminLogs />} />
                   <Route path="/admin/invoices" element={<AdminInvoices />} />
+                  <Route path="/admin/quality-control" element={<AdminQualityControl />} />
                   <Route path="/companies" element={<Companies />} />
                   <Route path="/pending" element={<Pending />} />
                   <Route path="/category/:name" element={<CategoryPage />} />

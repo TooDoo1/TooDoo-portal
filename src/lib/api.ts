@@ -146,6 +146,22 @@ export function getApiBaseUrl() {
   return API_BASE_URL;
 }
 
+export function resolveImageUrl(url?: string | null) {
+  const value = (url ?? "").trim();
+  if (!value) return "";
+
+  const normalized = value.replace(/\\/g, "/");
+  if (/^(https?:)?\/\//i.test(normalized) || normalized.startsWith("data:") || normalized.startsWith("blob:")) {
+    return normalized;
+  }
+
+  if (normalized.startsWith("/")) {
+    return `${API_BASE_URL}${normalized}`;
+  }
+
+  return `${API_BASE_URL}/${normalized}`;
+}
+
 export function getAuthToken() {
   return localStorage.getItem(TOKEN_STORAGE_KEY);
 }
@@ -317,6 +333,25 @@ export type CreateBusinessRequest = {
   categoryId: string;
 };
 
+export type BusinessDefaultImagesResponse = {
+  category: {
+    id: string;
+    name: string;
+  };
+  images: string[];
+};
+
+export type BusinessImageRequest = {
+  id?: string;
+  businessId?: string;
+  imageSourceType?: ImageSourceType;
+  imageUrl?: string | null;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+};
+
 export type UpdateBusinessRequest = {
   name?: string;
   description?: string;
@@ -347,6 +382,7 @@ export type Business = {
   openingHours?: Record<string, unknown> | null;
   categoryId: string;
   categoryName?: string;
+  category?: { id?: string; name?: string | null } | null;
   status?: BusinessStatus;
   createdAt?: string;
   updatedAt?: string;
@@ -712,6 +748,26 @@ export async function removeWorkerFromBusiness(userId: string) {
   );
 }
 
+export type ImageGalleryItem = {
+  id: string;
+  businessId?: string;
+  sourceType?: string;
+  originalUrl?: string;
+  storageKey?: string;
+  publicUrl?: string;
+  mimeType?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export async function listImages() {
+  return apiRequest<ImageGalleryItem[]>(
+    "/images",
+    { method: "GET" },
+    true,
+  );
+}
+
 export type ChangeMyPasswordRequest = {
   currentPassword: string;
   newPassword: string;
@@ -763,6 +819,49 @@ export async function createBusiness(body: CreateBusinessRequest) {
   appendFormValue(form, "imageSourceType", "UPLOADED");
   appendFormValue(form, "image", body.imageFile);
   return apiRequestFormData<Record<string, unknown>>("/business", form, false, "POST");
+}
+
+export async function getBusinessDefaultImages(categoryId: string) {
+  const query = new URLSearchParams({ categoryId }).toString();
+  return apiRequest<BusinessDefaultImagesResponse>(`/business/default-images?${query}`, { method: "GET" });
+}
+
+export async function submitBusinessImageRequest(body: { imageSourceType: ImageSourceType; imageUrl?: string; imageFile?: File }) {
+  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
+  if (!wantsUpload) {
+    return apiRequest<BusinessImageRequest>(
+      "/business/image-requests",
+      {
+        method: "POST",
+        body: JSON.stringify({ imageSourceType: body.imageSourceType, imageUrl: body.imageUrl }),
+      },
+      true,
+    );
+  }
+
+  const form = new FormData();
+  appendFormValue(form, "imageSourceType", "UPLOADED");
+  appendFormValue(form, "image", body.imageFile);
+  return apiRequestFormData<BusinessImageRequest>("/business/image-requests", form, true, "POST");
+}
+
+export async function listBusinessImageRequests(params: { status?: string; businessId?: string } = {}) {
+  const query = new URLSearchParams();
+  if (params.status) query.set("status", params.status);
+  if (params.businessId) query.set("businessId", params.businessId);
+  const qs = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<BusinessImageRequest[]>(`/business/image-requests${qs}`, { method: "GET" }, true);
+}
+
+export async function reviewBusinessImageRequest(requestId: string, status: "APPROVED" | "DECLINED") {
+  return apiRequest<BusinessImageRequest>(
+    `/business/image-requests/${encodeURIComponent(requestId)}/review`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    },
+    true,
+  );
 }
 
 export async function listBusinesses(status?: BusinessStatus) {
