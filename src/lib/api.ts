@@ -708,10 +708,13 @@ export async function redeemManagerInvite(email: string, inviteToken: string) {
   );
 }
 
-export async function inviteWorkerToBusiness(email: string) {
+export async function inviteWorkerToBusiness(email: string, managerEmail?: string) {
   return apiRequest<InviteWorkerToBusinessResponse>(
     `/user/worker/${encodeURIComponent(email)}/assign-business/invite`,
-    { method: "POST" },
+    {
+      method: "POST",
+      body: JSON.stringify({ managerEmail }),
+    },
     true,
   );
 }

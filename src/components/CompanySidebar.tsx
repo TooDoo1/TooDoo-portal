@@ -51,7 +51,7 @@ const menuGroups: MenuGroup[] = [
   },
   {
     label: "Team",
-    items: [{ title: "Bjud in arbetare", url: "/company/workers/new", icon: UserPlus }],
+    items: [{ title: "Bjud in kollegor", url: "/company/workers/new", icon: UserPlus }],
   },
   {
     label: "Konto",

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   getBusinessRedemptions,
   listOrders,
@@ -14,6 +15,8 @@ import {
 } from "@/lib/api";
 import { toast } from "sonner";
 
+type ClaimFilter = "all" | "aktiv" | "inlöst" | "claimed";
+
 export default function CompanyVerification() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [redemptions, setRedemptions] = useState<Redemption[]>([]);
@@ -23,6 +26,7 @@ export default function CompanyVerification() {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [ticketSearch, setTicketSearch] = useState("");
+  const [claimFilter, setClaimFilter] = useState<ClaimFilter>("all");
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -210,11 +214,27 @@ export default function CompanyVerification() {
       </Card>
 
       <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="text-foreground flex items-center gap-2">
-            <Ticket className="h-5 w-5 text-accent" />
-            Erbjudanden
-          </CardTitle>
+        <CardHeader className="space-y-0">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <Ticket className="h-5 w-5 text-accent" />
+              Erbjudanden
+            </CardTitle>
+            <div className="flex items-center gap-2 md:justify-end">
+              <label className="text-sm font-medium text-foreground whitespace-nowrap">Filtrera efter status:</label>
+              <Select value={claimFilter} onValueChange={(value) => setClaimFilter(value as ClaimFilter)}>
+                <SelectTrigger className="w-40 bg-card border-border">
+                  <SelectValue placeholder="Välj status" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="all">Alla</SelectItem>
+                  <SelectItem value="aktiv">Aktiv</SelectItem>
+                  <SelectItem value="claimed">Claimbade</SelectItem>
+                  <SelectItem value="inlöst">Inlösta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="relative">
@@ -250,6 +270,18 @@ export default function CompanyVerification() {
                       if (expires + oneDayMs < Date.now()) return false;
                     }
                   }
+                  return true;
+                })
+                .filter((order) => {
+                  // Apply claim status filter
+                  const claimed = Number(order.claimedRedemptions ?? 0);
+                  const max = Number(order.maxRedemptions ?? 0);
+                  const redeemed = Number(order.redeemedRedemptions ?? 0);
+                  
+                  if (claimFilter === "all") return true;
+                  if (claimFilter === "aktiv") return claimed > 0 && redeemed < max;
+                  if (claimFilter === "claimed") return claimed > 0;
+                  if (claimFilter === "inlöst") return redeemed >= max;
                   return true;
                 })
                 .map((order) => {

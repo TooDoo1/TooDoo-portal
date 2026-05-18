@@ -9,30 +9,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useLocation } from "react-router-dom";
 import { getAuthEmail } from "@/lib/api";
 import { useMonochrome } from "@/hooks/useMonochrome";
-import { useMeteors } from "@/hooks/useMeteors";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
-const shootingStars = [
-  { top: "0%", left: "6%", delay: "-0.2s", duration: "5.1s" },
-  { top: "0%", left: "22%", delay: "-1.0s", duration: "5.4s" },
-  { top: "0%", left: "42%", delay: "-1.6s", duration: "5.2s" },
-  { top: "0%", left: "68%", delay: "-2.1s", duration: "5.6s" },
-  { top: "0%", left: "92%", delay: "-2.8s", duration: "5.3s" },
-  { top: "1%", left: "12%", delay: "-3.4s", duration: "5.5s" },
-  { top: "1%", left: "34%", delay: "-4.0s", duration: "5.7s" },
-  { top: "1%", left: "76%", delay: "-4.8s", duration: "5.4s" },
-  { top: "2%", left: "58%", delay: "-2.0s", duration: "5.7s" },
-  { top: "5%", left: "88%", delay: "-3.5s", duration: "5.3s" },
-  { top: "12%", left: "100%", delay: "-0.4s", duration: "5.1s" },
-  { top: "28%", left: "100%", delay: "-1.8s", duration: "5.2s" },
-  { top: "44%", left: "100%", delay: "-3.1s", duration: "5.8s" },
-  { top: "60%", left: "100%", delay: "-4.2s", duration: "6.1s" },
-  { top: "76%", left: "100%", delay: "-5.4s", duration: "5.4s" },
-  { top: "92%", left: "100%", delay: "-6.6s", duration: "6.3s" },
-];
+ 
 
 function getInitials(email: string | null | undefined, fallback: string) {
   if (!email) return fallback;
@@ -56,7 +38,7 @@ function formatPageTitle(pathname: string, isCompanyRoute: boolean) {
   if (pathname === "/company/offers/new") return "Nytt erbjudande";
   if (pathname === "/company/verification") return "Verifiering";
   if (pathname === "/company/invoices") return "Fakturor";
-  if (pathname === "/company/workers/new") return "Arbetare";
+  if (pathname === "/company/workers/new") return "Kollegor";
   if (pathname === "/company/account") return "Mitt företag";
   return isCompanyRoute ? "Företag" : "Admin";
 }
@@ -137,7 +119,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
   const isCompanyRoute = location.pathname.startsWith("/company");
   const monochrome = useMonochrome();
-  const meteorsEnabled = useMeteors();
   const isPublicRoute =
     location.pathname === "/" ||
     location.pathname === "/login" ||
@@ -153,49 +134,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <SidebarProvider>
       <div className="relative min-h-screen flex w-full overflow-hidden bg-background">
-        {!monochrome && meteorsEnabled ? (
-          <div className="pointer-events-none absolute inset-0">
-            {shootingStars.map((star, index) => {
-              const isAccent = index % 2 === 0;
-              const color = isAccent ? "hsl(var(--accent))" : "hsl(var(--primary))";
-
-              return (
-                <span
-                  key={`${star.top}-${star.left}-${index}`}
-                  className="absolute h-[2px] w-36 rounded-full opacity-80"
-                  style={{
-                    top: star.top,
-                    left: star.left,
-                    background: `linear-gradient(90deg, transparent, ${color})`,
-                    boxShadow: `0 0 14px ${color}`,
-                    animation: `layout-shooting-star ${star.duration} linear ${star.delay} infinite`,
-                  }}
-                />
-              );
-            })}
-          </div>
-        ) : null}
-
-        {!monochrome && meteorsEnabled ? (
-          <style>{`
-            @keyframes layout-shooting-star {
-              0% {
-                transform: translate3d(0, 0, 0) rotate(145deg);
-                opacity: 0;
-              }
-              8% {
-                opacity: 0.9;
-              }
-              65% {
-                opacity: 0.7;
-              }
-              100% {
-                transform: translate3d(-95vw, 120vh, 0) rotate(145deg);
-                opacity: 0;
-              }
-            }
-          `}</style>
-        ) : null}
+        {null}
 
         {isCompanyRoute ? <CompanySidebar /> : <AdminSidebar />}
         <div className="relative z-10 flex w-full">

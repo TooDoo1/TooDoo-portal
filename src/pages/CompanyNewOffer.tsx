@@ -987,7 +987,7 @@ export default function CompanyNewOffer() {
                   <input
                     ref={imageFileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.svg,image/svg+xml"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0] ?? null;

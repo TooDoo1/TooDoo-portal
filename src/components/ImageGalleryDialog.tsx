@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { getBusinessDefaultImages, listImages, type ImageGalleryItem } from "@/lib/api";
+import { getBusinessDefaultImages, listImages, resolveImageUrl, type ImageGalleryItem } from "@/lib/api";
 import { toast } from "sonner";
 import { Search, Loader } from "lucide-react";
 
@@ -32,6 +32,7 @@ export function ImageGalleryDialog({
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!open) return;
@@ -43,6 +44,7 @@ export function ImageGalleryDialog({
           listImages(),
           categoryId ? getBusinessDefaultImages(categoryId) : Promise.resolve(null),
         ]);
+        console.log("Loaded images from gallery:", result);
         setImages(result);
         setDefaultImages(defaultsResponse?.images ?? []);
       } catch (error) {
@@ -60,8 +62,9 @@ export function ImageGalleryDialog({
 
   const managerEntries: GalleryEntry[] = images
     .map((img) => {
-      const url = img.publicUrl || img.originalUrl || "";
-      if (!url) return null;
+      const rawUrl = img.publicUrl || img.originalUrl || "";
+      if (!rawUrl) return null;
+      const url = resolveImageUrl(rawUrl);
       return {
         key: `uploaded:${img.id}`,
         url,
@@ -72,7 +75,7 @@ export function ImageGalleryDialog({
 
   const defaultEntries: GalleryEntry[] = defaultImages.map((url, index) => ({
     key: `default:${index}:${url}`,
-    url,
+    url: resolveImageUrl(url),
     source: "default" as const,
   }));
 
@@ -141,31 +144,42 @@ export function ImageGalleryDialog({
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold text-foreground">Uppladdade bilder</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {filteredUploadedEntries.map((entry) => (
-                        <div
-                          key={entry.key}
-                          onClick={() => setSelectedImage(entry.url)}
-                          className={`relative rounded-lg border-2 overflow-hidden cursor-pointer transition-all ${
-                            selectedImage === entry.url
-                              ? "border-accent bg-accent/10"
-                              : "border-border hover:border-accent/50"
-                          }`}
-                        >
-                          <div className="aspect-video bg-muted flex items-center justify-center">
-                            <img
-                              src={entry.url}
-                              alt={`Gallery image ${entry.key}`}
-                              className="h-full w-full object-cover"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).style.display = "none";
-                              }}
-                            />
+                      {filteredUploadedEntries.map((entry) => {
+                        const isSvg = entry.url.toLowerCase().endsWith(".svg");
+                        const isFailed = failedImages.has(entry.url);
+                        return (
+                          <div
+                            key={entry.key}
+                            onClick={() => setSelectedImage(entry.url)}
+                            className={`relative rounded-lg border-2 overflow-hidden cursor-pointer transition-all ${
+                              selectedImage === entry.url
+                                ? "border-accent bg-accent/10"
+                                : "border-border hover:border-accent/50"
+                            }`}
+                          >
+                            <div className="aspect-video bg-muted flex items-center justify-center">
+                              {isFailed ? (
+                                <div className="flex items-center justify-center w-full h-full text-xs text-muted-foreground bg-destructive/10">
+                                  <span>Bild kunde inte laddas</span>
+                                </div>
+                              ) : (
+                                <img
+                                  src={entry.url}
+                                  alt={`Gallery image ${entry.key}`}
+                                  className={`h-full w-full ${isSvg ? "object-contain" : "object-cover"}`}
+                                  onError={(e) => {
+                                    console.log("Image failed to load:", entry.url);
+                                    setFailedImages((prev) => new Set(prev).add(entry.url));
+                                  }}
+                                />
+                              )}
+                            </div>
+                            <div className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+                              Uppladdad
+                            </div>
                           </div>
-                          <div className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
-                            Uppladdad
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -174,31 +188,42 @@ export function ImageGalleryDialog({
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold text-foreground">Standardbilder</h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {filteredDefaultEntries.map((entry) => (
-                        <div
-                          key={entry.key}
-                          onClick={() => setSelectedImage(entry.url)}
-                          className={`relative rounded-lg border-2 overflow-hidden cursor-pointer transition-all ${
-                            selectedImage === entry.url
-                              ? "border-accent bg-accent/10"
-                              : "border-border hover:border-accent/50"
-                          }`}
-                        >
-                          <div className="aspect-video bg-muted flex items-center justify-center">
-                            <img
-                              src={entry.url}
-                              alt={`Gallery image ${entry.key}`}
-                              className="h-full w-full object-cover"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).style.display = "none";
-                              }}
-                            />
+                      {filteredDefaultEntries.map((entry) => {
+                        const isSvg = entry.url.toLowerCase().endsWith(".svg");
+                        const isFailed = failedImages.has(entry.url);
+                        return (
+                          <div
+                            key={entry.key}
+                            onClick={() => setSelectedImage(entry.url)}
+                            className={`relative rounded-lg border-2 overflow-hidden cursor-pointer transition-all ${
+                              selectedImage === entry.url
+                                ? "border-accent bg-accent/10"
+                                : "border-border hover:border-accent/50"
+                            }`}
+                          >
+                            <div className="aspect-video bg-muted flex items-center justify-center">
+                              {isFailed ? (
+                                <div className="flex items-center justify-center w-full h-full text-xs text-muted-foreground bg-destructive/10">
+                                  <span>Bild kunde inte laddas</span>
+                                </div>
+                              ) : (
+                                <img
+                                  src={entry.url}
+                                  alt={`Gallery image ${entry.key}`}
+                                  className={`h-full w-full ${isSvg ? "object-contain" : "object-cover"}`}
+                                  onError={(e) => {
+                                    console.log("Image failed to load:", entry.url);
+                                    setFailedImages((prev) => new Set(prev).add(entry.url));
+                                  }}
+                                />
+                              )}
+                            </div>
+                            <div className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+                              Standard
+                            </div>
                           </div>
-                          <div className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
-                            Standard
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}

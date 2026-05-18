@@ -3,7 +3,7 @@ import { Mail, Trash2, UserPlus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { inviteWorkerToBusiness, listWorkers, removeWorkerFromBusiness, type User } from "@/lib/api";
+import { getAuthEmail, inviteWorkerToBusiness, listWorkers, removeWorkerFromBusiness, type User } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function WorkerCreation() {
@@ -41,16 +41,26 @@ export default function WorkerCreation() {
       return;
     }
 
+    const managerEmail = getAuthEmail();
+    if (!managerEmail) {
+      toast.error("Saknar inloggad manager-e-post. Logga in igen.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const inviteResponse = await inviteWorkerToBusiness(trimmed);
+      const inviteResponse = await inviteWorkerToBusiness(trimmed, managerEmail);
 
-      if (inviteResponse.emailSent) {
-        toast.success(`Inbjudan skickad till ${trimmed}`);
-      } else {
-        const errorMsg = inviteResponse.emailError || "Okänt fel";
-        toast.warning(`Inbjudan skapades men kunde inte skicka e-post: ${errorMsg}`);
-      }
+      const inviteUrl =
+        inviteResponse.inviteUrl ||
+        `${window.location.origin}/worker/onboard?email=${encodeURIComponent(trimmed)}&inviteToken=${encodeURIComponent(inviteResponse.inviteToken)}`;
+
+      const subject = encodeURIComponent("Inbjudan till TooDoo");
+      const body = encodeURIComponent(
+        `Hej!\n\nDu är inbjuden att gå med i TooDoo. Klicka på länken nedan för att fortsätta:\n${inviteUrl}\n\nMed vänliga hälsningar,\n${managerEmail}`,
+      );
+      toast.success("Mailappen öppnas med inbjudan.");
+      window.location.href = `mailto:${encodeURIComponent(trimmed)}?subject=${subject}&body=${body}`;
 
       setEmail("");
     } catch (error) {
@@ -69,7 +79,7 @@ export default function WorkerCreation() {
       setTotalWorkers((prev) => prev - 1);
       toast.success(`${worker.email} har tagits bort.`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Kunde inte ta bort arbetaren.";
+      const message = error instanceof Error ? error.message : "Kunde inte ta bort kollegan.";
       toast.error(message);
     } finally {
       setRemovingId(null);
@@ -79,9 +89,9 @@ export default function WorkerCreation() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">Bjud in arbetare</h1>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Bjud in kollegor</h1>
         <p className="text-muted-foreground mt-1">
-          Skicka en inbjudan till en arbetare via e-post
+          Skicka en inbjudan till en kollega via e-post
         </p>
       </div>
 
@@ -90,7 +100,7 @@ export default function WorkerCreation() {
           <CardHeader>
             <CardTitle className="text-foreground flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-accent" />
-              Ny arbetare
+              Ny kollega
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -103,7 +113,7 @@ export default function WorkerCreation() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="arbetare@example.com"
+                placeholder="kollega@example.com"
                 className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
               />
               <p className="text-xs text-muted-foreground">
@@ -130,7 +140,7 @@ export default function WorkerCreation() {
           <CardTitle className="text-foreground flex items-center justify-between">
             <span className="flex items-center gap-2">
               <Users className="h-5 w-5 text-accent" />
-              Arbetare ({totalWorkers})
+              Kollegor ({totalWorkers})
             </span>
           </CardTitle>
         </CardHeader>
@@ -145,7 +155,7 @@ export default function WorkerCreation() {
             </div>
           ) : workers.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
-              Inga arbetare kopplade till företaget än.
+              Inga kollegor kopplade till företaget än.
             </p>
           ) : (
             <div className="space-y-3">

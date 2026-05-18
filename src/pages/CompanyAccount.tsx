@@ -9,9 +9,7 @@ import { BusinessAppPreviewCard } from "@/components/BusinessAppPreviewCard";
 import { ImageGalleryDialog } from "@/components/ImageGalleryDialog";
 import { cn } from "@/lib/utils";
 import { setMonochromeEnabled } from "@/lib/monochrome";
-import { setMeteorsEnabled } from "@/lib/meteors";
 import { useMonochrome } from "@/hooks/useMonochrome";
-import { useMeteors } from "@/hooks/useMeteors";
 import { TimePicker } from "@/components/TimePicker";
 import {
   getAuthEmail,
@@ -177,7 +175,6 @@ export default function CompanyAccount() {
   const [categoryName, setCategoryName] = useState<string>("");
   const [status, setStatus] = useState<BusinessStatus | undefined>(undefined);
   const monochrome = useMonochrome();
-  const meteorsEnabled = useMeteors();
   const formRef = useRef<HTMLFormElement | null>(null);
 
   const imageFilePreviewUrl = useMemo(() => {
@@ -510,45 +507,7 @@ export default function CompanyAccount() {
               </button>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <span className="h-4 w-4 text-muted-foreground grid place-items-center leading-none" aria-hidden="true">
-                    ✦
-                  </span>
-                  Meteorer i bakgrunden
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  Visar animerade meteorer bakom sidan.
-                </div>
-              </div>
-              <button
-                type="button"
-                aria-pressed={meteorsEnabled}
-                onClick={() => {
-                  setMeteorsEnabled(!meteorsEnabled);
-                }}
-                className={cn(
-                  "inline-flex h-10 items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
-                  meteorsEnabled
-                    ? "border-accent bg-accent text-accent-foreground"
-                    : "border-border bg-background text-foreground hover:bg-accent/15",
-                )}
-              >
-                <span
-                  className={cn(
-                    "grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
-                    meteorsEnabled
-                      ? "border-accent-foreground/30 bg-accent-foreground/10"
-                      : "border-border bg-background/40",
-                  )}
-                  aria-hidden="true"
-                >
-                  {meteorsEnabled ? "✓" : ""}
-                </span>
-                {meteorsEnabled ? "På" : "Av"}
-              </button>
-            </div>
+            {/* Meteors removed */}
           </CardContent>
         </Card>
 
@@ -895,7 +854,7 @@ export default function CompanyAccount() {
                   <input
                     ref={imageFileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.svg,image/svg+xml"
                     disabled={isLoading}
                     className="hidden"
                     onChange={(e) => {
