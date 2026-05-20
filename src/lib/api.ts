@@ -464,6 +464,11 @@ export type Order = {
   validTo: string;
   maxRedemptions?: number;
   perPersonRedemptions?: number;
+  // Total number of QR codes that have been claimed for this order (includes redeemed).
+  claimedRedemptions?: number;
+  // Subset of claimed QR codes that have been verified/redeemed at the business.
+  redeemedRedemptions?: number;
+  isActive?: boolean;
   businessId: string;
   [key: string]: unknown;
 };

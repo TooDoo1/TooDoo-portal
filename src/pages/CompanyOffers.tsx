@@ -77,6 +77,7 @@ const mapOrderToOffer = (order: Order): Offer => {
 
   const claimed =
     getOrderMetric(order, [
+      "claimedRedemptions",
       "claimsClaimed",
       "claimedCount",
       "claimsCreated",
@@ -86,8 +87,13 @@ const mapOrderToOffer = (order: Order): Offer => {
       "claimed",
     ]) ?? 0;
   const used =
-    getOrderMetric(order, ["claimsUsed", "usedCount", "redeemedCount", "redemptionCount"]) ??
-    0;
+    getOrderMetric(order, [
+      "redeemedRedemptions",
+      "claimsUsed",
+      "usedCount",
+      "redeemedCount",
+      "redemptionCount",
+    ]) ?? 0;
 
   // Claimed must never be lower than used.
   const safeUsed = Math.max(0, Math.floor(used));
@@ -495,6 +501,7 @@ export default function CompanyOffers() {
         <div className="space-y-3">
           {filteredOffers.map((offer) => {
             const claimsPercentage = (offer.claimsClaimed / offer.claimsTotal) * 100;
+            const usedPercentage = (offer.claimsUsed / offer.claimsTotal) * 100;
             const availableClaims = offer.claimsTotal - offer.claimsClaimed;
             const claimedNotUsed = Math.max(offer.claimsClaimed - offer.claimsUsed, 0);
             const earnings = offer.claimsUsed * offer.discountedPrice;
@@ -534,23 +541,36 @@ export default function CompanyOffers() {
 
                   
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-muted-foreground">Antal erbjudanden (claimade)</span>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 text-xs font-medium">
+                          <span className="flex items-center gap-1.5 text-muted-foreground">
+                            <span className="inline-block h-2 w-2 rounded-full bg-accent" />
+                            Claimade
+                          </span>
+                          <span className="flex items-center gap-1.5 text-muted-foreground">
+                            <span className="inline-block h-2 w-2 rounded-full bg-success" />
+                            Inlösta
+                          </span>
+                        </div>
                         <span className="text-sm font-semibold text-foreground">
-                          {offer.claimsClaimed} av {offer.claimsTotal}
+                          {offer.claimsClaimed} / {offer.claimsTotal}
                         </span>
                       </div>
-                      <div className="w-full bg-muted rounded-full h-2">
+                      <div className="relative w-full overflow-hidden rounded-full bg-muted h-2">
                         <div
-                          className="h-2 rounded-full bg-accent transition-all duration-300"
+                          className="absolute inset-y-0 left-0 rounded-full bg-accent transition-all duration-300"
                           style={{ width: `${Math.min(claimsPercentage, 100)}%` }}
+                        />
+                        <div
+                          className="absolute inset-y-0 left-0 rounded-full bg-success transition-all duration-300"
+                          style={{ width: `${Math.min(usedPercentage, 100)}%` }}
                         />
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {availableClaims} {availableClaims === 1 ? "kupong" : "kuponger"} kvar
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {offer.claimsUsed} använda, {claimedNotUsed} claimade ej använda
+                        {offer.claimsUsed} inlösta, {claimedNotUsed} claimade ej inlösta
                       </p>
                     </div>
 

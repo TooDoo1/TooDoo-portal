@@ -280,8 +280,8 @@ export default function CompanyVerification() {
                   
                   if (claimFilter === "all") return true;
                   if (claimFilter === "aktiv") return claimed > 0 && redeemed < max;
-                  if (claimFilter === "claimed") return claimed > 0;
-                  if (claimFilter === "inlöst") return redeemed >= max;
+                  if (claimFilter === "claimed") return claimed > redeemed;
+                  if (claimFilter === "inlöst") return redeemed > 0;
                   return true;
                 })
                 .map((order) => {
@@ -290,6 +290,7 @@ export default function CompanyVerification() {
                 const expiresTs = expiresStr ? new Date(expiresStr).getTime() : NaN;
                 const isExpired = !Number.isNaN(expiresTs) ? expiresTs < now : false;
                 const claimed = Number(order.claimedRedemptions ?? 0);
+                const redeemed = Number(order.redeemedRedemptions ?? 0);
                 const max = Number(order.maxRedemptions ?? 0);
                 const orderRedemptions = redemptionsByOrder.get(order.id) ?? [];
                 const isActive = Boolean(order.isActive) && !isExpired;
@@ -325,7 +326,8 @@ export default function CompanyVerification() {
 
                     <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
                       <span>Pris: <span className="text-foreground font-medium">{order.price} kr</span></span>
-                      {max > 0 && <span>Inlösta: <span className="text-foreground font-medium">{claimed} / {max}</span></span>}
+                      {max > 0 && <span>Claimade: <span className="text-foreground font-medium">{claimed} / {max}</span></span>}
+                      {max > 0 && <span>Inlösta: <span className="text-foreground font-medium">{redeemed} / {claimed}</span></span>}
                       {max > 0 && <span>Kvar: <span className="text-foreground font-medium">{Math.max(max - claimed, 0)}</span></span>}
                     </div>
 
