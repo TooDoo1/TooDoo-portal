@@ -139,18 +139,26 @@ export default function LoggIn() {
 	};
 
 	return (
-		<div className="relative min-h-screen overflow-hidden bg-background text-foreground">
-			<button onClick={() => navigate("/")} className="fixed left-4 top-4 z-20 flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl cursor-pointer hover:scale-110 transition">
-  <img src="/Icon.jpg" alt="Landingpage" className="h-10 w-10 object-cover" />
-</button>
+		<div className="relative min-h-screen overflow-hidden bg-background text-foreground lg:h-screen">
+			<button onClick={() => navigate("/")} className="fixed left-4 top-4 z-30 flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl cursor-pointer hover:scale-110 transition">
+				<img src="/Icon.jpg" alt="Landingpage" className="h-10 w-10 object-cover" />
+			</button>
 
-			<div className="relative z-20 mx-auto flex w-full max-w-6xl flex-col px-6 pt-12 pb-6">
-				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
-					<div className="relative z-10">
-						<h1 className="text-3xl font-bold tracking-tight">Logga in:</h1>
+			<div className="relative z-10 flex min-h-screen w-full flex-col lg:h-full lg:min-h-0 lg:flex-row">
+				<div className="flex w-full items-center justify-center bg-background px-6 py-16 lg:h-full lg:w-1/2 lg:py-0">
+					<h1 className="text-center text-4xl font-extrabold uppercase leading-tight tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+						Logga in
+						<br />
+						på TooDoo
+					</h1>
+				</div>
+
+				<div className="flex w-full items-center justify-center bg-card px-6 py-12 lg:h-full lg:w-1/2 lg:overflow-y-auto lg:py-0">
+					<div className="w-full max-w-md">
+						<h2 className="text-2xl font-bold tracking-tight">Logga in:</h2>
 						<p className="mt-1 text-sm text-muted-foreground">Logga in för att skapa erbjudanden och redigera företags information.</p>
 
-						<form className="mt-2 space-y-5" onSubmit={handleLogin}>
+						<form className="mt-6 space-y-5" onSubmit={handleLogin}>
 							<div className="space-y-2">
 								<label htmlFor="email" className="text-sm font-semibold text-foreground">E-post:</label>
 								<Input
@@ -284,29 +292,28 @@ export default function LoggIn() {
 							<button
 								type="submit"
 								disabled={isSubmitting}
-								className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90"
+								className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent px-6 text-accent-foreground font-semibold transition-colors hover:bg-accent/90"
 							>
-								<span className="anim-login-text pointer-events-none mr-1 relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-2">
+								<span className="anim-login-text pointer-events-none relative z-10 whitespace-nowrap transition-transform duration-300 group-hover:-translate-x-3">
 									{isSubmitting ? "Loggar in" : "Logga in"}
 								</span>
-								<span className="anim-login-line pointer-events-none absolute right-12 z-0 h-[1px] w-14 origin-right mr-28 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-9" />
-								<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
-									<ArrowRight className="anim-login-arrow h-4 w-4 transition-transform duration-300 group-hover:translate-x-10" />
+								<span className="pointer-events-none relative z-10 ml-1.5 flex h-4 w-4 shrink-0 items-center justify-center transition-transform duration-300 group-hover:translate-x-5">
+									<span
+										aria-hidden
+										className="anim-login-line absolute right-[calc(100%+-0.5rem)] top-1/2 h-[1.5px] w-14 origin-right -translate-y-1/2 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100"
+									/>
+									<ArrowRight className="anim-login-arrow h-4 w-4" strokeWidth={2} />
 								</span>
 							</button>
+
+							<Button type="button" className="h-11 w-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90">
+								Fortsätt med Google
+							</Button>
+
+							<p className="text-center text-sm text-muted-foreground">
+								Har du inte ditt företag registrerat? <Link to="/registration" className="font-semibold text-accent underline">Registrera ditt företag!</Link>
+							</p>
 						</form>
-					</div>
-				</div>
-
-				<div className="relative mx-auto mt-4 w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
-					<div className="relative z-10">
-						<Button className="h-11 w-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90">
-							Fortsätt med Google
-						</Button>
-
-						<p className="mt-4 text-center text-sm text-muted-foreground">
-							Har du inte ditt företag registrerat? <Link to="/registration" className="font-semibold text-accent underline">Registrera ditt företag!</Link>
-						</p>
 					</div>
 				</div>
 			</div>

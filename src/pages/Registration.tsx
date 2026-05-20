@@ -340,7 +340,7 @@ export default function Registration() {
 	const previewImageUrl = selectedDefaultImageUrl.trim() || defaultImageUrls[0] || "";
 
 	return (
-		<div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+		<div className="relative min-h-screen overflow-hidden bg-background text-foreground lg:h-screen">
 			<div className="fixed left-4 top-4 z-50 flex items-center gap-3">
 				<div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl">
 					<img src="/Icon.jpg" alt="Registration icon" className="h-10 w-10 object-cover" />
@@ -362,10 +362,18 @@ export default function Registration() {
 				</button>
 			</div>
 
-			<div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 pt-12 pb-6">
-				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
-					<div className="relative z-10">
-						<h1 className="text-3xl font-bold tracking-tight">Registrera dig:</h1>
+			<div className="relative z-10 flex min-h-screen w-full flex-col lg:h-full lg:min-h-0 lg:flex-row">
+				<div className="flex w-full items-center justify-center bg-background px-6 py-20 lg:h-full lg:w-1/2 lg:py-0">
+					<h1 className="text-center text-4xl font-extrabold uppercase leading-tight tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+						Registrera
+						<br />
+						ditt företag
+					</h1>
+				</div>
+
+				<div className="flex w-full justify-center bg-card px-6 py-12 lg:h-full lg:w-1/2 lg:overflow-y-auto lg:py-16">
+					<div className="w-full max-w-md">
+						<h2 className="text-2xl font-bold tracking-tight">Registrera dig:</h2>
 						<p className="mt-1 text-sm text-muted-foreground">Skapa ett konto för att börja använda tjänsten.</p>
 
 						<div className="mt-6 space-y-2">
@@ -384,13 +392,9 @@ export default function Registration() {
 								/>
 							</div>
 						</div>
-					</div>
-				</div>
 
-				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
-					<div className="relative z-10 space-y-4">
-						<label className="text-lg font-semibold text-foreground">Beskrivning och kategori:</label>
-						<div className="space-y-4">
+						<h3 className="mt-10 text-lg font-semibold text-foreground">Beskrivning och kategori:</h3>
+						<div className="mt-4 space-y-4">
 							<div className="space-y-2">
 								<label htmlFor="category" className="ml-0.5 text-sm font-semibold text-muted-foreground">Kategori:</label>
 								<Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
@@ -450,13 +454,9 @@ export default function Registration() {
 								/>
 							</div>
 						</div>
-					</div>
-				</div>
 
-				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
-					<div className="relative z-10 space-y-4">
-						<label className="text-lg font-semibold text-foreground">Företag:</label>
-						<div className="space-y-4">
+						<h3 className="mt-10 text-lg font-semibold text-foreground">Företag:</h3>
+						<div className="mt-4 space-y-4">
 							<div className="space-y-2">
 								<label htmlFor="company" className="ml-0.5 text-sm font-semibold text-muted-foreground">Välj företag:</label>
 								<Popover open={companyOpen} onOpenChange={setCompanyOpen}>
@@ -911,22 +911,18 @@ export default function Registration() {
 								</p>
 							</div>
 						</div>
-					</div>
-				</div>
 
-				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
-					<div className="relative z-10 space-y-4">
-						<label className="text-lg font-semibold text-foreground">Slutför registrering:</label>
+						<h3 className="mt-10 text-lg font-semibold text-foreground">Slutför registrering:</h3>
 
-					<button type="button" disabled={isSubmitting} onClick={handleRegister} className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
-						<span className="anim-submit-text pointer-events-none relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-4">
-							{isSubmitting ? "Registrerar" : "Registrera företag"}
-						</span>
-						<span className="anim-submit-line pointer-events-none absolute right-9 z-0 h-[1px] w-14 origin-right mr-24 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-10" />
-						<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
-							<ArrowRight className="anim-submit-arrow h-4 w-4 transition-transform duration-300 group-hover:translate-x-10" />
-						</span>
-					</button>
+						<button type="button" disabled={isSubmitting} onClick={handleRegister} className="group no-hover-motion relative mt-4 inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
+							<span className="anim-submit-text pointer-events-none relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-4">
+								{isSubmitting ? "Registrerar" : "Registrera företag"}
+							</span>
+							<span className="anim-submit-line pointer-events-none absolute right-10 z-0 h-[1px] w-14 origin-right mr-28 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-10" />
+							<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
+								<ArrowRight className="anim-submit-arrow h-4 w-4 transition-transform duration-300 group-hover:translate-x-11" />
+							</span>
+						</button>
 					</div>
 				</div>
 			</div>
