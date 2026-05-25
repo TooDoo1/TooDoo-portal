@@ -392,6 +392,16 @@ export function normalizeOrgNumber(input: string) {
   return (input ?? "").replace(/[^\d]/g, "").trim();
 }
 
+/** Coarse industry category derived by the backend from SNI prefix. */
+export type ScbIndustryCategory = {
+  /** API-owned slug, e.g. "transport-storage". */
+  id: string;
+  /** Human-readable English name, e.g. "Transport and storage". */
+  name: string;
+  /** SNI 2007 prefix (2 digits) that triggered this category. */
+  sniPrefix: string;
+};
+
 /** Workplace (arbetsställe) row from GET /scb/workplaces. CFAR is the unique key. */
 export type ScbWorkplace = {
   cfarNr: string;
@@ -415,6 +425,7 @@ export type ScbWorkplace = {
   statusCode?: string | null;
   industry?: string | null;
   industryCode?: string | null;
+  industryCategory?: ScbIndustryCategory | null;
   isMainWorkplace?: boolean | null;
   startDate?: string | null;
   [key: string]: unknown;
@@ -444,6 +455,12 @@ export type ScbCompanySearchHit = {
   email?: string;
   phone?: string;
   isMainWorkplace?: boolean;
+  /** Free-text industry label from SCB (Swedish). */
+  industry?: string;
+  /** Swedish SNI 2007 industry code, e.g. "56.100" (restaurant) or "47.110" (food retail). */
+  industryCode?: string;
+  /** Backend-derived coarse industry category (id/name/sniPrefix). */
+  industryCategory?: ScbIndustryCategory;
 };
 
 function formatScbCity(city: string) {
@@ -482,6 +499,9 @@ export function mapScbWorkplaceToSearchHit(workplace: ScbWorkplace): ScbCompanyS
     email: (workplace.email ?? "").trim() || undefined,
     phone: (workplace.phone ?? "").trim() || undefined,
     isMainWorkplace: workplace.isMainWorkplace === true ? true : undefined,
+    industry: (workplace.industry ?? "").trim() || undefined,
+    industryCode: (workplace.industryCode ?? "").trim() || undefined,
+    industryCategory: workplace.industryCategory ?? undefined,
   };
 }
 

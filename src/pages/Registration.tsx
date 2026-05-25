@@ -16,6 +16,7 @@ import {
 	setBusinessId,
 	type ScbCompanySearchHit,
 } from "@/lib/api";
+import { pickCategoryBySni } from "@/lib/sniCategoryMap";
 import { toast } from "sonner";
 import { TimePicker } from "@/components/TimePicker";
 
@@ -326,6 +327,19 @@ export default function Registration() {
 			city: c.city ?? "",
 			address: c.street ?? "",
 		});
+
+		// Auto-pick the closest TooDoo category. Prefers the backend-supplied
+		// industryCategory (from the SCB SNI prefix map), then falls back to the
+		// raw SNI code and the Swedish industry label.
+		const matchedCategoryId = pickCategoryBySni(
+			categoryOptions,
+			c.industryCode,
+			c.industry,
+			c.industryCategory,
+		);
+		if (matchedCategoryId) {
+			setCategoryId(matchedCategoryId);
+		}
 	};
 
 	const filteredOrgSearchResults = useMemo(() => {
@@ -522,6 +536,7 @@ export default function Registration() {
 						<div className="mt-8 space-y-2">
 							<label htmlFor="email" className="text-lg font-semibold text-foreground">E-post:</label>
 							<Input
+								key={`email-${selectedCfarNr ?? "manual"}`}
 								id="email"
 								defaultValue={prefill.email}
 								placeholder="Din e-postadress"
@@ -530,6 +545,7 @@ export default function Registration() {
 							<div className="space-y-2 pt-2">
 								<label htmlFor="phonenumber" className="text-lg font-semibold text-foreground">Telefonnummer:</label>
 								<Input
+									key={`phone-${selectedCfarNr ?? "manual"}`}
 									id="phonenumber"
 									defaultValue={prefill.phone}
 									placeholder="Ditt telefonnummer"
@@ -605,6 +621,7 @@ export default function Registration() {
 							<div className="space-y-2">
 								<label htmlFor="companyCity" className="ml-0.5 text-sm font-semibold text-muted-foreground">Stad:</label>
 								<Input
+									key={`city-${selectedCfarNr ?? "manual"}`}
 									id="companyCity"
 									defaultValue={prefill.city}
 									placeholder="Ange stad"
@@ -615,6 +632,7 @@ export default function Registration() {
 							<div className="space-y-2">
 								<label htmlFor="companyAddress" className="ml-0.5 text-sm font-semibold text-muted-foreground">Adress:</label>
 								<Input
+									key={`address-${selectedCfarNr ?? "manual"}`}
 									id="companyAddress"
 									defaultValue={prefill.address}
 									placeholder="Ange adress"
