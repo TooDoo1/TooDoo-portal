@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { getAuthEmail, getAuthRole, getUserByEmail, inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -99,6 +100,7 @@ export default function Pending() {
       if (isAdmin) {
         await updateBusinessStatus(company.id, action === "approve" ? "APPROVED" : "REJECTED");
         setCompanies((prev) => prev.filter((c) => c.id !== company.id));
+        refreshAdminPendingCounts();
         toast.success(action === "approve" ? `${company.name} har godkänts!` : `${company.name} har nekats.`);
       } else {
         toast.error("Saknar admin-behörighet. Du kan inte uppdatera företagsstatus.");

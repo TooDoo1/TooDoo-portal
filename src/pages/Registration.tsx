@@ -12,8 +12,9 @@ import {
 	createBusiness,
 	getBusinessDefaultImages,
 	listCategories,
-	searchCompaniesByOrgNumber,
+	searchScbWorkplacesByOrgNumber,
 	setBusinessId,
+	type ScbCompanySearchHit,
 } from "@/lib/api";
 import { toast } from "sonner";
 import { TimePicker } from "@/components/TimePicker";
@@ -29,16 +30,13 @@ export default function Registration() {
 	const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 	const [orgNumber, setOrgNumber] = useState("");
 	const [orgSearchLoading, setOrgSearchLoading] = useState(false);
-	const [orgSearchResults, setOrgSearchResults] = useState<
-		Array<{
-			name: string;
-			orgNumber: string;
-			addressLine: string;
-			city: string;
-			street: string;
-		}>
-	>([]);
+	const [orgSearchResults, setOrgSearchResults] = useState<ScbCompanySearchHit[]>([]);
+	const [orgResultFilter, setOrgResultFilter] = useState("");
 	const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(null);
+	const [selectedCfarNr, setSelectedCfarNr] = useState<string | null>(null);
+	const [manualEntry, setManualEntry] = useState(false);
+	const showRestOfForm = Boolean(selectedCfarNr) || manualEntry;
+	const [prefill, setPrefill] = useState({ email: "", phone: "", city: "", address: "" });
 	const [defaultImageUrls, setDefaultImageUrls] = useState<string[]>([]);
 	const [selectedDefaultImageUrl, setSelectedDefaultImageUrl] = useState("");
 	const [isLoadingDefaultImages, setIsLoadingDefaultImages] = useState(false);
@@ -293,44 +291,61 @@ export default function Registration() {
 		}
 
 		setOrgSearchLoading(true);
+		setOrgResultFilter("");
 		try {
-			const companies = await searchCompaniesByOrgNumber(raw, 5);
-			const mapped = companies.map((c) => {
-				const street = c.postalAddress?.street?.trim() ?? "";
-				const postalCode = c.postalAddress?.postalCode?.trim() ?? "";
-				const city = c.postalAddress?.city?.trim() ?? "";
-				const addressLine = [street, [postalCode, city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-
-				return {
-					name: c.name,
-					orgNumber: c.orgNumber,
-					addressLine,
-					city,
-					street,
-				};
-			});
+			const mapped = await searchScbWorkplacesByOrgNumber(raw);
 			setOrgSearchResults(mapped);
 			if (mapped.length === 0) {
-				toast.info("Inga träffar.");
+				toast.info("Inga arbetsställen hittades i SCB:s företagsregister.");
+				return;
 			}
+			if (mapped.length === 1) {
+				applySelectedCompany(mapped[0]);
+				toast.success(`${mapped[0].name} valdes automatiskt.`);
+				return;
+			}
+			toast.info(`${mapped.length} arbetsställen hittades — välj rätt arbetsställe nedan.`);
 		} catch (error) {
-			const message = error instanceof Error ? error.message : "Kunde inte söka företag.";
+			const message = error instanceof Error ? error.message : "Kunde inte söka i SCB:s företagsregister.";
 			toast.error(message);
 		} finally {
 			setOrgSearchLoading(false);
 		}
 	};
 
-	const applySelectedCompany = (c: { name: string; city: string; street: string }) => {
+	const applySelectedCompany = (c: ScbCompanySearchHit) => {
 		setSelectedCompanyName(c.name);
+		setSelectedCfarNr(c.cfarNr || null);
 		setCompany("annat");
 		setCompanyOpen(false);
-
-		const cityInput = document.getElementById("companyCity") as HTMLInputElement | null;
-		const addressInput = document.getElementById("companyAddress") as HTMLInputElement | null;
-		if (cityInput && c.city) cityInput.value = c.city;
-		if (addressInput && c.street) addressInput.value = c.street;
+		// Inputs below mount only after selection, so push values through React
+		// (defaultValue on first mount) instead of writing to the DOM directly.
+		setPrefill({
+			email: c.email ?? "",
+			phone: c.phone ?? "",
+			city: c.city ?? "",
+			address: c.street ?? "",
+		});
 	};
+
+	const filteredOrgSearchResults = useMemo(() => {
+		const needle = orgResultFilter.trim().toLowerCase();
+		if (!needle) return orgSearchResults;
+		return orgSearchResults.filter((c) => {
+			const haystack = [
+				c.name,
+				c.companyName,
+				c.workplaceName ?? "",
+				c.city,
+				c.street,
+				c.addressLine,
+				c.cfarNr,
+			]
+				.join(" ")
+				.toLowerCase();
+			return haystack.includes(needle);
+		});
+	}, [orgSearchResults, orgResultFilter]);
 
 	const previewCompanyName =
 		selectedCompanyName?.trim() ||
@@ -371,15 +386,144 @@ export default function Registration() {
 					</h1>
 				</div>
 
-				<div className="flex w-full justify-center bg-card px-6 py-12 lg:h-full lg:w-1/2 lg:overflow-y-auto lg:py-16">
+				<div className="flex w-full justify-center border-t border-border bg-card px-6 py-12 lg:h-full lg:w-1/2 lg:overflow-y-auto lg:rounded-r-2xl lg:border-l lg:border-t-0 lg:py-16">
 					<div className="w-full max-w-md">
 						<h2 className="text-2xl font-bold tracking-tight">Registrera dig:</h2>
-						<p className="mt-1 text-sm text-muted-foreground">Skapa ett konto för att börja använda tjänsten.</p>
+						<p className="mt-1 text-sm text-muted-foreground">
+							Börja med att söka upp ditt företag på organisationsnummer.
+						</p>
 
-						<div className="mt-6 space-y-2">
+						<h3 className="mt-6 text-lg font-semibold text-foreground">Hitta ditt företag:</h3>
+						<div className="mt-4 space-y-2">
+							<label htmlFor="orgNumber" className="ml-0.5 text-sm font-semibold text-muted-foreground">
+								Organisationsnummer:
+							</label>
+							<div className="flex gap-2">
+								<Input
+									id="orgNumber"
+									value={orgNumber}
+									onChange={(e) => setOrgNumber(e.target.value)}
+									placeholder="556703-7485"
+									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+								/>
+								<button
+									type="button"
+									disabled={orgSearchLoading}
+									onClick={handleOrgSearch}
+									className="inline-flex h-11 shrink-0 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
+								>
+									{orgSearchLoading ? "Söker..." : "Sök"}
+								</button>
+							</div>
+
+							{orgSearchResults.length > 0 ? (
+								<div className="space-y-2 rounded-xl border border-border bg-background/30 p-2">
+									{orgSearchResults.length > 1 ? (
+										<>
+											<div className="px-1 text-xs font-semibold text-muted-foreground">
+												{orgSearchResults.length} arbetsställen — välj rätt arbetsställe
+											</div>
+											<Input
+												value={orgResultFilter}
+												onChange={(e) => setOrgResultFilter(e.target.value)}
+												placeholder="Sök på namn, stad, adress eller CFAR-nr..."
+												className="h-9 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+											/>
+										</>
+									) : null}
+									<div className="max-h-72 space-y-1 overflow-y-auto">
+										{filteredOrgSearchResults.length === 0 ? (
+											<div className="px-3 py-2 text-xs text-muted-foreground">Inga arbetsställen matchar sökningen.</div>
+										) : (
+											filteredOrgSearchResults.map((c) => {
+												const primaryLabel = c.workplaceName || c.companyName || c.addressLine || c.cfarNr;
+												const secondaryParts = [
+													c.workplaceName ? c.companyName : null,
+													c.addressLine || null,
+													c.cfarNr ? `CFAR ${c.cfarNr}` : null,
+												].filter(Boolean) as string[];
+												return (
+													<button
+														key={c.cfarNr || `${c.orgNumber}-${c.name}`}
+														type="button"
+														onClick={() => applySelectedCompany(c)}
+														className="w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent/20"
+													>
+														<div className="flex items-center justify-between gap-3">
+															<div className="min-w-0">
+																<div className="truncate text-sm font-semibold text-foreground">
+																	{primaryLabel}
+																	{c.isMainWorkplace ? (
+																		<span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-accent">Huvudkontor</span>
+																	) : null}
+																</div>
+																<div className="truncate text-xs text-muted-foreground">
+																	{secondaryParts.join(" · ")}
+																</div>
+															</div>
+															<Check className={cn("h-4 w-4 shrink-0", selectedCfarNr === c.cfarNr ? "opacity-100" : "opacity-0")} />
+														</div>
+													</button>
+												);
+											})
+										)}
+									</div>
+								</div>
+							) : null}
+
+							{!showRestOfForm ? (
+								<button
+									type="button"
+									onClick={() => setManualEntry(true)}
+									className="mt-1 text-xs font-semibold text-accent underline underline-offset-4 hover:opacity-90"
+								>
+									Mitt företag finns inte i SCB → fortsätt manuellt
+								</button>
+							) : selectedCfarNr ? (
+								<div className="rounded-lg border border-border bg-background/40 p-3">
+									<div className="flex items-start justify-between gap-2">
+										<div className="min-w-0">
+											<div className="truncate text-sm font-semibold text-foreground">
+												Valt företag: {selectedCompanyName ?? "Okänt"}
+											</div>
+											<div className="truncate text-xs text-muted-foreground">
+												Org.nr {orgNumber.trim()} · CFAR {selectedCfarNr}
+											</div>
+										</div>
+										<button
+											type="button"
+											onClick={() => {
+												setSelectedCompanyName(null);
+												setSelectedCfarNr(null);
+												setManualEntry(false);
+											}}
+											className="shrink-0 text-xs font-semibold text-accent underline underline-offset-4 hover:opacity-90"
+										>
+											Byt
+										</button>
+									</div>
+								</div>
+							) : (
+								<div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background/40 p-3 text-xs text-muted-foreground">
+									<span>Manuell registrering — inget SCB-uppslag.</span>
+									<button
+										type="button"
+										onClick={() => setManualEntry(false)}
+										className="shrink-0 text-xs font-semibold text-accent underline underline-offset-4 hover:opacity-90"
+									>
+										Ångra
+									</button>
+								</div>
+							)}
+						</div>
+
+						{showRestOfForm ? (
+						<>
+						<div className="mt-8 space-y-2">
 							<label htmlFor="email" className="text-lg font-semibold text-foreground">E-post:</label>
 							<Input
 								id="email"
+								defaultValue={prefill.email}
 								placeholder="Din e-postadress"
 								className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 							/>
@@ -387,6 +531,7 @@ export default function Registration() {
 								<label htmlFor="phonenumber" className="text-lg font-semibold text-foreground">Telefonnummer:</label>
 								<Input
 									id="phonenumber"
+									defaultValue={prefill.phone}
 									placeholder="Ditt telefonnummer"
 									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
@@ -455,107 +600,13 @@ export default function Registration() {
 							</div>
 						</div>
 
-						<h3 className="mt-10 text-lg font-semibold text-foreground">Företag:</h3>
+						<h3 className="mt-10 text-lg font-semibold text-foreground">Företagsinfo:</h3>
 						<div className="mt-4 space-y-4">
-							<div className="space-y-2">
-								<label htmlFor="company" className="ml-0.5 text-sm font-semibold text-muted-foreground">Välj företag:</label>
-								<Popover open={companyOpen} onOpenChange={setCompanyOpen}>
-									<PopoverTrigger asChild>
-										<button
-											id="company"
-											type="button"
-											role="combobox"
-											aria-expanded={companyOpen}
-											className="h-11 w-full rounded-md border border-border bg-background px-3 text-left text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-										>
-											{selectedCompanyName?.trim()
-												? selectedCompanyName
-												: company
-													? companyOptions.find((option) => option.value === company)?.label
-													: "Välj företag"}
-										</button>
-									</PopoverTrigger>
-									<PopoverContent className="w-[--radix-popover-trigger-width] border-border bg-popover p-0" align="start">
-										<Command>
-											<CommandInput placeholder="Sök företag..." />
-											<CommandList>
-												<CommandEmpty>Inga företag hittades.</CommandEmpty>
-												<CommandGroup>
-													{companyOptions.map((option) => (
-														<CommandItem
-															key={option.value}
-															value={option.label}
-															onSelect={() => {
-																setCompany(option.value);
-																setCompanyOpen(false);
-															}}
-														>
-															<Check
-																className={cn("mr-2 h-4 w-4", company === option.value ? "opacity-100" : "opacity-0")}
-															/>
-															{option.label}
-														</CommandItem>
-													))}
-												</CommandGroup>
-											</CommandList>
-										</Command>
-									</PopoverContent>
-								</Popover>
-							</div>
-
-							<div className="space-y-2">
-								<label htmlFor="orgNumber" className="ml-0.5 text-sm font-semibold text-muted-foreground">
-									Organisationsnummer:
-								</label>
-								<div className="flex gap-2">
-									<Input
-										id="orgNumber"
-										value={orgNumber}
-										onChange={(e) => setOrgNumber(e.target.value)}
-										placeholder="556703-7485"
-										className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-									/>
-									<button
-										type="button"
-										disabled={orgSearchLoading}
-										onClick={handleOrgSearch}
-										className="inline-flex h-11 shrink-0 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
-									>
-										{orgSearchLoading ? "Söker..." : "Sök"}
-									</button>
-								</div>
-
-								{orgSearchResults.length > 0 ? (
-									<div className="rounded-xl border border-border bg-background/30 p-2">
-										<div className="space-y-1">
-											{orgSearchResults.map((c) => (
-												<button
-													key={`${c.orgNumber}-${c.name}`}
-													type="button"
-													onClick={() => applySelectedCompany(c)}
-													className="w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent/20"
-												>
-													<div className="flex items-center justify-between gap-3">
-														<div className="min-w-0">
-															<div className="truncate text-sm font-semibold text-foreground">{c.name}</div>
-															<div className="truncate text-xs text-muted-foreground">
-																Org.nr: {c.orgNumber}
-																{c.addressLine ? ` · ${c.addressLine}` : ""}
-															</div>
-														</div>
-														<Check className={cn("h-4 w-4 shrink-0", selectedCompanyName === c.name ? "opacity-100" : "opacity-0")} />
-													</div>
-												</button>
-											))}
-										</div>
-									</div>
-								) : null}
-							</div>
-
 							<div className="space-y-2">
 								<label htmlFor="companyCity" className="ml-0.5 text-sm font-semibold text-muted-foreground">Stad:</label>
 								<Input
 									id="companyCity"
+									defaultValue={prefill.city}
 									placeholder="Ange stad"
 									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
@@ -565,6 +616,7 @@ export default function Registration() {
 								<label htmlFor="companyAddress" className="ml-0.5 text-sm font-semibold text-muted-foreground">Adress:</label>
 								<Input
 									id="companyAddress"
+									defaultValue={prefill.address}
 									placeholder="Ange adress"
 									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
@@ -914,7 +966,7 @@ export default function Registration() {
 
 						<h3 className="mt-10 text-lg font-semibold text-foreground">Slutför registrering:</h3>
 
-						<button type="button" disabled={isSubmitting} onClick={handleRegister} className="group no-hover-motion relative mt-4 inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
+						<button type="button" disabled={isSubmitting} onClick={handleRegister} className="group no-hover-motion relative mt-4 mb-10 inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
 							<span className="anim-submit-text pointer-events-none relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-4">
 								{isSubmitting ? "Registrerar" : "Registrera företag"}
 							</span>
@@ -923,6 +975,8 @@ export default function Registration() {
 								<ArrowRight className="anim-submit-arrow h-4 w-4 transition-transform duration-300 group-hover:translate-x-11" />
 							</span>
 						</button>
+						</>
+						) : null}
 					</div>
 				</div>
 			</div>

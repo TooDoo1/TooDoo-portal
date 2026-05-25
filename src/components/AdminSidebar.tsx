@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Building2, ClipboardList, LayoutDashboard, LogOut, ReceiptText, ScrollText, ShieldCheck, Image as ImageIcon } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
+import { ADMIN_PENDING_COUNTS_REFRESH } from "@/lib/adminPendingCounts";
 import { clearAuthStorage, getAuthEmail, getAuthRole, listBusinessImageRequests, listBusinesses } from "@/lib/api";
 import {
   Sidebar,
@@ -72,6 +73,10 @@ export function AdminSidebar() {
   useEffect(() => {
     setEmail(getAuthEmail());
     setRole(getAuthRole());
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
 
     const loadCounts = async () => {
       try {
@@ -80,16 +85,29 @@ export function AdminSidebar() {
           listBusinessImageRequests({ status: "PENDING" }).catch(() => []),
         ]);
 
+        if (cancelled) return;
         setPendingCompanyCount(Array.isArray(pendingBusinesses) ? pendingBusinesses.length : 0);
         setPendingImageCount(Array.isArray(pendingImages) ? pendingImages.length : 0);
       } catch {
-        setPendingCompanyCount(0);
-        setPendingImageCount(0);
+        if (!cancelled) {
+          setPendingCompanyCount(0);
+          setPendingImageCount(0);
+        }
       }
     };
 
     void loadCounts();
-  }, []);
+
+    const onRefresh = () => void loadCounts();
+    window.addEventListener(ADMIN_PENDING_COUNTS_REFRESH, onRefresh);
+    window.addEventListener("focus", onRefresh);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(ADMIN_PENDING_COUNTS_REFRESH, onRefresh);
+      window.removeEventListener("focus", onRefresh);
+    };
+  }, [location.pathname]);
 
   const handleLogout = () => {
     clearAuthStorage();

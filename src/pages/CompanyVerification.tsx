@@ -229,7 +229,7 @@ export default function CompanyVerification() {
                 <SelectContent className="bg-card border-border">
                   <SelectItem value="all">Alla</SelectItem>
                   <SelectItem value="aktiv">Aktiv</SelectItem>
-                  <SelectItem value="claimed">Claimbade</SelectItem>
+                  <SelectItem value="claimed">Claimade</SelectItem>
                   <SelectItem value="inlöst">Inlösta</SelectItem>
                 </SelectContent>
               </Select>

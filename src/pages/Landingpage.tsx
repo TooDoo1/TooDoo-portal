@@ -351,12 +351,12 @@ export default function LandingPage() {
 					</p>
 					<div className="mt-8 flex flex-wrap justify-center gap-3">
 						<button className="group inline-flex items-center gap-3 rounded-xl border border-border bg-background px-5 py-3 transition-all hover:-translate-y-0.5 hover:border-border/80 hover:bg-secondary">
-							<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden>
-								<polygon points="2,2 14,12 2,22" fill="#4285F4" />
-								<polygon points="14,12 20,16 20,8" fill="#34A853" />
-								<polygon points="2,2 14,12 20,8" fill="#FBBC04" opacity="0.95" />
-								<polygon points="2,22 14,12 20,16" fill="#EA4335" opacity="0.95" />
-							</svg>
+							<img
+								src="/Google_Play_2022_icon.svg"
+								alt=""
+								aria-hidden
+								className="h-[22px] w-[22px] shrink-0 object-contain"
+							/>
 							<div className="text-left leading-none">
 								<div className="text-[10px] uppercase tracking-wider text-muted-foreground">Hämta på</div>
 								<div className="mt-1 text-sm font-bold">Google Play</div>

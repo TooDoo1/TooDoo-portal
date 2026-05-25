@@ -12,7 +12,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
-import { forgotPasswordReset, forgotPasswordToken, getUserByEmail, loginPortal, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
+import { getUserByEmail, loginPortal, requestPasswordResetLink, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
 import { toast } from "sonner";
 
 
@@ -36,10 +36,7 @@ export default function LoggIn() {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [forgotOpen, setForgotOpen] = useState(false);
 	const [forgotEmail, setForgotEmail] = useState("");
-	const [forgotStep, setForgotStep] = useState<"request" | "reset">("request");
-	const [forgotResetToken, setForgotResetToken] = useState<string | null>(null);
-	const [forgotNewPassword, setForgotNewPassword] = useState("");
-	const [forgotConfirmPassword, setForgotConfirmPassword] = useState("");
+	const [forgotStep, setForgotStep] = useState<"request" | "sent">("request");
 	const [forgotIsSubmitting, setForgotIsSubmitting] = useState(false);
 	const navigate = useNavigate();
 
@@ -78,6 +75,11 @@ export default function LoggIn() {
 		}
 	};
 
+	const resetForgotDialog = () => {
+		setForgotStep("request");
+		setForgotEmail("");
+	};
+
 	const handleForgotPasswordRequest = async (e: React.FormEvent) => {
 		e.preventDefault();
 		const value = forgotEmail.trim();
@@ -88,50 +90,11 @@ export default function LoggIn() {
 
 		setForgotIsSubmitting(true);
 		try {
-			const res = await forgotPasswordToken({ email: value });
-			const token = typeof res?.passwordResetToken === "string" ? res.passwordResetToken : "";
-			if (!token) {
-				throw new Error("Kunde inte skapa reset-token.");
-			}
-			// Token is kept only in memory and never shown to the user.
-			setForgotResetToken(token);
-			setForgotStep("reset");
-			toast.success("Välj ett nytt lösenord.");
+			await requestPasswordResetLink(value);
+			setForgotStep("sent");
 		} catch (error) {
-			const message = error instanceof Error ? error.message : "Kunde inte skapa reset-token.";
-			toast.error(message);
-		} finally {
-			setForgotIsSubmitting(false);
-		}
-	};
-
-	const handleForgotPasswordReset = async (e: React.FormEvent) => {
-		e.preventDefault();
-		const value = forgotEmail.trim();
-		const token = forgotResetToken ?? "";
-		const next = forgotNewPassword.trim();
-		const confirm = forgotConfirmPassword.trim();
-
-		if (!value || !token || !next || !confirm) {
-			toast.error("Fyll i e-post och nytt lösenord.");
-			return;
-		}
-		if (next.length < 8) {
-			toast.error("Nytt lösenord måste vara minst 8 tecken.");
-			return;
-		}
-		if (next !== confirm) {
-			toast.error("Lösenorden matchar inte.");
-			return;
-		}
-
-		setForgotIsSubmitting(true);
-		try {
-			await forgotPasswordReset({ email: value, token, password: next });
-			toast.success("Lösenord återställt. Logga in med ditt nya lösenord.");
-			setForgotOpen(false);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : "Kunde inte återställa lösenord.";
+			const message =
+				error instanceof Error ? error.message : "Kunde inte skicka återställningslänk.";
 			toast.error(message);
 		} finally {
 			setForgotIsSubmitting(false);
@@ -153,7 +116,7 @@ export default function LoggIn() {
 					</h1>
 				</div>
 
-				<div className="flex w-full items-center justify-center bg-card px-6 py-12 lg:h-full lg:w-1/2 lg:overflow-y-auto lg:py-0">
+				<div className="flex w-full items-center justify-center border-t border-border bg-card px-6 py-12 lg:h-full lg:w-1/2 lg:overflow-y-auto lg:rounded-r-2xl lg:border-l lg:border-t-0 lg:py-0">
 					<div className="w-full max-w-md">
 						<h2 className="text-2xl font-bold tracking-tight">Logga in:</h2>
 						<p className="mt-1 text-sm text-muted-foreground">Logga in för att skapa erbjudanden och redigera företags information.</p>
@@ -195,12 +158,7 @@ export default function LoggIn() {
 										open={forgotOpen}
 										onOpenChange={(open) => {
 											setForgotOpen(open);
-											if (open) {
-												setForgotStep("request");
-												setForgotResetToken(null);
-												setForgotNewPassword("");
-												setForgotConfirmPassword("");
-											}
+											if (!open) resetForgotDialog();
 										}}
 									>
 										<DialogTrigger asChild>
@@ -215,75 +173,54 @@ export default function LoggIn() {
 												Glömt lösenord?
 											</button>
 										</DialogTrigger>
-										<DialogContent className="sm:max-w-md">
+										<DialogContent hideClose className="border-border bg-card sm:max-w-md">
 											<DialogHeader>
-												<DialogTitle>Glömt lösenord</DialogTitle>
-												<DialogDescription>
-													{forgotStep === "request"
-														? "Skriv din e-post så kan du välja ett nytt lösenord direkt."
-														: "Välj ett nytt lösenord."}
-												</DialogDescription>
+												<DialogTitle>
+													{forgotStep === "request" ? "Glömt lösenord" : "Återställnings email har blivit skickat"}
+												</DialogTitle>
+												{forgotStep === "request" ? (
+													<DialogDescription>
+														Ange din e-postadress så skickar vi en länk för att återställa lösenordet.
+													</DialogDescription>
+												) : null}
 											</DialogHeader>
-											<form
-												onSubmit={forgotStep === "request" ? handleForgotPasswordRequest : handleForgotPasswordReset}
-												className="space-y-3"
-											>
-												<div className="space-y-2">
-													<label htmlFor="forgotEmail" className="text-sm font-semibold text-foreground">
-														E-post
-													</label>
-													<Input
-														id="forgotEmail"
-														value={forgotEmail}
-														onChange={(e) => setForgotEmail(e.target.value)}
-														disabled={forgotIsSubmitting}
-														placeholder="Din e-postadress"
-														className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-													/>
-												</div>
-
-												{forgotStep === "reset" && (
-													<>
-														<div className="space-y-2">
-															<label htmlFor="forgotNewPassword" className="text-sm font-semibold text-foreground">
-																Nytt lösenord
-															</label>
-															<Input
-																id="forgotNewPassword"
-																type="password"
-																value={forgotNewPassword}
-																onChange={(e) => setForgotNewPassword(e.target.value)}
-																disabled={forgotIsSubmitting}
-																placeholder="Minst 8 tecken"
-																className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-															/>
-														</div>
-														<div className="space-y-2">
-															<label htmlFor="forgotConfirmPassword" className="text-sm font-semibold text-foreground">
-																Bekräfta nytt lösenord
-															</label>
-															<Input
-																id="forgotConfirmPassword"
-																type="password"
-																value={forgotConfirmPassword}
-																onChange={(e) => setForgotConfirmPassword(e.target.value)}
-																disabled={forgotIsSubmitting}
-																placeholder="Upprepa lösenord"
-																className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-															/>
-														</div>
-													</>
-												)}
-
-												<DialogFooter className="gap-2 sm:gap-0">
-													<Button type="button" variant="outline" onClick={() => setForgotOpen(false)}>
-														Avbryt
-													</Button>
-													<Button type="submit" disabled={forgotIsSubmitting}>
-														{forgotIsSubmitting ? "Jobbar…" : forgotStep === "request" ? "Fortsätt" : "Spara nytt lösenord"}
+											{forgotStep === "request" ? (
+												<form onSubmit={handleForgotPasswordRequest} className="space-y-3">
+													<div className="space-y-2">
+														<label htmlFor="forgotEmail" className="text-sm font-semibold text-foreground">
+															E-post
+														</label>
+														<Input
+															id="forgotEmail"
+															type="email"
+															autoComplete="email"
+															value={forgotEmail}
+															onChange={(e) => setForgotEmail(e.target.value)}
+															disabled={forgotIsSubmitting}
+															placeholder="Din e-postadress"
+															className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+														/>
+													</div>
+													<DialogFooter className="gap-2 sm:gap-0">
+														<Button type="button" variant="outline" onClick={() => setForgotOpen(false)}>
+															Avbryt
+														</Button>
+														<Button type="submit" disabled={forgotIsSubmitting} className="bg-accent text-accent-foreground hover:bg-accent/90">
+															{forgotIsSubmitting ? "Skickar…" : "Skicka återställningslänk"}
+														</Button>
+													</DialogFooter>
+												</form>
+											) : (
+												<DialogFooter>
+													<Button
+														type="button"
+														className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+														onClick={() => setForgotOpen(false)}
+													>
+														Stäng
 													</Button>
 												</DialogFooter>
-											</form>
+											)}
 										</DialogContent>
 									</Dialog>
 								</div>
@@ -300,7 +237,7 @@ export default function LoggIn() {
 								<span className="pointer-events-none relative z-10 ml-1.5 flex h-4 w-4 shrink-0 items-center justify-center transition-transform duration-300 group-hover:translate-x-5">
 									<span
 										aria-hidden
-										className="anim-login-line absolute right-[calc(100%+-0.5rem)] top-1/2 h-[1.5px] w-14 origin-right -translate-y-1/2 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100"
+										className="anim-login-line absolute right-[calc(100%+-0.5rem)] top-1/2 h-[1.5px] w-10 origin-right -translate-y-1/2 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100"
 									/>
 									<ArrowRight className="anim-login-arrow h-4 w-4" strokeWidth={2} />
 								</span>

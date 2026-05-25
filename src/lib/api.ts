@@ -388,66 +388,121 @@ export type Business = {
   updatedAt?: string;
 };
 
-// --- FöretagsAPI.se (frontend direct) ---
-type ForetagsApiCompany = {
-  name: string;
-  orgNumber: string;
-  score?: number;
-  postalAddress?: {
-    street?: string;
-    postalCode?: string;
-    city?: string;
-  };
-};
-
-type ForetagsApiSearchResponse = {
-  companies?: ForetagsApiCompany[];
-};
-
-function getForetagsApiKey() {
-  const key = (import.meta.env.VITE_FORETAGS_API_KEY as string | undefined)?.trim();
-  if (!key) {
-    throw new ApiError("Saknar FöretagsAPI-nyckel (VITE_FORETAGS_API_KEY).");
-  }
-  return key;
-}
-
 export function normalizeOrgNumber(input: string) {
   return (input ?? "").replace(/[^\d]/g, "").trim();
 }
 
-export async function searchCompaniesByOrgNumber(orgNumber: string, limit = 5) {
-  const normalized = normalizeOrgNumber(orgNumber);
-  if (!normalized) {
+/** Workplace (arbetsställe) row from GET /scb/workplaces. CFAR is the unique key. */
+export type ScbWorkplace = {
+  cfarNr: string;
+  orgNr: string;
+  peOrgNr?: string | null;
+  companyName: string;
+  workplaceName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  postAddress?: string | null;
+  postCode?: string | null;
+  postCity?: string | null;
+  visitingAddress?: string | null;
+  visitingPostCode?: string | null;
+  visitingPostCity?: string | null;
+  municipality?: string | null;
+  municipalityCode?: string | null;
+  county?: string | null;
+  countyCode?: string | null;
+  status?: string | null;
+  statusCode?: string | null;
+  industry?: string | null;
+  industryCode?: string | null;
+  isMainWorkplace?: boolean | null;
+  startDate?: string | null;
+  [key: string]: unknown;
+};
+
+export type ScbWorkplacesResponse = {
+  orgNr: string;
+  cfarNr?: string;
+  count: number;
+  workplaces: ScbWorkplace[];
+};
+
+/** UI hit; persists both org number and CFAR so the business row can store CFAR. */
+export type ScbCompanySearchHit = {
+  /** Display label (workplaceName when present, otherwise companyName). */
+  name: string;
+  /** Legal entity name (always populated). */
+  companyName: string;
+  /** SCB workplace name; blank for chains like Systembolaget. */
+  workplaceName?: string;
+  orgNumber: string;
+  /** Globally unique workplace id (8 digits). */
+  cfarNr: string;
+  addressLine: string;
+  city: string;
+  street: string;
+  email?: string;
+  phone?: string;
+  isMainWorkplace?: boolean;
+};
+
+function formatScbCity(city: string) {
+  const trimmed = city.trim();
+  if (!trimmed) return "";
+  return trimmed
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+export function mapScbWorkplaceToSearchHit(workplace: ScbWorkplace): ScbCompanySearchHit {
+  const companyName = (workplace.companyName ?? "").trim();
+  const workplaceName = (workplace.workplaceName ?? "").trim();
+  // Visiting address is what customers know for retail; fall back to postAddress.
+  const visitingStreet = (workplace.visitingAddress ?? "").trim();
+  const visitingCity = formatScbCity(workplace.visitingPostCity ?? "");
+  const postStreet = (workplace.postAddress ?? "").trim();
+  const postCity = formatScbCity(workplace.postCity ?? "");
+
+  const street = visitingStreet || postStreet;
+  const city = visitingCity || postCity;
+  const postalCode = (workplace.visitingPostCode ?? workplace.postCode ?? "").trim();
+  const addressLine = [street, [postalCode, city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+
+  return {
+    name: workplaceName || companyName,
+    companyName,
+    workplaceName: workplaceName || undefined,
+    orgNumber: (workplace.orgNr ?? "").trim(),
+    cfarNr: (workplace.cfarNr ?? "").trim(),
+    addressLine,
+    city,
+    street,
+    email: (workplace.email ?? "").trim() || undefined,
+    phone: (workplace.phone ?? "").trim() || undefined,
+    isMainWorkplace: workplace.isMainWorkplace === true ? true : undefined,
+  };
+}
+
+/** Public lookup via TooDoo backend → SCB Arbetsställen (workplace/CFAR layout). */
+export async function searchScbWorkplacesByOrgNumber(orgNumber: string) {
+  const trimmed = orgNumber.trim();
+  if (!trimmed) {
     throw new ApiError("Fyll i organisationsnummer.");
   }
 
-  const response = await fetch("https://data.foretagsapi.se/v1/search", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${getForetagsApiKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      org_number: normalized,
-      limit,
-    }),
-  });
+  const data = await apiRequest<ScbWorkplacesResponse>(
+    `/scb/workplaces?orgNr=${encodeURIComponent(trimmed)}`,
+    { method: "GET" },
+  );
 
-  const contentType = response.headers.get("content-type") || "";
-  const payload = contentType.includes("application/json") ? ((await response.json()) as unknown) : null;
-
-  if (!response.ok) {
-    const message =
-      (payload as { error?: string; message?: string } | null)?.error ||
-      (payload as { error?: string; message?: string } | null)?.message ||
-      `FöretagsAPI request failed (${response.status})`;
-    throw new ApiError(message);
-  }
-
-  const data = (payload ?? {}) as ForetagsApiSearchResponse;
-  return (Array.isArray(data.companies) ? data.companies : []) as ForetagsApiCompany[];
+  const workplaces = Array.isArray(data.workplaces) ? data.workplaces : [];
+  return workplaces.map(mapScbWorkplaceToSearchHit).filter((w) => w.cfarNr);
 }
+
+/** Backwards-compatible alias — now backed by /scb/workplaces (per-CFAR rows). */
+export const searchScbCompaniesByOrgNumber = searchScbWorkplacesByOrgNumber;
 
 export type Order = {
   id: string;
@@ -636,13 +691,52 @@ export type ForgotPasswordTokenRequest = {
 
 export type ForgotPasswordTokenResponse = {
   passwordResetToken: string;
+  /** Present when the backend sends the reset email itself. */
+  emailSent?: boolean;
+  resetUrl?: string;
 };
+
+export function getPortalBaseUrl() {
+  const configured = (import.meta.env.VITE_PORTAL_URL as string | undefined)?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return "";
+}
+
+/** Link opened from the reset email; must match the route in App.tsx. */
+export function buildPasswordResetUrl(email: string, token: string) {
+  const base = getPortalBaseUrl();
+  const url = new URL(`${base}/reset-password`);
+  url.searchParams.set("email", email.trim());
+  url.searchParams.set("token", token);
+  return url.toString();
+}
 
 export async function forgotPasswordToken(body: ForgotPasswordTokenRequest) {
   return apiRequest<ForgotPasswordTokenResponse>("/user/forgot-password/token", {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+/** Requests a reset token. Backend should email `buildPasswordResetUrl` (or return resetUrl). */
+export async function requestPasswordResetLink(email: string) {
+  const trimmed = email.trim();
+  const res = await forgotPasswordToken({ email: trimmed });
+  const token = typeof res.passwordResetToken === "string" ? res.passwordResetToken.trim() : "";
+  if (!token) {
+    throw new ApiError("Kunde inte skapa återställningslänk.");
+  }
+  const resetUrl =
+    typeof res.resetUrl === "string" && res.resetUrl.trim()
+      ? res.resetUrl.trim()
+      : buildPasswordResetUrl(trimmed, token);
+  return {
+    resetUrl,
+    emailSent: res.emailSent === true,
+  };
 }
 
 export type ForgotPasswordResetRequest = {

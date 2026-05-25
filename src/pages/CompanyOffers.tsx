@@ -5,13 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { deleteOrder, deleteOrderPreset, listOrderPresets, listOrders, resolveBusinessId, type Order, type OrderPreset } from "@/lib/api";
 import { toast } from "sonner";
 
 type FilterStatus = "all" | "active" | "draft" | "presets";
-type ClaimFilter = "all" | "aktiv" | "inlöst" | "claimed";
 
 type Offer = {
   id: string;
@@ -183,7 +181,6 @@ export default function CompanyOffers() {
   const [deleteLoading, setDeleteLoading] = useState<Record<string, boolean>>({});
   const [presetDeleteLoading, setPresetDeleteLoading] = useState<Record<string, boolean>>({});
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
-  const [claimFilter, setClaimFilter] = useState<ClaimFilter>("all");
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [offerToDelete, setOfferToDelete] = useState<Offer | null>(null);
   const [presetToDelete, setPresetToDelete] = useState<Preset | null>(null);
@@ -251,25 +248,9 @@ export default function CompanyOffers() {
       }
     }
 
-    if (filterStatus === "all") {
-      // Apply claim filter
-      if (claimFilter === "all") return true;
-      if (claimFilter === "aktiv") return offer.claimsClaimed > 0 && offer.claimsUsed < offer.claimsTotal;
-      if (claimFilter === "inlöst") return offer.claimsUsed >= offer.claimsTotal;
-      if (claimFilter === "claimed") return offer.claimsClaimed > 0;
-      return true;
-    }
-    
     if (filterStatus === "presets") return false;
-    
-    // Apply status filter first, then claim filter
-    if (offer.status !== filterStatus) return false;
-    
-    if (claimFilter === "all") return true;
-    if (claimFilter === "aktiv") return offer.claimsClaimed > 0 && offer.claimsUsed < offer.claimsTotal;
-    if (claimFilter === "inlöst") return offer.claimsUsed >= offer.claimsTotal;
-    if (claimFilter === "claimed") return offer.claimsClaimed > 0;
-    return true;
+    if (filterStatus === "all") return true;
+    return offer.status === filterStatus;
   });
 
   const handleDeleteOffer = async (offer: Offer) => {
@@ -418,25 +399,6 @@ export default function CompanyOffers() {
         ))}
       </div>
 
-      {/* Claim filter dropdown */}
-      {filterStatus !== "presets" && (
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-foreground">Filtrera efter status:</label>
-          <Select value={claimFilter} onValueChange={(value) => setClaimFilter(value as ClaimFilter)}>
-            <SelectTrigger className="w-40 bg-card border-border">
-              <SelectValue placeholder="Välj status" />
-            </SelectTrigger>
-            <SelectContent className="bg-card border-border">
-              <SelectItem value="all">Alla</SelectItem>
-              <SelectItem value="aktiv">Aktiv (tillgänglig)</SelectItem>
-              <SelectItem value="claimed">Claimbade</SelectItem>
-              <SelectItem value="inlöst">Inlösta</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      
       {filterStatus === "presets" ? (
         presets.length === 0 ? (
           <Card className="bg-card border-border">

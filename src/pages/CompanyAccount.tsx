@@ -260,6 +260,79 @@ export default function CompanyAccount() {
     void loadBusiness();
   }, []);
 
+  const resetImageRequestUi = () => {
+    setIsImageFromGallery(true);
+    setImageFile(null);
+    setUploadedImageUrl("");
+    setForm((prev) => ({ ...prev, imageUrl: originalForm.imageUrl }));
+  };
+
+  const handleSubmitImageRequest = async () => {
+    if (!businessId) {
+      toast.error("Saknar businessId. Logga in igen.");
+      return;
+    }
+
+    const trimmedImageUrl = form.imageUrl.trim();
+    const originalImageUrl = (originalForm.imageUrl ?? "").trim();
+
+    if (!imageFile && !trimmedImageUrl) {
+      toast.error("Välj en bild eller ange en bild-URL.");
+      return;
+    }
+
+    if (!imageFile && trimmedImageUrl) {
+      try {
+        const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmedImageUrl)
+          ? trimmedImageUrl
+          : `https://${trimmedImageUrl}`;
+        new URL(withProtocol);
+      } catch {
+        toast.error("Bild-URL måste vara en giltig URL.");
+        return;
+      }
+    }
+
+    if (trimmedImageUrl && trimmedImageUrl !== originalImageUrl) {
+      const [managerImages, defaultImagesResponse] = await Promise.all([
+        listImages().catch(() => []),
+        categoryId ? getBusinessDefaultImages(categoryId).catch(() => null) : Promise.resolve(null),
+      ]);
+      const managerImageUrls = new Set(
+        managerImages
+          .map((image) => image.publicUrl || image.originalUrl || "")
+          .filter((url): url is string => Boolean(url)),
+      );
+      const defaultImageUrls = new Set(defaultImagesResponse?.images ?? []);
+      const galleryImageUrls = new Set([...managerImageUrls, ...defaultImageUrls]);
+      if (galleryImageUrls.has(trimmedImageUrl)) {
+        toast.info("Bilder från galleriet uppdateras med knappen Spara ändringar.");
+        return;
+      }
+    }
+
+    if (!imageFile && (!trimmedImageUrl || trimmedImageUrl === originalImageUrl)) {
+      toast.error("Välj en ny bild att skicka.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await submitBusinessImageRequest(
+        imageFile
+          ? { imageSourceType: "UPLOADED", imageFile }
+          : { imageSourceType: "EXTERNAL_URL", imageUrl: trimmedImageUrl },
+      );
+      toast.success("Bildförfrågan skickad till admin för granskning.");
+      resetImageRequestUi();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte skicka bildförfrågan.";
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -364,14 +437,16 @@ export default function CompanyAccount() {
               : { imageSourceType: "EXTERNAL_URL", imageUrl: trimmedImageUrl },
           );
           toast.success("Bildförfrågan skickad till admin för granskning.");
-          setIsImageFromGallery(true);
-          setImageFile(null);
-          setUploadedImageUrl("");
+          resetImageRequestUi();
         } catch (requestError) {
           const message = requestError instanceof Error ? requestError.message : "Kunde inte skicka bildförfrågan.";
           toast.warning(message);
         }
       }
+
+      const savedImageUrl = shouldRequestReview
+        ? originalImageUrl
+        : getBusinessImageUrl(updated) || originalImageUrl || "";
 
       const nextForm = businessToForm({
         ...updated,
@@ -382,12 +457,15 @@ export default function CompanyAccount() {
         website: updated.website ?? (trimmedWebsite ? trimmedWebsite : null),
         address: updated.address ?? trimmedAddress,
         city: updated.city ?? trimmedCity,
-        imageUrl: getBusinessImageUrl(updated) || originalImageUrl || null,
+        imageUrl: savedImageUrl || null,
       });
       setForm(nextForm);
       setOriginalForm(nextForm);
       setImageFile(null);
       setUploadedImageUrl("");
+      if (shouldRequestReview || (galleryImageSource && trimmedImageUrl && trimmedImageUrl !== originalImageUrl)) {
+        setIsImageFromGallery(true);
+      }
       if (updated.status) setStatus(updated.status);
       toast.success("Kontoinformation uppdaterad.");
     } catch (error) {
@@ -897,8 +975,8 @@ export default function CompanyAccount() {
                   <div className="flex justify-end pt-1">
                     <Button
                       type="button"
-                      onClick={() => formRef.current?.requestSubmit()}
-                      disabled={isLoading || isSaving}
+                      onClick={() => void handleSubmitImageRequest()}
+                      disabled={isLoading || isSaving || (!imageFile && !form.imageUrl.trim())}
                       className="bg-blue-600 text-white hover:bg-blue-700"
                     >
                       Skicka bild

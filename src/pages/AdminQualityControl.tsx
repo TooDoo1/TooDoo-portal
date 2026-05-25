@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BusinessAppPreviewCard } from "@/components/BusinessAppPreviewCard";
 import { toast } from "sonner";
+import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { listBusinessImageRequests, reviewBusinessImageRequest, getBusinessById, resolveImageUrl, type BusinessImageRequest, type Business } from "@/lib/api";
 
 interface RequestWithBusiness extends BusinessImageRequest {
@@ -80,9 +81,10 @@ export default function AdminQualityControl() {
     try {
       await reviewBusinessImageRequest(requestId, status);
       toast.success(status === "APPROVED" ? "Bild godkänd" : "Bild avvisad");
-      
+
       // Remove from list after review
       setRequests(requests.filter(r => r.id !== requestId));
+      refreshAdminPendingCounts();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte granska bild.";
       toast.error(message);
