@@ -132,7 +132,7 @@ export default function CategoryPage() {
                             <p className="text-sm text-muted-foreground truncate" title={company.email}>{company.email}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex  items-center gap-2 shrink-0">
                           <StatusBadge status="active" />
                           <Button
                             variant="ghost"
@@ -234,7 +234,7 @@ export default function CategoryPage() {
         open={!!dialogState}
         onOpenChange={(open) => !open && setDialogState(null)}
         title="Ta bort företag"
-        description={`Är du säker på att du vill ta bort ${dialogState?.company.name}?`}
+        description={`Är du säker på att du vill ta bort? ${dialogState?.company.name}?`}
         confirmLabel="Ta bort"
         onConfirm={handleAction}
         variant="destructive"
