@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Building2, ClipboardList, LayoutDashboard, LogOut, ReceiptText, ScrollText, ShieldCheck } from "lucide-react";
+import { Building2, ClipboardList, LayoutDashboard, LogOut, ReceiptText, ScrollText, ShieldCheck, Image as ImageIcon } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
-import { clearAuthStorage, getAuthEmail, getAuthRole } from "@/lib/api";
+import { ADMIN_PENDING_COUNTS_REFRESH } from "@/lib/adminPendingCounts";
+import { clearAuthStorage, getAuthEmail, getAuthRole, listBusinessImageRequests, listBusinesses } from "@/lib/api";
 import {
   Sidebar,
   SidebarContent,
@@ -22,7 +23,7 @@ import { useMonochrome } from "@/hooks/useMonochrome";
 
 type MenuGroup = {
   label: string;
-  items: Array<{ title: string; url: string; icon: typeof LayoutDashboard }>;
+  items: Array<{ title: string; url: string; icon: typeof LayoutDashboard; count?: number }>;
 };
 
 const menuGroups: MenuGroup[] = [
@@ -37,6 +38,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { title: "Företag", url: "/companies", icon: Building2 },
       { title: "Väntande", url: "/pending", icon: ClipboardList },
+      { title: "Kvalitets kontroll", url: "/admin/quality-control", icon: ImageIcon },
       { title: "Fakturor", url: "/admin/invoices", icon: ReceiptText },
     ],
   },
@@ -64,12 +66,48 @@ export function AdminSidebar() {
 
   const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [pendingCompanyCount, setPendingCompanyCount] = useState(0);
+  const [pendingImageCount, setPendingImageCount] = useState(0);
   const monochrome = useMonochrome();
 
   useEffect(() => {
     setEmail(getAuthEmail());
     setRole(getAuthRole());
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCounts = async () => {
+      try {
+        const [pendingBusinesses, pendingImages] = await Promise.all([
+          listBusinesses("PENDING").catch(() => []),
+          listBusinessImageRequests({ status: "PENDING" }).catch(() => []),
+        ]);
+
+        if (cancelled) return;
+        setPendingCompanyCount(Array.isArray(pendingBusinesses) ? pendingBusinesses.length : 0);
+        setPendingImageCount(Array.isArray(pendingImages) ? pendingImages.length : 0);
+      } catch {
+        if (!cancelled) {
+          setPendingCompanyCount(0);
+          setPendingImageCount(0);
+        }
+      }
+    };
+
+    void loadCounts();
+
+    const onRefresh = () => void loadCounts();
+    window.addEventListener(ADMIN_PENDING_COUNTS_REFRESH, onRefresh);
+    window.addEventListener("focus", onRefresh);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(ADMIN_PENDING_COUNTS_REFRESH, onRefresh);
+      window.removeEventListener("focus", onRefresh);
+    };
+  }, [location.pathname]);
 
   const handleLogout = () => {
     clearAuthStorage();
@@ -125,6 +163,8 @@ export function AdminSidebar() {
               <SidebarMenu className="gap-0.5">
                 {group.items.map((item) => {
                   const active = location.pathname === item.url;
+                  const count = item.url === "/pending" ? pendingCompanyCount : item.url === "/admin/quality-control" ? pendingImageCount : 0;
+                  const showCount = !collapsed && count > 0;
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild isActive={active} tooltip={item.title} className="h-9">
@@ -150,6 +190,11 @@ export function AdminSidebar() {
                             }`}
                           />
                           {!collapsed && <span className="truncate text-sm">{item.title}</span>}
+                          {showCount && (
+                            <span className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#ff0000] text-[10px] font-semibold leading-none text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+                              {count}
+                            </span>
+                          )}
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

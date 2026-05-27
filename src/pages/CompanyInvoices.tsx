@@ -15,9 +15,20 @@ import {
   CircleDollarSign,
   ArrowUpRight,
   Download,
+  FileSpreadsheet,
+  Table2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { exportInvoicesToExcel, exportInvoicesToKalkylark, type InvoiceExportRow } from "@/lib/invoiceExport";
 import {
   listInvoices,
   getInvoiceById,
@@ -138,6 +149,8 @@ export default function CompanyInvoices() {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   useEffect(() => {
     const load = async () => {
       try {
@@ -196,10 +209,87 @@ export default function CompanyInvoices() {
     return typeof byMonth === "number" && Number.isFinite(byMonth) && byMonth > 0 ? byMonth : null;
   };
 
+  const buildExportRows = (): InvoiceExportRow[] => {
+    const exportedAt = new Date().toLocaleString("sv-SE");
+    const rows: InvoiceExportRow[] = [
+      ["TooDoo – transaktionshistorik"],
+      [`Exporterad: ${exportedAt}`],
+      [],
+      ["Faktura", "Skapad", "Omsättning (kr)", "Avgift (kr)", "Din intäkt (kr)", "Procent", "Status"],
+    ];
+
+    let totalGross = 0;
+    let totalFee = 0;
+    let totalEarnings = 0;
+
+    for (const inv of invoices) {
+      const b = getInvoiceBreakdown(inv, getGrossOverrideForInvoice(inv));
+      const status = formatPaymentStatus(inv.paymentStatus).label;
+      const created = inv.createdAt
+        ? new Date(inv.createdAt).toLocaleString("sv-SE")
+        : "—";
+
+      totalGross += b.gross ?? 0;
+      totalFee += b.fee;
+      totalEarnings += b.earnings ?? 0;
+
+      rows.push([
+        String(inv.id),
+        created,
+        String(b.gross ?? 0),
+        String(b.fee),
+        String(b.earnings ?? 0),
+        b.pct !== null ? `${b.pct}%` : "—",
+        status,
+      ]);
+    }
+
+    rows.push([]);
+    rows.push([
+      "Totalt",
+      `${invoices.length} fakturor`,
+      String(totalGross),
+      String(totalFee),
+      String(totalEarnings),
+      "",
+      "",
+    ]);
+
+    return rows;
+  };
+
+  const handleExport = async (target: "excel" | "kalkylark") => {
+    if (invoices.length === 0) {
+      toast.error("Det finns inga fakturor att exportera.");
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const rows = buildExportRows();
+      if (target === "excel") {
+        exportInvoicesToExcel(rows);
+        toast.success("Fakturan öppnas i Excel.");
+      } else {
+        await exportInvoicesToKalkylark(rows);
+        toast.success("Nytt kalkylark öppnat. Klistra in data med Ctrl+V om det behövs.");
+      }
+      setExportDialogOpen(false);
+    } catch {
+      toast.error("Kunde inte exportera fakturan.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // ── Build 8-week chart data ───────────────────────────────────────────────
+  // The chart is driven by actual redemptions (redeemedAt + order.price), not
+  // invoices, so today's inlösta erbjudanden show up immediately even if no
+  // invoice has been created yet for the current week.
   const weeklyData = useMemo((): WeekData[] => {
     const now = new Date();
     const weeks: WeekData[] = [];
+    const PERCENT = 10; // TooDoo takes 10%
 
     for (let w = 7; w >= 0; w--) {
       const weekStart = startOfWeek(
@@ -208,25 +298,31 @@ export default function CompanyInvoices() {
       const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
       const label = getWeekLabel(weekStart);
 
-      const weekInvoices = invoices.filter((inv) => {
+      let gross = 0;
+      for (const r of redemptions) {
+        const t = new Date(
+          String((r as unknown as { redeemedAt?: unknown }).redeemedAt ?? ""),
+        ).getTime();
+        if (!Number.isFinite(t)) continue;
+        if (t < weekStart.getTime() || t >= weekEnd.getTime()) continue;
+        gross += toNumber(
+          (r as unknown as { order?: { price?: unknown } }).order?.price,
+        );
+      }
+
+      const fee = (gross * PERCENT) / 100;
+      const earnings = Math.max(0, gross - fee);
+
+      const fakturor = invoices.filter((inv) => {
         const t = new Date(String(inv.createdAt ?? "")).getTime();
         return Number.isFinite(t) && t >= weekStart.getTime() && t < weekEnd.getTime();
-      });
+      }).length;
 
-      const fee = weekInvoices.reduce(
-        (sum, inv) => sum + getInvoiceBreakdown(inv, getGrossOverrideForInvoice(inv)).fee,
-        0,
-      );
-      const earnings = weekInvoices.reduce(
-        (sum, inv) =>
-          sum + (getInvoiceBreakdown(inv, getGrossOverrideForInvoice(inv)).earnings ?? 0),
-        0,
-      );
-      weeks.push({ week: label, earnings, fee, fakturor: weekInvoices.length });
+      weeks.push({ week: label, earnings, fee, fakturor });
     }
 
     return weeks;
-  }, [invoices, grossByInvoiceId, grossByMonth]);
+  }, [invoices, redemptions]);
 
   // ── Summary stats ─────────────────────────────────────────────────────────
   const totalEarnings = useMemo(
@@ -448,7 +544,11 @@ export default function CompanyInvoices() {
             <Receipt size={18} className="text-accent" />
             Transaktionshistorik
           </CardTitle>
-          <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border border-border/60 rounded-lg px-3 py-1.5">
+          <button
+            type="button"
+            onClick={() => setExportDialogOpen(true)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border border-border/60 rounded-lg px-3 py-1.5"
+          >
             <Download size={13} />
             Exportera
           </button>
@@ -558,6 +658,50 @@ export default function CompanyInvoices() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="border-border bg-card sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Exportera faktura</DialogTitle>
+            <DialogDescription>
+              Välj vilket program fakturan ska skapas i. Exporten innehåller hela transaktionshistoriken.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={exporting || invoices.length === 0}
+              className="h-auto min-h-[7.5rem] w-full min-w-0 flex-col items-center justify-center gap-2 whitespace-normal px-3 py-4 border-border hover:bg-secondary/60"
+              onClick={() => void handleExport("excel")}
+            >
+              <FileSpreadsheet className="!h-8 !w-8 shrink-0 text-emerald-500" />
+              <span className="w-full text-center text-sm font-semibold leading-tight">Excel</span>
+              <span className="w-full text-center text-xs font-normal leading-snug text-muted-foreground">
+                Laddar ner och öppnar i Microsoft Excel
+              </span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={exporting || invoices.length === 0}
+              className="h-auto min-h-[7.5rem] w-full min-w-0 flex-col items-center justify-center gap-2 whitespace-normal px-3 py-4 border-border hover:bg-secondary/60"
+              onClick={() => void handleExport("kalkylark")}
+            >
+              <Table2 className="!h-8 !w-8 shrink-0 text-accent" />
+              <span className="w-full text-center text-sm font-semibold leading-tight">Kalkylark</span>
+              <span className="w-full text-center text-xs font-normal leading-snug text-muted-foreground">
+                Öppnar Google Kalkylark med fakturadata
+              </span>
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setExportDialogOpen(false)}>
+              Avbryt
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(selectedInvoiceId)} onOpenChange={(open) => !open && setSelectedInvoiceId(null)}>
         <DialogContent className="border-border bg-card">

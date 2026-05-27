@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, ReceiptText, Search, Save, Wand2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ReceiptText, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { getInvoiceDefaultPercentage, setInvoiceDefaultPercentage } from "@/lib/invoicePercent";
 import {
   listInvoices,
   getInvoiceById,
-  updateInvoicePercentage,
   listBusinesses,
   type Business,
   type Invoice,
@@ -56,10 +54,6 @@ export default function AdminInvoices() {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
-  const [percentageDraft, setPercentageDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const [bulkPercent, setBulkPercent] = useState<string>(() => String(getInvoiceDefaultPercentage()));
 
   const hydratePercentages = async (list: Invoice[]) => {
     const toHydrate = list.filter(
@@ -158,7 +152,6 @@ export default function AdminInvoices() {
   useEffect(() => {
     if (!selectedInvoiceId) {
       setSelectedInvoice(null);
-      setPercentageDraft("");
       return;
     }
 
@@ -169,7 +162,6 @@ export default function AdminInvoices() {
         const inv = await getInvoiceById(selectedInvoiceId);
         if (cancelled) return;
         setSelectedInvoice(inv);
-        setPercentageDraft(typeof inv.pricePercentage === "number" ? String(inv.pricePercentage) : "");
       } catch (error) {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : "Kunde inte läsa fakturan.";
@@ -203,7 +195,7 @@ export default function AdminInvoices() {
     <div className="space-y-6 max-w-full min-w-0">
       <div>
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Fakturor</h1>
-        <p className="text-muted-foreground mt-1">Adminvy: lista fakturor och justera procent.</p>
+        <p className="text-muted-foreground mt-1">Adminvy: lista och granska fakturor.</p>
       </div>
 
       <Card className="bg-card border-border">
@@ -247,49 +239,6 @@ export default function AdminInvoices() {
           </div>
           <div className="text-xs text-muted-foreground">
             Totalt: {totals.count} • Betalda: {totals.paid} • Avgift: {formatKr(totals.fee)} kr
-          </div>
-
-          <div className="rounded-xl border border-border bg-background/40 p-4 space-y-2">
-            <div className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Wand2 className="h-4 w-4 text-accent" />
-              Procent för nya fakturor
-            </div>
-            <div className="grid gap-2 md:grid-cols-[220px_auto_1fr] items-center">
-              <Input
-                value={bulkPercent}
-                onChange={(e) => setBulkPercent(e.target.value)}
-                placeholder="10"
-                inputMode="numeric"
-                className="h-11 bg-background border-border text-foreground"
-              />
-              <Button
-                type="button"
-                disabled={loading}
-                onClick={async () => {
-                  const value = Number(bulkPercent);
-                  if (!Number.isFinite(value) || value < 0) {
-                    toast.error("Procent måste vara ett nummer ≥ 0.");
-                    return;
-                  }
-                  try {
-                    setInvoiceDefaultPercentage(value);
-                  } catch {
-                    /* ignore */
-                  }
-                  toast.success("Procent sparad. Gäller nya fakturor framåt.");
-                }}
-                className="h-11 gap-2"
-              >
-                <Save className="h-4 w-4" />
-                Spara
-              </Button>
-              <div className="text-xs text-muted-foreground">
-                Ändrar inte befintliga fakturor.
-              </div>
-            </div>
-            <div className="text-[11px] text-muted-foreground">
-              Backend-stöd krävs för att detta ska påverka nya fakturor automatiskt. (UI sparar en default.)
-            </div>
           </div>
         </CardContent>
       </Card>
@@ -379,7 +328,7 @@ export default function AdminInvoices() {
       <Dialog open={Boolean(selectedInvoiceId)} onOpenChange={(open) => !open && setSelectedInvoiceId(null)}>
         <DialogContent className="border-border bg-card">
           <DialogHeader>
-            <DialogTitle>Uppdatera procent</DialogTitle>
+            <DialogTitle>Fakturadetaljer</DialogTitle>
           </DialogHeader>
 
           {detailsLoading ? (
@@ -395,50 +344,6 @@ export default function AdminInvoices() {
                 </div>
                 <div className="mt-3 text-xs text-muted-foreground">Nuvarande total</div>
                 <div className="text-sm font-semibold text-foreground">{formatKr(toNumber(selectedInvoice.totalPrice))} kr</div>
-              </div>
-
-              <div className="rounded-xl border border-border bg-background/40 p-4 space-y-2">
-                <div className="text-sm font-semibold text-foreground">Ny procent</div>
-                <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
-                  <Input
-                    value={percentageDraft}
-                    onChange={(e) => setPercentageDraft(e.target.value)}
-                    placeholder="10"
-                    inputMode="numeric"
-                    className="h-11 bg-background border-border text-foreground"
-                  />
-                  <Button
-                    type="button"
-                    disabled={saving}
-                    onClick={async () => {
-                      const value = Number(percentageDraft);
-                      if (!Number.isFinite(value) || value < 0) {
-                        toast.error("Procent måste vara ett nummer ≥ 0.");
-                        return;
-                      }
-                      if (!selectedInvoiceId) return;
-                      setSaving(true);
-                      try {
-                        const updated = await updateInvoicePercentage(selectedInvoiceId, value);
-                        setSelectedInvoice(updated);
-                        setInvoices((prev) => prev.map((i) => (String(i.id) === String(updated.id) ? { ...i, ...updated } : i)));
-                        toast.success("Procent uppdaterad.");
-                      } catch (error) {
-                        const message = error instanceof Error ? error.message : "Kunde inte uppdatera procent.";
-                        toast.error(message);
-                      } finally {
-                        setSaving(false);
-                      }
-                    }}
-                    className="h-11 gap-2"
-                  >
-                    <Save className="h-4 w-4" />
-                    {saving ? "Sparar..." : "Spara"}
-                  </Button>
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Backend räknar om totalen när procenten uppdateras.
-                </div>
               </div>
             </div>
           ) : (

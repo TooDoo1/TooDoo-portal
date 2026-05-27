@@ -3,36 +3,23 @@ import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { BusinessAppPreviewCard } from "@/components/BusinessAppPreviewCard";
 import {
 	createBusiness,
+	getBusinessDefaultImages,
 	listCategories,
-	searchCompaniesByOrgNumber,
+	searchScbWorkplacesByOrgNumber,
 	setBusinessId,
+	type ScbCompanySearchHit,
 } from "@/lib/api";
+import { pickCategoryBySni } from "@/lib/sniCategoryMap";
 import { toast } from "sonner";
 import { TimePicker } from "@/components/TimePicker";
 
-const shootingStars = [
-	{ top: "0%", left: "6%", delay: "-0.2s", duration: "5.1s" },
-	{ top: "0%", left: "22%", delay: "-1.0s", duration: "5.4s" },
-	{ top: "0%", left: "42%", delay: "-1.6s", duration: "5.2s" },
-	{ top: "0%", left: "68%", delay: "-2.1s", duration: "5.6s" },
-	{ top: "0%", left: "92%", delay: "-2.8s", duration: "5.3s" },
-	{ top: "1%", left: "12%", delay: "-3.4s", duration: "5.5s" },
-	{ top: "1%", left: "34%", delay: "-4.0s", duration: "5.7s" },
-	{ top: "1%", left: "76%", delay: "-4.8s", duration: "5.4s" },
-	{ top: "2%", left: "58%", delay: "-2.0s", duration: "5.7s" },
-	{ top: "5%", left: "88%", delay: "-3.5s", duration: "5.3s" },
-	{ top: "12%", left: "100%", delay: "-0.4s", duration: "5.1s" },
-	{ top: "28%", left: "100%", delay: "-1.8s", duration: "5.2s" },
-	{ top: "44%", left: "100%", delay: "-3.1s", duration: "5.8s" },
-	{ top: "60%", left: "100%", delay: "-4.2s", duration: "6.1s" },
-	{ top: "76%", left: "100%", delay: "-5.4s", duration: "5.4s" },
-	{ top: "92%", left: "100%", delay: "-6.6s", duration: "6.3s" },
-];
 
 export default function Registration() {
 	const [company, setCompany] = useState("");
@@ -44,20 +31,17 @@ export default function Registration() {
 	const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 	const [orgNumber, setOrgNumber] = useState("");
 	const [orgSearchLoading, setOrgSearchLoading] = useState(false);
-	const [orgSearchResults, setOrgSearchResults] = useState<
-		Array<{
-			name: string;
-			orgNumber: string;
-			addressLine: string;
-			city: string;
-			street: string;
-		}>
-	>([]);
+	const [orgSearchResults, setOrgSearchResults] = useState<ScbCompanySearchHit[]>([]);
+	const [orgResultFilter, setOrgResultFilter] = useState("");
 	const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(null);
-	const [imageUrl, setImageUrl] = useState("");
-	const [imageFile, setImageFile] = useState<File | null>(null);
-	const [uploadedImageUrl, setUploadedImageUrl] = useState("");
-	const imageFileInputRef = useRef<HTMLInputElement | null>(null);
+	const [selectedCfarNr, setSelectedCfarNr] = useState<string | null>(null);
+	const [manualEntry, setManualEntry] = useState(false);
+	const showRestOfForm = Boolean(selectedCfarNr) || manualEntry;
+	const [prefill, setPrefill] = useState({ email: "", phone: "", city: "", address: "" });
+	const [defaultImageUrls, setDefaultImageUrls] = useState<string[]>([]);
+	const [selectedDefaultImageUrl, setSelectedDefaultImageUrl] = useState("");
+	const [isLoadingDefaultImages, setIsLoadingDefaultImages] = useState(false);
+	const [isDefaultImageGalleryOpen, setIsDefaultImageGalleryOpen] = useState(false);
 	const navigate = useNavigate();
 	const longDescRef = useRef<HTMLTextAreaElement>(null);
 	const [openingHours, setOpeningHours] = useState<Record<
@@ -177,23 +161,29 @@ export default function Registration() {
 		void loadCategories();
 	}, []);
 
-	const imageFilePreviewUrl = useMemo(() => {
-		if (!imageFile) return "";
-		return URL.createObjectURL(imageFile);
-	}, [imageFile]);
-
 	useEffect(() => {
-		if (!imageFilePreviewUrl) return;
-		return () => URL.revokeObjectURL(imageFilePreviewUrl);
-	}, [imageFilePreviewUrl]);
-
-	useEffect(() => {
-		if (!imageFilePreviewUrl) {
-			setUploadedImageUrl("");
+		if (!categoryId) {
+			setDefaultImageUrls([]);
+			setSelectedDefaultImageUrl("");
 			return;
 		}
-		setUploadedImageUrl(imageFilePreviewUrl);
-	}, [imageFilePreviewUrl]);
+
+		const loadDefaultImages = async () => {
+			setIsLoadingDefaultImages(true);
+			try {
+				const response = await getBusinessDefaultImages(categoryId);
+				const images = Array.isArray(response.images) ? response.images : [];
+				setDefaultImageUrls(images);
+				setSelectedDefaultImageUrl((prev) => (prev && images.includes(prev) ? prev : images[0] ?? ""));
+			} catch {
+				setDefaultImageUrls([]);
+				setSelectedDefaultImageUrl("");
+			}
+			setIsLoadingDefaultImages(false);
+		};
+
+		void loadDefaultImages();
+	}, [categoryId]);
 
 	const handleRegister = async () => {
 		const email = (document.getElementById("email") as HTMLInputElement | null)?.value.trim() ?? "";
@@ -229,9 +219,8 @@ export default function Registration() {
 			return;
 		}
 
-		const trimmedImageUrl = imageUrl.trim();
-		const wantsUpload = Boolean(imageFile);
-		if (!wantsUpload && trimmedImageUrl) {
+		const trimmedImageUrl = selectedDefaultImageUrl.trim();
+		if (trimmedImageUrl) {
 			try {
 				// eslint-disable-next-line no-new
 				new URL(trimmedImageUrl);
@@ -270,9 +259,8 @@ export default function Registration() {
 				address,
 				city,
 				categoryId: categoryId,
-				imageSourceType: wantsUpload ? "UPLOADED" : trimmedImageUrl ? "EXTERNAL_URL" : undefined,
-				imageUrl: wantsUpload ? undefined : trimmedImageUrl ? trimmedImageUrl : undefined,
-				imageFile: wantsUpload ? imageFile ?? undefined : undefined,
+				imageSourceType: trimmedImageUrl ? "EXTERNAL_URL" : undefined,
+				imageUrl: trimmedImageUrl || undefined,
 				...(shouldSendOpeningHours ? { openingHours: openingHoursPayload } : {}),
 			});
 
@@ -304,112 +292,84 @@ export default function Registration() {
 		}
 
 		setOrgSearchLoading(true);
+		setOrgResultFilter("");
 		try {
-			const companies = await searchCompaniesByOrgNumber(raw, 5);
-			const mapped = companies.map((c) => {
-				const street = c.postalAddress?.street?.trim() ?? "";
-				const postalCode = c.postalAddress?.postalCode?.trim() ?? "";
-				const city = c.postalAddress?.city?.trim() ?? "";
-				const addressLine = [street, [postalCode, city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-
-				return {
-					name: c.name,
-					orgNumber: c.orgNumber,
-					addressLine,
-					city,
-					street,
-				};
-			});
+			const mapped = await searchScbWorkplacesByOrgNumber(raw);
 			setOrgSearchResults(mapped);
 			if (mapped.length === 0) {
-				toast.info("Inga träffar.");
+				toast.info("Inga arbetsställen hittades i SCB:s företagsregister.");
+				return;
 			}
+			if (mapped.length === 1) {
+				applySelectedCompany(mapped[0]);
+				toast.success(`${mapped[0].name} valdes automatiskt.`);
+				return;
+			}
+			toast.info(`${mapped.length} arbetsställen hittades — välj rätt arbetsställe nedan.`);
 		} catch (error) {
-			const message = error instanceof Error ? error.message : "Kunde inte söka företag.";
+			const message = error instanceof Error ? error.message : "Kunde inte söka i SCB:s företagsregister.";
 			toast.error(message);
 		} finally {
 			setOrgSearchLoading(false);
 		}
 	};
 
-	const applySelectedCompany = (c: { name: string; city: string; street: string }) => {
+	const applySelectedCompany = (c: ScbCompanySearchHit) => {
 		setSelectedCompanyName(c.name);
+		setSelectedCfarNr(c.cfarNr || null);
 		setCompany("annat");
 		setCompanyOpen(false);
+		// Inputs below mount only after selection, so push values through React
+		// (defaultValue on first mount) instead of writing to the DOM directly.
+		setPrefill({
+			email: c.email ?? "",
+			phone: c.phone ?? "",
+			city: c.city ?? "",
+			address: c.street ?? "",
+		});
 
-		const cityInput = document.getElementById("companyCity") as HTMLInputElement | null;
-		const addressInput = document.getElementById("companyAddress") as HTMLInputElement | null;
-		if (cityInput && c.city) cityInput.value = c.city;
-		if (addressInput && c.street) addressInput.value = c.street;
+		// Auto-pick the closest TooDoo category. Prefers the backend-supplied
+		// industryCategory (from the SCB SNI prefix map), then falls back to the
+		// raw SNI code and the Swedish industry label.
+		const matchedCategoryId = pickCategoryBySni(
+			categoryOptions,
+			c.industryCode,
+			c.industry,
+			c.industryCategory,
+		);
+		if (matchedCategoryId) {
+			setCategoryId(matchedCategoryId);
+		}
 	};
 
+	const filteredOrgSearchResults = useMemo(() => {
+		const needle = orgResultFilter.trim().toLowerCase();
+		if (!needle) return orgSearchResults;
+		return orgSearchResults.filter((c) => {
+			const haystack = [
+				c.name,
+				c.companyName,
+				c.workplaceName ?? "",
+				c.city,
+				c.street,
+				c.addressLine,
+				c.cfarNr,
+			]
+				.join(" ")
+				.toLowerCase();
+			return haystack.includes(needle);
+		});
+	}, [orgSearchResults, orgResultFilter]);
+
+	const previewCompanyName =
+		selectedCompanyName?.trim() ||
+		(company ? companyOptions.find((option) => option.value === company)?.label : "") ||
+		"Ditt företag";
+	const previewCategoryName = categoryOptions.find((c) => c.id === categoryId)?.name ?? "";
+	const previewImageUrl = selectedDefaultImageUrl.trim() || defaultImageUrls[0] || "";
+
 	return (
-		<div className="relative min-h-screen overflow-hidden bg-background text-foreground">
-			<div className="pointer-events-none absolute inset-0">
-				{shootingStars.map((star, index) => {
-					const isAccent = index % 2 === 0;
-					const color = isAccent ? "hsl(var(--accent))" : "hsl(var(--primary))";
-
-					return (
-						<span
-							key={`${star.top}-${star.left}-${index}`}
-							className="absolute h-[2px] w-36 rounded-full opacity-80"
-							style={{
-								top: star.top,
-								left: star.left,
-								background: `linear-gradient(90deg, transparent, ${color})`,
-								boxShadow: `0 0 14px ${color}`,
-								animation: `registration-shooting-star ${star.duration} linear ${star.delay} infinite`,
-							}}
-						/>
-					);
-				})}
-			</div>
-
-			<style>{`
-				@keyframes registration-shooting-star {
-					0% {
-						transform: translate3d(0, 0, 0) rotate(145deg);
-						opacity: 0;
-					}
-					8% {
-						opacity: 0.9;
-					}
-					65% {
-						opacity: 0.7;
-					}
-					100% {
-						transform: translate3d(-95vw, 120vh, 0) rotate(145deg);
-						opacity: 0;
-					}
-				}
-
-				@media (max-width: 492px) and (max-height: 672px) {
-					.no-hover-motion,
-					.no-hover-motion * {
-						transition-duration: 0ms !important;
-					}
-
-					.no-hover-motion.group:hover .anim-back-arrow,
-					.no-hover-motion.group:hover .anim-submit-arrow,
-					.no-hover-motion.group:hover .anim-back-text,
-					.no-hover-motion.group:hover .anim-submit-text,
-					.no-hover-motion.group:hover .anim-submit-line {
-						transform: none !important;
-						opacity: 1 !important;
-					}
-
-					.no-hover-motion.group:hover .anim-back-line {
-						transform: scaleX(0) !important;
-					}
-
-					.anim-back-line,
-					.anim-submit-line {
-						display: none !important;
-					}
-				}
-			`}</style>
-
+		<div className="relative min-h-screen overflow-hidden bg-background text-foreground lg:h-screen">
 			<div className="fixed left-4 top-4 z-50 flex items-center gap-3">
 				<div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl">
 					<img src="/Icon.jpg" alt="Registration icon" className="h-10 w-10 object-cover" />
@@ -431,35 +391,171 @@ export default function Registration() {
 				</button>
 			</div>
 
-			<div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 pt-12 pb-6">
-				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
-					<div className="relative z-10">
-						<h1 className="text-3xl font-bold tracking-tight">Registrera dig:</h1>
-						<p className="mt-1 text-sm text-muted-foreground">Skapa ett konto för att börja använda tjänsten.</p>
+			<div className="relative z-10 flex min-h-screen w-full flex-col lg:h-full lg:min-h-0 lg:flex-row">
+				<div className="flex w-full items-center justify-center bg-background px-6 py-20 lg:h-full lg:w-1/2 lg:py-0">
+					<h1 className="text-center text-4xl font-extrabold uppercase leading-tight tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+						Registrera
+						<br />
+						ditt företag
+					</h1>
+				</div>
 
-						<div className="mt-6 space-y-2">
+				<div className="flex w-full justify-center border-t border-border bg-card px-6 py-12 lg:h-full lg:w-1/2 lg:overflow-y-auto lg:rounded-r-2xl lg:border-l lg:border-t-0 lg:py-16">
+					<div className="w-full max-w-md">
+						<h2 className="text-2xl font-bold tracking-tight">Registrera dig:</h2>
+						<p className="mt-1 text-sm text-muted-foreground">
+							Börja med att söka upp ditt företag på organisationsnummer.
+						</p>
+
+						<h3 className="mt-6 text-lg font-semibold text-foreground">Hitta ditt företag:</h3>
+						<div className="mt-4 space-y-2">
+							<label htmlFor="orgNumber" className="ml-0.5 text-sm font-semibold text-muted-foreground">
+								Organisationsnummer:
+							</label>
+							<div className="flex gap-2">
+								<Input
+									id="orgNumber"
+									value={orgNumber}
+									onChange={(e) => setOrgNumber(e.target.value)}
+									placeholder="556703-7485"
+									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+								/>
+								<button
+									type="button"
+									disabled={orgSearchLoading}
+									onClick={handleOrgSearch}
+									className="inline-flex h-11 shrink-0 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
+								>
+									{orgSearchLoading ? "Söker..." : "Sök"}
+								</button>
+							</div>
+
+							{orgSearchResults.length > 0 ? (
+								<div className="space-y-2 rounded-xl border border-border bg-background/30 p-2">
+									{orgSearchResults.length > 1 ? (
+										<>
+											<div className="px-1 text-xs font-semibold text-muted-foreground">
+												{orgSearchResults.length} arbetsställen — välj rätt arbetsställe
+											</div>
+											<Input
+												value={orgResultFilter}
+												onChange={(e) => setOrgResultFilter(e.target.value)}
+												placeholder="Sök på namn, stad, adress eller CFAR-nr..."
+												className="h-9 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+											/>
+										</>
+									) : null}
+									<div className="max-h-72 space-y-1 overflow-y-auto">
+										{filteredOrgSearchResults.length === 0 ? (
+											<div className="px-3 py-2 text-xs text-muted-foreground">Inga arbetsställen matchar sökningen.</div>
+										) : (
+											filteredOrgSearchResults.map((c) => {
+												const primaryLabel = c.workplaceName || c.companyName || c.addressLine || c.cfarNr;
+												const secondaryParts = [
+													c.workplaceName ? c.companyName : null,
+													c.addressLine || null,
+													c.cfarNr ? `CFAR ${c.cfarNr}` : null,
+												].filter(Boolean) as string[];
+												return (
+													<button
+														key={c.cfarNr || `${c.orgNumber}-${c.name}`}
+														type="button"
+														onClick={() => applySelectedCompany(c)}
+														className="w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent/20"
+													>
+														<div className="flex items-center justify-between gap-3">
+															<div className="min-w-0">
+																<div className="truncate text-sm font-semibold text-foreground">
+																	{primaryLabel}
+																	{c.isMainWorkplace ? (
+																		<span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-accent">Huvudkontor</span>
+																	) : null}
+																</div>
+																<div className="truncate text-xs text-muted-foreground">
+																	{secondaryParts.join(" · ")}
+																</div>
+															</div>
+															<Check className={cn("h-4 w-4 shrink-0", selectedCfarNr === c.cfarNr ? "opacity-100" : "opacity-0")} />
+														</div>
+													</button>
+												);
+											})
+										)}
+									</div>
+								</div>
+							) : null}
+
+							{!showRestOfForm ? (
+								<button
+									type="button"
+									onClick={() => setManualEntry(true)}
+									className="mt-1 text-xs font-semibold text-accent underline underline-offset-4 hover:opacity-90"
+								>
+									Mitt företag finns inte i SCB → fortsätt manuellt
+								</button>
+							) : selectedCfarNr ? (
+								<div className="rounded-lg border border-border bg-background/40 p-3">
+									<div className="flex items-start justify-between gap-2">
+										<div className="min-w-0">
+											<div className="truncate text-sm font-semibold text-foreground">
+												Valt företag: {selectedCompanyName ?? "Okänt"}
+											</div>
+											<div className="truncate text-xs text-muted-foreground">
+												Org.nr {orgNumber.trim()} · CFAR {selectedCfarNr}
+											</div>
+										</div>
+										<button
+											type="button"
+											onClick={() => {
+												setSelectedCompanyName(null);
+												setSelectedCfarNr(null);
+												setManualEntry(false);
+											}}
+											className="shrink-0 text-xs font-semibold text-accent underline underline-offset-4 hover:opacity-90"
+										>
+											Byt
+										</button>
+									</div>
+								</div>
+							) : (
+								<div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background/40 p-3 text-xs text-muted-foreground">
+									<span>Manuell registrering — inget SCB-uppslag.</span>
+									<button
+										type="button"
+										onClick={() => setManualEntry(false)}
+										className="shrink-0 text-xs font-semibold text-accent underline underline-offset-4 hover:opacity-90"
+									>
+										Ångra
+									</button>
+								</div>
+							)}
+						</div>
+
+						{showRestOfForm ? (
+						<>
+						<div className="mt-8 space-y-2">
 							<label htmlFor="email" className="text-lg font-semibold text-foreground">E-post:</label>
 							<Input
+								key={`email-${selectedCfarNr ?? "manual"}`}
 								id="email"
+								defaultValue={prefill.email}
 								placeholder="Din e-postadress"
 								className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 							/>
 							<div className="space-y-2 pt-2">
 								<label htmlFor="phonenumber" className="text-lg font-semibold text-foreground">Telefonnummer:</label>
 								<Input
+									key={`phone-${selectedCfarNr ?? "manual"}`}
 									id="phonenumber"
+									defaultValue={prefill.phone}
 									placeholder="Ditt telefonnummer"
 									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
 							</div>
 						</div>
-					</div>
-				</div>
 
-				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
-					<div className="relative z-10 space-y-4">
-						<label className="text-lg font-semibold text-foreground">Beskrivning och kategori:</label>
-						<div className="space-y-4">
+						<h3 className="mt-10 text-lg font-semibold text-foreground">Beskrivning och kategori:</h3>
+						<div className="mt-4 space-y-4">
 							<div className="space-y-2">
 								<label htmlFor="category" className="ml-0.5 text-sm font-semibold text-muted-foreground">Kategori:</label>
 								<Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
@@ -519,112 +615,15 @@ export default function Registration() {
 								/>
 							</div>
 						</div>
-					</div>
-				</div>
 
-				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
-					<div className="relative z-10 space-y-4">
-						<label className="text-lg font-semibold text-foreground">Företag:</label>
-						<div className="space-y-4">
-							<div className="space-y-2">
-								<label htmlFor="company" className="ml-0.5 text-sm font-semibold text-muted-foreground">Välj företag:</label>
-								<Popover open={companyOpen} onOpenChange={setCompanyOpen}>
-									<PopoverTrigger asChild>
-										<button
-											id="company"
-											type="button"
-											role="combobox"
-											aria-expanded={companyOpen}
-											className="h-11 w-full rounded-md border border-border bg-background px-3 text-left text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-										>
-											{selectedCompanyName?.trim()
-												? selectedCompanyName
-												: company
-													? companyOptions.find((option) => option.value === company)?.label
-													: "Välj företag"}
-										</button>
-									</PopoverTrigger>
-									<PopoverContent className="w-[--radix-popover-trigger-width] border-border bg-popover p-0" align="start">
-										<Command>
-											<CommandInput placeholder="Sök företag..." />
-											<CommandList>
-												<CommandEmpty>Inga företag hittades.</CommandEmpty>
-												<CommandGroup>
-													{companyOptions.map((option) => (
-														<CommandItem
-															key={option.value}
-															value={option.label}
-															onSelect={() => {
-																setCompany(option.value);
-																setCompanyOpen(false);
-															}}
-														>
-															<Check
-																className={cn("mr-2 h-4 w-4", company === option.value ? "opacity-100" : "opacity-0")}
-															/>
-															{option.label}
-														</CommandItem>
-													))}
-												</CommandGroup>
-											</CommandList>
-										</Command>
-									</PopoverContent>
-								</Popover>
-							</div>
-
-							<div className="space-y-2">
-								<label htmlFor="orgNumber" className="ml-0.5 text-sm font-semibold text-muted-foreground">
-									Organisationsnummer:
-								</label>
-								<div className="flex gap-2">
-									<Input
-										id="orgNumber"
-										value={orgNumber}
-										onChange={(e) => setOrgNumber(e.target.value)}
-										placeholder="556703-7485"
-										className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-									/>
-									<button
-										type="button"
-										disabled={orgSearchLoading}
-										onClick={handleOrgSearch}
-										className="inline-flex h-11 shrink-0 items-center justify-center rounded-md bg-accent px-4 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:opacity-50"
-									>
-										{orgSearchLoading ? "Söker..." : "Sök"}
-									</button>
-								</div>
-
-								{orgSearchResults.length > 0 ? (
-									<div className="rounded-xl border border-border bg-background/30 p-2">
-										<div className="space-y-1">
-											{orgSearchResults.map((c) => (
-												<button
-													key={`${c.orgNumber}-${c.name}`}
-													type="button"
-													onClick={() => applySelectedCompany(c)}
-													className="w-full rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent/20"
-												>
-													<div className="flex items-center justify-between gap-3">
-														<div className="min-w-0">
-															<div className="truncate text-sm font-semibold text-foreground">{c.name}</div>
-															<div className="truncate text-xs text-muted-foreground">
-																Org.nr: {c.orgNumber}
-																{c.addressLine ? ` · ${c.addressLine}` : ""}
-															</div>
-														</div>
-														<Check className={cn("h-4 w-4 shrink-0", selectedCompanyName === c.name ? "opacity-100" : "opacity-0")} />
-													</div>
-												</button>
-											))}
-										</div>
-									</div>
-								) : null}
-							</div>
-
+						<h3 className="mt-10 text-lg font-semibold text-foreground">Företagsinfo:</h3>
+						<div className="mt-4 space-y-4">
 							<div className="space-y-2">
 								<label htmlFor="companyCity" className="ml-0.5 text-sm font-semibold text-muted-foreground">Stad:</label>
 								<Input
+									key={`city-${selectedCfarNr ?? "manual"}`}
 									id="companyCity"
+									defaultValue={prefill.city}
 									placeholder="Ange stad"
 									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
@@ -633,7 +632,9 @@ export default function Registration() {
 							<div className="space-y-2">
 								<label htmlFor="companyAddress" className="ml-0.5 text-sm font-semibold text-muted-foreground">Adress:</label>
 								<Input
+									key={`address-${selectedCfarNr ?? "manual"}`}
 									id="companyAddress"
+									defaultValue={prefill.address}
 									placeholder="Ange adress"
 									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 								/>
@@ -641,79 +642,67 @@ export default function Registration() {
 
 							<div className="space-y-2">
 								<label className="ml-0.5 text-sm font-semibold text-muted-foreground">
-									Bild URL <span className="text-xs text-muted-foreground">(valfritt)</span>
+									Välj standardbild <span className="text-xs text-muted-foreground">(baserat på kategori)</span>
 								</label>
-								<div className="flex gap-2">
-									<Input
-										placeholder="https://example.com/image.png"
-										value={imageFile ? uploadedImageUrl : imageUrl}
-										onChange={(e) => {
-											const next = e.target.value;
-											if (imageFile) {
-												// If the user edits the field, switch to URL mode.
-												if (!next.trim()) {
-													setImageFile(null);
-													setUploadedImageUrl("");
-													setImageUrl("");
-													return;
-												}
-												if (next !== uploadedImageUrl) {
-													setImageFile(null);
-													setUploadedImageUrl("");
-													setImageUrl(next);
-												}
-												return;
-											}
-											setImageUrl(next);
-										}}
-										className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-									/>
-									<button
-										type="button"
-										onClick={() => imageFileInputRef.current?.click()}
-										className="inline-flex h-11 shrink-0 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-										disabled={isSubmitting}
-									>
-										Ladda upp
-									</button>
-									<input
-										ref={imageFileInputRef}
-										type="file"
-										accept="image/*"
-										className="hidden"
-										disabled={isSubmitting}
-										onChange={(e) => {
-											const file = e.target.files?.[0] ?? null;
-											setImageFile(file);
-											if (file) setImageUrl("");
-											if (imageFileInputRef.current) imageFileInputRef.current.value = "";
-										}}
-									/>
+								<div className="flex items-center gap-2">
+									<Dialog open={isDefaultImageGalleryOpen} onOpenChange={setIsDefaultImageGalleryOpen}>
+										<DialogTrigger asChild>
+											<button
+												type="button"
+												className="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+												disabled={isLoadingDefaultImages}
+											>
+												{isLoadingDefaultImages ? "Laddar..." : "Öppna galleri"}
+											</button>
+										</DialogTrigger>
+										<DialogContent className="max-w-3xl border-border bg-card">
+											<DialogHeader>
+												<DialogTitle>Standardbilder</DialogTitle>
+												<DialogDescription>
+													Välj en förvald bild för kategorin {previewCategoryName || "vald kategori"}.
+												</DialogDescription>
+											</DialogHeader>
+											{defaultImageUrls.length > 0 ? (
+												<div className="grid max-h-[60vh] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+													{defaultImageUrls.map((url) => {
+														const selected = selectedDefaultImageUrl === url;
+														return (
+															<button
+																key={url}
+																type="button"
+																onClick={() => {
+																	setSelectedDefaultImageUrl(url);
+																	setIsDefaultImageGalleryOpen(false);
+																}}
+																className={cn(
+																	"overflow-hidden rounded-lg border-2 bg-background transition",
+																	selected ? "border-accent" : "border-border hover:border-accent/50",
+																)}
+															>
+																<img src={url} alt="Standardbild" className="h-28 w-full object-cover" />
+															</button>
+														);
+													})}
+												</div>
+											) : (
+												<div className="rounded-xl border border-border bg-background/30 p-3 text-sm text-muted-foreground">
+													Inga standardbilder hittades för vald kategori. TooDoo sätter en standardbild automatiskt.
+												</div>
+											)}
+										</DialogContent>
+									</Dialog>
+									{selectedDefaultImageUrl ? (
+										<span className="text-xs text-muted-foreground">1 bild vald</span>
+									) : (
+										<span className="text-xs text-muted-foreground">Ingen bild vald</span>
+									)}
 								</div>
 
-								{imageUrl.trim() ? (
-									<div className="mt-2 flex items-center gap-3">
-										<div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
-											<img
-												src={imageUrl}
-												alt="Image preview"
-												className="h-full w-full object-contain"
-												onError={(e) => {
-													(e.currentTarget as HTMLImageElement).style.display = "none";
-												}}
-											/>
-										</div>
-										<p className="text-xs text-muted-foreground">Förhandsvisning</p>
-									</div>
-								) : null}
-								{!imageUrl.trim() && imageFilePreviewUrl ? (
-									<div className="mt-2 flex items-center gap-3">
-										<div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
-											<img src={imageFilePreviewUrl} alt="Image preview" className="h-full w-full object-contain" />
-										</div>
-										<p className="text-xs text-muted-foreground">Förhandsvisning</p>
-									</div>
-								) : null}
+								<BusinessAppPreviewCard
+									companyName={previewCompanyName}
+									categoryName={previewCategoryName}
+									imageUrl={previewImageUrl || undefined}
+								/>
 							</div>
 
 							<div className="space-y-3 pt-2">
@@ -992,22 +981,20 @@ export default function Registration() {
 								</p>
 							</div>
 						</div>
-					</div>
-				</div>
 
-				<div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
-					<div className="relative z-10 space-y-4">
-						<label className="text-lg font-semibold text-foreground">Slutför registrering:</label>
+						<h3 className="mt-10 text-lg font-semibold text-foreground">Slutför registrering:</h3>
 
-					<button type="button" disabled={isSubmitting} onClick={handleRegister} className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
-						<span className="anim-submit-text pointer-events-none relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-4">
-							{isSubmitting ? "Registrerar" : "Registrera företag"}
-						</span>
-						<span className="anim-submit-line pointer-events-none absolute right-9 z-0 h-[1px] w-14 origin-right mr-24 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-10" />
-						<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
-							<ArrowRight className="anim-submit-arrow h-4 w-4 transition-transform duration-300 group-hover:translate-x-10" />
-						</span>
-					</button>
+						<button type="button" disabled={isSubmitting} onClick={handleRegister} className="group no-hover-motion relative mt-4 mb-10 inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
+							<span className="anim-submit-text pointer-events-none relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-4">
+								{isSubmitting ? "Registrerar" : "Registrera företag"}
+							</span>
+							<span className="anim-submit-line pointer-events-none absolute right-10 z-0 h-[1px] w-14 origin-right mr-28 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-10" />
+							<span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
+								<ArrowRight className="anim-submit-arrow h-4 w-4 transition-transform duration-300 group-hover:translate-x-11" />
+							</span>
+						</button>
+						</>
+						) : null}
 					</div>
 				</div>
 			</div>

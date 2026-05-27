@@ -5,11 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/StatusBadge";
+import { BusinessAppPreviewCard } from "@/components/BusinessAppPreviewCard";
+import { ImageGalleryDialog } from "@/components/ImageGalleryDialog";
 import { cn } from "@/lib/utils";
 import { setMonochromeEnabled } from "@/lib/monochrome";
-import { setMeteorsEnabled } from "@/lib/meteors";
 import { useMonochrome } from "@/hooks/useMonochrome";
-import { useMeteors } from "@/hooks/useMeteors";
 import { TimePicker } from "@/components/TimePicker";
 import {
   getAuthEmail,
@@ -17,8 +17,11 @@ import {
   changeMyPassword,
   getUserByEmail,
   getBusinessById,
+  getBusinessDefaultImages,
   listCategories,
+  listImages,
   setBusinessId,
+  submitBusinessImageRequest,
   updateBusiness,
   type Business,
   type BusinessStatus,
@@ -154,6 +157,8 @@ export default function CompanyAccount() {
   const [originalForm, setOriginalForm] = useState<CompanyAccountForm>(emptyForm);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState("");
+  const [galleryDialogOpen, setGalleryDialogOpen] = useState(false);
+  const [isImageFromGallery, setIsImageFromGallery] = useState(false);
   const imageFileInputRef = useRef<HTMLInputElement | null>(null);
   const [openingHours, setOpeningHours] = useState<OpeningHoursState>(defaultOpeningHours);
   const [originalOpeningHours, setOriginalOpeningHours] = useState<OpeningHoursState>(defaultOpeningHours);
@@ -166,10 +171,11 @@ export default function CompanyAccount() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [businessId, setActiveBusinessId] = useState<string | null>(null);
+  const [categoryId, setActiveCategoryId] = useState<string>("");
   const [categoryName, setCategoryName] = useState<string>("");
   const [status, setStatus] = useState<BusinessStatus | undefined>(undefined);
   const monochrome = useMonochrome();
-  const meteorsEnabled = useMeteors();
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const imageFilePreviewUrl = useMemo(() => {
     if (!imageFile) return "";
@@ -232,8 +238,10 @@ export default function CompanyAccount() {
         };
         setImageFile(null);
         setUploadedImageUrl("");
+        setIsImageFromGallery(true);
         const nextOpeningHours = toOpeningHoursState(business.openingHours);
         setActiveBusinessId(business.id);
+        setActiveCategoryId(business.categoryId ?? "");
         setCategoryName(resolvedCategory);
         setStatus(business.status);
         setForm(nextForm);
@@ -251,6 +259,79 @@ export default function CompanyAccount() {
 
     void loadBusiness();
   }, []);
+
+  const resetImageRequestUi = () => {
+    setIsImageFromGallery(true);
+    setImageFile(null);
+    setUploadedImageUrl("");
+    setForm((prev) => ({ ...prev, imageUrl: originalForm.imageUrl }));
+  };
+
+  const handleSubmitImageRequest = async () => {
+    if (!businessId) {
+      toast.error("Saknar businessId. Logga in igen.");
+      return;
+    }
+
+    const trimmedImageUrl = form.imageUrl.trim();
+    const originalImageUrl = (originalForm.imageUrl ?? "").trim();
+
+    if (!imageFile && !trimmedImageUrl) {
+      toast.error("Välj en bild eller ange en bild-URL.");
+      return;
+    }
+
+    if (!imageFile && trimmedImageUrl) {
+      try {
+        const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmedImageUrl)
+          ? trimmedImageUrl
+          : `https://${trimmedImageUrl}`;
+        new URL(withProtocol);
+      } catch {
+        toast.error("Bild-URL måste vara en giltig URL.");
+        return;
+      }
+    }
+
+    if (trimmedImageUrl && trimmedImageUrl !== originalImageUrl) {
+      const [managerImages, defaultImagesResponse] = await Promise.all([
+        listImages().catch(() => []),
+        categoryId ? getBusinessDefaultImages(categoryId).catch(() => null) : Promise.resolve(null),
+      ]);
+      const managerImageUrls = new Set(
+        managerImages
+          .map((image) => image.publicUrl || image.originalUrl || "")
+          .filter((url): url is string => Boolean(url)),
+      );
+      const defaultImageUrls = new Set(defaultImagesResponse?.images ?? []);
+      const galleryImageUrls = new Set([...managerImageUrls, ...defaultImageUrls]);
+      if (galleryImageUrls.has(trimmedImageUrl)) {
+        toast.info("Bilder från galleriet uppdateras med knappen Spara ändringar.");
+        return;
+      }
+    }
+
+    if (!imageFile && (!trimmedImageUrl || trimmedImageUrl === originalImageUrl)) {
+      toast.error("Välj en ny bild att skicka.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await submitBusinessImageRequest(
+        imageFile
+          ? { imageSourceType: "UPLOADED", imageFile }
+          : { imageSourceType: "EXTERNAL_URL", imageUrl: trimmedImageUrl },
+      );
+      toast.success("Bildförfrågan skickad till admin för granskning.");
+      resetImageRequestUi();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte skicka bildförfrågan.";
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -294,7 +375,32 @@ export default function CompanyAccount() {
 
     const trimmedWebsite = form.website.trim();
     const trimmedImageUrl = form.imageUrl.trim();
-    const wantsUpload = Boolean(imageFile);
+    const originalImageUrl = (originalForm.imageUrl ?? "").trim();
+    let galleryImageSource: "UPLOADED" | "EXTERNAL_URL" | null = null;
+    let galleryImageUrls = new Set<string>();
+
+    if (trimmedImageUrl && trimmedImageUrl !== originalImageUrl) {
+      const [managerImages, defaultImagesResponse] = await Promise.all([
+        listImages().catch(() => []),
+        categoryId ? getBusinessDefaultImages(categoryId).catch(() => null) : Promise.resolve(null),
+      ]);
+
+      const managerImageUrls = new Set(
+        managerImages
+          .map((image) => image.publicUrl || image.originalUrl || "")
+          .filter((url): url is string => Boolean(url)),
+      );
+      const defaultImageUrls = new Set(defaultImagesResponse?.images ?? []);
+      galleryImageUrls = new Set([...managerImageUrls, ...defaultImageUrls]);
+
+      if (managerImageUrls.has(trimmedImageUrl)) {
+        galleryImageSource = "UPLOADED";
+      } else if (defaultImageUrls.has(trimmedImageUrl)) {
+        galleryImageSource = "EXTERNAL_URL";
+      }
+    }
+
+    const shouldRequestReview = imageFile !== null || (trimmedImageUrl && trimmedImageUrl !== originalImageUrl && !galleryImageUrls.has(trimmedImageUrl));
     const effectiveOpeningHours: OpeningHoursState = groupWeekdays
       ? {
           ...openingHours,
@@ -317,11 +423,30 @@ export default function CompanyAccount() {
         website: trimmedWebsite ? trimmedWebsite : null,
         address: trimmedAddress,
         city: trimmedCity,
-        imageSourceType: wantsUpload ? "UPLOADED" : trimmedImageUrl ? "EXTERNAL_URL" : undefined,
-        imageUrl: wantsUpload ? undefined : trimmedImageUrl ? trimmedImageUrl : undefined,
-        imageFile: wantsUpload ? imageFile ?? undefined : undefined,
+        ...(galleryImageSource && trimmedImageUrl && trimmedImageUrl !== originalImageUrl
+          ? { imageSourceType: galleryImageSource, imageUrl: trimmedImageUrl }
+          : {}),
         openingHours: openingHoursPayload,
       });
+
+      if (shouldRequestReview) {
+        try {
+          await submitBusinessImageRequest(
+            imageFile
+              ? { imageSourceType: "UPLOADED", imageFile }
+              : { imageSourceType: "EXTERNAL_URL", imageUrl: trimmedImageUrl },
+          );
+          toast.success("Bildförfrågan skickad till admin för granskning.");
+          resetImageRequestUi();
+        } catch (requestError) {
+          const message = requestError instanceof Error ? requestError.message : "Kunde inte skicka bildförfrågan.";
+          toast.warning(message);
+        }
+      }
+
+      const savedImageUrl = shouldRequestReview
+        ? originalImageUrl
+        : getBusinessImageUrl(updated) || originalImageUrl || "";
 
       const nextForm = businessToForm({
         ...updated,
@@ -332,12 +457,15 @@ export default function CompanyAccount() {
         website: updated.website ?? (trimmedWebsite ? trimmedWebsite : null),
         address: updated.address ?? trimmedAddress,
         city: updated.city ?? trimmedCity,
-        imageUrl: getBusinessImageUrl(updated) || (!wantsUpload && trimmedImageUrl ? trimmedImageUrl : null),
+        imageUrl: savedImageUrl || null,
       });
       setForm(nextForm);
       setOriginalForm(nextForm);
       setImageFile(null);
       setUploadedImageUrl("");
+      if (shouldRequestReview || (galleryImageSource && trimmedImageUrl && trimmedImageUrl !== originalImageUrl)) {
+        setIsImageFromGallery(true);
+      }
       if (updated.status) setStatus(updated.status);
       toast.success("Kontoinformation uppdaterad.");
     } catch (error) {
@@ -392,7 +520,8 @@ export default function CompanyAccount() {
   const isDirty =
     JSON.stringify(form) !== JSON.stringify(originalForm) ||
     JSON.stringify(openingHours) !== JSON.stringify(originalOpeningHours) ||
-    (groupWeekdays && JSON.stringify(weekdayGroup) !== JSON.stringify(originalOpeningHours.monday));
+    (groupWeekdays && JSON.stringify(weekdayGroup) !== JSON.stringify(originalOpeningHours.monday)) ||
+    imageFile !== null;
 
   return (
     <div className="space-y-6 max-w-full min-w-0">
@@ -412,7 +541,7 @@ export default function CompanyAccount() {
         </div>
       </div>
 
-      <form onSubmit={handleSave} className="space-y-4">
+      <form ref={formRef} onSubmit={handleSave} className="space-y-4">
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="text-foreground">Utseende</CardTitle>
@@ -456,45 +585,7 @@ export default function CompanyAccount() {
               </button>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <span className="h-4 w-4 text-muted-foreground grid place-items-center leading-none" aria-hidden="true">
-                    ✦
-                  </span>
-                  Meteorer i bakgrunden
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  Visar animerade meteorer bakom sidan.
-                </div>
-              </div>
-              <button
-                type="button"
-                aria-pressed={meteorsEnabled}
-                onClick={() => {
-                  setMeteorsEnabled(!meteorsEnabled);
-                }}
-                className={cn(
-                  "inline-flex h-10 items-center justify-start gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors",
-                  meteorsEnabled
-                    ? "border-accent bg-accent text-accent-foreground"
-                    : "border-border bg-background text-foreground hover:bg-accent/15",
-                )}
-              >
-                <span
-                  className={cn(
-                    "grid h-5 w-5 place-items-center rounded-md border text-[11px] leading-none",
-                    meteorsEnabled
-                      ? "border-accent-foreground/30 bg-accent-foreground/10"
-                      : "border-border bg-background/40",
-                  )}
-                  aria-hidden="true"
-                >
-                  {meteorsEnabled ? "✓" : ""}
-                </span>
-                {meteorsEnabled ? "På" : "Av"}
-              </button>
-            </div>
+            {/* Meteors removed */}
           </CardContent>
         </Card>
 
@@ -787,80 +878,112 @@ export default function CompanyAccount() {
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground flex items-center gap-2">
                 <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                Bild URL <span className="text-xs text-muted-foreground">(valfri)</span>
+                Bildförfrågan till admin <span className="text-xs text-muted-foreground">(valfri)</span>
               </label>
-              <div className="flex gap-2">
-                <Input
-                  value={imageFile ? uploadedImageUrl : form.imageUrl}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    if (imageFile) {
-                      // If the user edits the field, switch to URL mode.
-                      if (!next.trim()) {
-                        setImageFile(null);
-                        setUploadedImageUrl("");
-                        updateField("imageUrl", "");
+              <p className="text-xs text-muted-foreground">
+                Bilder från galleriet uppdateras direkt. Egna bilder eller länkar som inte finns i galleriet skickas till admin för granskning.
+              </p>
+
+              <div className="space-y-3 rounded-xl border border-border bg-background/30 p-3">
+                <div className="flex gap-2">
+                  <Input
+                    value={imageFile ? uploadedImageUrl : form.imageUrl}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setIsImageFromGallery(false);
+                      if (imageFile) {
+                        if (!next.trim()) {
+                          setImageFile(null);
+                          setUploadedImageUrl("");
+                          updateField("imageUrl", "");
+                          return;
+                        }
+                        if (next !== uploadedImageUrl) {
+                          setImageFile(null);
+                          setUploadedImageUrl("");
+                          updateField("imageUrl", next);
+                        }
                         return;
                       }
-                      if (next !== uploadedImageUrl) {
-                        setImageFile(null);
-                        setUploadedImageUrl("");
-                        updateField("imageUrl", next);
+                      updateField("imageUrl", next);
+                    }}
+                    disabled={isLoading}
+                    placeholder="https://example.com/image.png"
+                    className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+                  />
+                  <Button
+                    type="button"
+                    variant="default"
+                    disabled={isLoading}
+                    className="h-11 shrink-0 bg-blue-600 text-white hover:bg-blue-700"
+                    onClick={() => imageFileInputRef.current?.click()}
+                  >
+                    Välj bild
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isLoading}
+                    className="h-11 shrink-0"
+                    onClick={() => setGalleryDialogOpen(true)}
+                  >
+                    Välj från galleri
+                  </Button>
+                  <input
+                    ref={imageFileInputRef}
+                    type="file"
+                    accept="image/*,.svg,image/svg+xml"
+                    disabled={isLoading}
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      setImageFile(file);
+                      if (file) {
+                        updateField("imageUrl", "");
+                        setIsImageFromGallery(false);
                       }
-                      return;
-                    }
-                    updateField("imageUrl", next);
-                  }}
-                  disabled={isLoading}
-                  placeholder="https://example.com/image.png"
-                  className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-                />
-                <Button
-                  type="button"
-                  variant="default"
-                  disabled={isLoading}
-                  className="h-11 shrink-0 bg-blue-600 text-white hover:bg-blue-700"
-                  onClick={() => imageFileInputRef.current?.click()}
-                >
-                  Ladda upp
-                </Button>
-                <input
-                  ref={imageFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  disabled={isLoading}
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] ?? null;
-                    setImageFile(file);
-                    if (file) updateField("imageUrl", "");
-                    if (imageFileInputRef.current) imageFileInputRef.current.value = "";
-                  }}
-                />
+                      if (imageFileInputRef.current) imageFileInputRef.current.value = "";
+                    }}
+                  />
+                </div>
+
+                {isImageFromGallery && form.imageUrl.trim() && (
+                  <div className="flex items-center gap-3">
+                    <div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
+                      <img
+                        src={form.imageUrl}
+                        alt="Image preview"
+                        className="h-full w-full object-contain"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Förhandsvisning</p>
+                  </div>
+                )}
+
+                {!isImageFromGallery && (
+                  <BusinessAppPreviewCard
+                    companyName={form.name.trim() || originalForm.name || "Ditt företag"}
+                    categoryName={categoryName}
+                    imageUrl={imageFilePreviewUrl || form.imageUrl.trim() || undefined}
+                  />
+                )}
+
+                {!isImageFromGallery && (
+                  <div className="flex justify-end pt-1">
+                    <Button
+                      type="button"
+                      onClick={() => void handleSubmitImageRequest()}
+                      disabled={isLoading || isSaving || (!imageFile && !form.imageUrl.trim())}
+                      className="bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      Skicka bild
+                    </Button>
+                  </div>
+                )}
               </div>
-              {form.imageUrl.trim() && (
-                <div className="mt-2 flex items-center gap-3">
-                  <div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
-                    <img
-                      src={form.imageUrl}
-                      alt="Image preview"
-                      className="h-full w-full object-contain"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">Förhandsvisning</p>
-                </div>
-              )}
-              {!form.imageUrl.trim() && imageFilePreviewUrl ? (
-                <div className="mt-2 flex items-center gap-3">
-                  <div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
-                    <img src={imageFilePreviewUrl} alt="Image preview" className="h-full w-full object-contain" />
-                  </div>
-                  <p className="text-xs text-muted-foreground">Förhandsvisning (uppladdad)</p>
-                </div>
-              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -1032,6 +1155,19 @@ export default function CompanyAccount() {
           </Button>
         </div>
       </form>
+
+      <ImageGalleryDialog
+        open={galleryDialogOpen}
+        onOpenChange={setGalleryDialogOpen}
+        onSelect={(imageUrl) => {
+          updateField("imageUrl", imageUrl);
+          setImageFile(null);
+          setUploadedImageUrl("");
+          setIsImageFromGallery(true);
+        }}
+        categoryName={categoryName}
+        categoryId={categoryId || undefined}
+      />
     </div>
   );
 }

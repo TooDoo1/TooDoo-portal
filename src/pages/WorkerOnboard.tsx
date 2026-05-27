@@ -256,8 +256,8 @@ export default function WorkerOnboard() {
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {isExistingUser
-                    ? "Logga in för att kopplas till företaget som arbetare."
-                    : "Registrera dig för att kopplas till företaget som arbetare."}
+                    ? "Logga in för att kopplas till företaget som kollega."
+                    : "Registrera dig för att kopplas till företaget som kollega."}
                 </p>
 
                 <form className="mt-6 space-y-5" onSubmit={handleSubmit}>

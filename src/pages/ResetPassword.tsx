@@ -16,9 +16,11 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const linkInvalid = !email.trim() || !token.trim();
+
   const canSubmit = useMemo(() => {
-    return Boolean(email.trim() && token.trim() && password.trim() && confirmPassword.trim());
-  }, [email, token, password, confirmPassword]);
+    return Boolean(!linkInvalid && password.trim() && confirmPassword.trim());
+  }, [linkInvalid, password, confirmPassword]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,9 +60,19 @@ export default function ResetPassword() {
           <CardTitle className="text-foreground">Återställ lösenord</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Välj ett nytt lösenord för <span className="font-semibold">{email || "ditt konto"}</span>.
-          </p>
+          {linkInvalid ? (
+            <p className="text-sm text-muted-foreground">
+              Länken är ogiltig eller har gått ut.{" "}
+              <Link to="/login" className="font-semibold text-accent underline underline-offset-4 hover:opacity-90">
+                Begär en ny återställningslänk
+              </Link>
+              .
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Välj ett nytt lösenord för <span className="font-semibold">{email}</span>.
+            </p>
+          )}
 
           <form onSubmit={onSubmit} className="space-y-3">
             <div className="space-y-2">
@@ -71,7 +83,7 @@ export default function ResetPassword() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Minst 8 tecken"
                 className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-                disabled={isSubmitting}
+                disabled={isSubmitting || linkInvalid}
               />
             </div>
             <div className="space-y-2">
@@ -82,7 +94,7 @@ export default function ResetPassword() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Upprepa lösenord"
                 className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-                disabled={isSubmitting}
+                disabled={isSubmitting || linkInvalid}
               />
             </div>
 
@@ -90,7 +102,7 @@ export default function ResetPassword() {
               <Link to="/login" className="text-xs font-semibold text-accent underline underline-offset-4 hover:opacity-90">
                 Till login
               </Link>
-              <Button type="submit" disabled={isSubmitting || !canSubmit} className="bg-accent text-accent-foreground hover:bg-accent/90">
+              <Button type="submit" disabled={isSubmitting || !canSubmit || linkInvalid} className="bg-accent text-accent-foreground hover:bg-accent/90">
                 {isSubmitting ? "Sparar…" : "Spara nytt lösenord"}
               </Button>
             </div>

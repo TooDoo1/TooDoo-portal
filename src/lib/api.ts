@@ -119,8 +119,24 @@ function appendFormValue(form: FormData, key: string, value: unknown) {
     form.append(key, value);
     return;
   }
-  if (typeof value === "object") {
-    form.append(key, JSON.stringify(value));
+  if (typeof value === "object" && !Array.isArray(value)) {
+    // Recursively flatten nested objects into bracket notation for form data
+    const flattenObject = (obj: Record<string, unknown>, prefix: string) => {
+      for (const [k, v] of Object.entries(obj)) {
+        if (v === undefined || v === null) continue;
+        
+        const fieldName = prefix ? `${prefix}[${k}]` : k;
+        
+        if (v instanceof File) {
+          form.append(fieldName, v);
+        } else if (typeof v === "object" && !Array.isArray(v)) {
+          flattenObject(v as Record<string, unknown>, fieldName);
+        } else {
+          form.append(fieldName, String(v));
+        }
+      }
+    };
+    flattenObject(value as Record<string, unknown>, key);
     return;
   }
   form.append(key, String(value));
@@ -128,6 +144,22 @@ function appendFormValue(form: FormData, key: string, value: unknown) {
 
 export function getApiBaseUrl() {
   return API_BASE_URL;
+}
+
+export function resolveImageUrl(url?: string | null) {
+  const value = (url ?? "").trim();
+  if (!value) return "";
+
+  const normalized = value.replace(/\\/g, "/");
+  if (/^(https?:)?\/\//i.test(normalized) || normalized.startsWith("data:") || normalized.startsWith("blob:")) {
+    return normalized;
+  }
+
+  if (normalized.startsWith("/")) {
+    return `${API_BASE_URL}${normalized}`;
+  }
+
+  return `${API_BASE_URL}/${normalized}`;
 }
 
 export function getAuthToken() {
@@ -256,14 +288,25 @@ export type AssignManagerBusinessRequest = {
 
 export type InviteManagerToBusinessResponse = {
   inviteToken: string;
+  inviteUrl?: string;
   expiresInSeconds?: number;
+  emailSent?: boolean;
+  emailError?: string;
+  emailErrorDetail?: string;
 };
 
 export type InviteWorkerToBusinessResponse = {
   inviteToken: string;
+  inviteUrl?: string;
   expiresInSeconds?: number;
+  emailSent?: boolean;
+  emailError?: string;
+  emailErrorDetail?: string;
   recipientExists?: boolean;
   recipientIsUser?: boolean;
+  recipientState?: "USER" | "MISSING" | "NON_USER";
+  requiresRegistration?: boolean;
+  canRedeemNow?: boolean;
 };
 
 export type RedeemManagerInviteRequest = {
@@ -288,6 +331,25 @@ export type CreateBusinessRequest = {
   imageFile?: File;
   openingHours?: Record<string, unknown>;
   categoryId: string;
+};
+
+export type BusinessDefaultImagesResponse = {
+  category: {
+    id: string;
+    name: string;
+  };
+  images: string[];
+};
+
+export type BusinessImageRequest = {
+  id?: string;
+  businessId?: string;
+  imageSourceType?: ImageSourceType;
+  imageUrl?: string | null;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
 };
 
 export type UpdateBusinessRequest = {
@@ -320,71 +382,147 @@ export type Business = {
   openingHours?: Record<string, unknown> | null;
   categoryId: string;
   categoryName?: string;
+  category?: { id?: string; name?: string | null } | null;
   status?: BusinessStatus;
   createdAt?: string;
   updatedAt?: string;
 };
 
-// --- FöretagsAPI.se (frontend direct) ---
-type ForetagsApiCompany = {
-  name: string;
-  orgNumber: string;
-  score?: number;
-  postalAddress?: {
-    street?: string;
-    postalCode?: string;
-    city?: string;
-  };
-};
-
-type ForetagsApiSearchResponse = {
-  companies?: ForetagsApiCompany[];
-};
-
-function getForetagsApiKey() {
-  const key = (import.meta.env.VITE_FORETAGS_API_KEY as string | undefined)?.trim();
-  if (!key) {
-    throw new ApiError("Saknar FöretagsAPI-nyckel (VITE_FORETAGS_API_KEY).");
-  }
-  return key;
-}
-
 export function normalizeOrgNumber(input: string) {
   return (input ?? "").replace(/[^\d]/g, "").trim();
 }
 
-export async function searchCompaniesByOrgNumber(orgNumber: string, limit = 5) {
-  const normalized = normalizeOrgNumber(orgNumber);
-  if (!normalized) {
+/** Coarse industry category derived by the backend from SNI prefix. */
+export type ScbIndustryCategory = {
+  /** API-owned slug, e.g. "transport-storage". */
+  id: string;
+  /** Human-readable English name, e.g. "Transport and storage". */
+  name: string;
+  /** SNI 2007 prefix (2 digits) that triggered this category. */
+  sniPrefix: string;
+};
+
+/** Workplace (arbetsställe) row from GET /scb/workplaces. CFAR is the unique key. */
+export type ScbWorkplace = {
+  cfarNr: string;
+  orgNr: string;
+  peOrgNr?: string | null;
+  companyName: string;
+  workplaceName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  postAddress?: string | null;
+  postCode?: string | null;
+  postCity?: string | null;
+  visitingAddress?: string | null;
+  visitingPostCode?: string | null;
+  visitingPostCity?: string | null;
+  municipality?: string | null;
+  municipalityCode?: string | null;
+  county?: string | null;
+  countyCode?: string | null;
+  status?: string | null;
+  statusCode?: string | null;
+  industry?: string | null;
+  industryCode?: string | null;
+  industryCategory?: ScbIndustryCategory | null;
+  isMainWorkplace?: boolean | null;
+  startDate?: string | null;
+  [key: string]: unknown;
+};
+
+export type ScbWorkplacesResponse = {
+  orgNr: string;
+  cfarNr?: string;
+  count: number;
+  workplaces: ScbWorkplace[];
+};
+
+/** UI hit; persists both org number and CFAR so the business row can store CFAR. */
+export type ScbCompanySearchHit = {
+  /** Display label (workplaceName when present, otherwise companyName). */
+  name: string;
+  /** Legal entity name (always populated). */
+  companyName: string;
+  /** SCB workplace name; blank for chains like Systembolaget. */
+  workplaceName?: string;
+  orgNumber: string;
+  /** Globally unique workplace id (8 digits). */
+  cfarNr: string;
+  addressLine: string;
+  city: string;
+  street: string;
+  email?: string;
+  phone?: string;
+  isMainWorkplace?: boolean;
+  /** Free-text industry label from SCB (Swedish). */
+  industry?: string;
+  /** Swedish SNI 2007 industry code, e.g. "56.100" (restaurant) or "47.110" (food retail). */
+  industryCode?: string;
+  /** Backend-derived coarse industry category (id/name/sniPrefix). */
+  industryCategory?: ScbIndustryCategory;
+};
+
+function formatScbCity(city: string) {
+  const trimmed = city.trim();
+  if (!trimmed) return "";
+  return trimmed
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+export function mapScbWorkplaceToSearchHit(workplace: ScbWorkplace): ScbCompanySearchHit {
+  const companyName = (workplace.companyName ?? "").trim();
+  const workplaceName = (workplace.workplaceName ?? "").trim();
+  // Visiting address is what customers know for retail; fall back to postAddress.
+  const visitingStreet = (workplace.visitingAddress ?? "").trim();
+  const visitingCity = formatScbCity(workplace.visitingPostCity ?? "");
+  const postStreet = (workplace.postAddress ?? "").trim();
+  const postCity = formatScbCity(workplace.postCity ?? "");
+
+  const street = visitingStreet || postStreet;
+  const city = visitingCity || postCity;
+  const postalCode = (workplace.visitingPostCode ?? workplace.postCode ?? "").trim();
+  const addressLine = [street, [postalCode, city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+
+  return {
+    name: workplaceName || companyName,
+    companyName,
+    workplaceName: workplaceName || undefined,
+    orgNumber: (workplace.orgNr ?? "").trim(),
+    cfarNr: (workplace.cfarNr ?? "").trim(),
+    addressLine,
+    city,
+    street,
+    email: (workplace.email ?? "").trim() || undefined,
+    phone: (workplace.phone ?? "").trim() || undefined,
+    isMainWorkplace: workplace.isMainWorkplace === true ? true : undefined,
+    industry: (workplace.industry ?? "").trim() || undefined,
+    industryCode: (workplace.industryCode ?? "").trim() || undefined,
+    industryCategory: workplace.industryCategory ?? undefined,
+  };
+}
+
+/** Public lookup via TooDoo backend → SCB Arbetsställen (workplace/CFAR layout). */
+export async function searchScbWorkplacesByOrgNumber(orgNumber: string) {
+  const trimmed = orgNumber.trim();
+  if (!trimmed) {
     throw new ApiError("Fyll i organisationsnummer.");
   }
 
-  const response = await fetch("https://data.foretagsapi.se/v1/search", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${getForetagsApiKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      org_number: normalized,
-      limit,
-    }),
-  });
+  const data = await apiRequest<ScbWorkplacesResponse>(
+    `/scb/workplaces?orgNr=${encodeURIComponent(trimmed)}`,
+    { method: "GET" },
+  );
 
-  const contentType = response.headers.get("content-type") || "";
-  const payload = contentType.includes("application/json") ? ((await response.json()) as unknown) : null;
-
-  if (!response.ok) {
-    const message =
-      (payload as { error?: string; message?: string } | null)?.error ||
-      (payload as { error?: string; message?: string } | null)?.message ||
-      `FöretagsAPI request failed (${response.status})`;
-    throw new ApiError(message);
-  }
-
-  const data = (payload ?? {}) as ForetagsApiSearchResponse;
-  return (Array.isArray(data.companies) ? data.companies : []) as ForetagsApiCompany[];
+  const workplaces = Array.isArray(data.workplaces) ? data.workplaces : [];
+  return workplaces.map(mapScbWorkplaceToSearchHit).filter((w) => w.cfarNr);
 }
+
+/** Backwards-compatible alias — now backed by /scb/workplaces (per-CFAR rows). */
+export const searchScbCompaniesByOrgNumber = searchScbWorkplacesByOrgNumber;
 
 export type Order = {
   id: string;
@@ -401,6 +539,11 @@ export type Order = {
   validTo: string;
   maxRedemptions?: number;
   perPersonRedemptions?: number;
+  // Total number of QR codes that have been claimed for this order (includes redeemed).
+  claimedRedemptions?: number;
+  // Subset of claimed QR codes that have been verified/redeemed at the business.
+  redeemedRedemptions?: number;
+  isActive?: boolean;
   businessId: string;
   [key: string]: unknown;
 };
@@ -568,13 +711,52 @@ export type ForgotPasswordTokenRequest = {
 
 export type ForgotPasswordTokenResponse = {
   passwordResetToken: string;
+  /** Present when the backend sends the reset email itself. */
+  emailSent?: boolean;
+  resetUrl?: string;
 };
+
+export function getPortalBaseUrl() {
+  const configured = (import.meta.env.VITE_PORTAL_URL as string | undefined)?.trim();
+  if (configured) return configured.replace(/\/$/, "");
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return "";
+}
+
+/** Link opened from the reset email; must match the route in App.tsx. */
+export function buildPasswordResetUrl(email: string, token: string) {
+  const base = getPortalBaseUrl();
+  const url = new URL(`${base}/reset-password`);
+  url.searchParams.set("email", email.trim());
+  url.searchParams.set("token", token);
+  return url.toString();
+}
 
 export async function forgotPasswordToken(body: ForgotPasswordTokenRequest) {
   return apiRequest<ForgotPasswordTokenResponse>("/user/forgot-password/token", {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+/** Requests a reset token. Backend should email `buildPasswordResetUrl` (or return resetUrl). */
+export async function requestPasswordResetLink(email: string) {
+  const trimmed = email.trim();
+  const res = await forgotPasswordToken({ email: trimmed });
+  const token = typeof res.passwordResetToken === "string" ? res.passwordResetToken.trim() : "";
+  if (!token) {
+    throw new ApiError("Kunde inte skapa återställningslänk.");
+  }
+  const resetUrl =
+    typeof res.resetUrl === "string" && res.resetUrl.trim()
+      ? res.resetUrl.trim()
+      : buildPasswordResetUrl(trimmed, token);
+  return {
+    resetUrl,
+    emailSent: res.emailSent === true,
+  };
 }
 
 export type ForgotPasswordResetRequest = {
@@ -645,10 +827,13 @@ export async function redeemManagerInvite(email: string, inviteToken: string) {
   );
 }
 
-export async function inviteWorkerToBusiness(email: string) {
+export async function inviteWorkerToBusiness(email: string, managerEmail?: string) {
   return apiRequest<InviteWorkerToBusinessResponse>(
     `/user/worker/${encodeURIComponent(email)}/assign-business/invite`,
-    { method: "POST" },
+    {
+      method: "POST",
+      body: JSON.stringify({ managerEmail }),
+    },
     true,
   );
 }
@@ -681,6 +866,26 @@ export async function removeWorkerFromBusiness(userId: string) {
   return apiRequest<Record<string, unknown>>(
     `/user/worker/${encodeURIComponent(userId)}/remove-business`,
     { method: "DELETE" },
+    true,
+  );
+}
+
+export type ImageGalleryItem = {
+  id: string;
+  businessId?: string;
+  sourceType?: string;
+  originalUrl?: string;
+  storageKey?: string;
+  publicUrl?: string;
+  mimeType?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export async function listImages() {
+  return apiRequest<ImageGalleryItem[]>(
+    "/images",
+    { method: "GET" },
     true,
   );
 }
@@ -736,6 +941,49 @@ export async function createBusiness(body: CreateBusinessRequest) {
   appendFormValue(form, "imageSourceType", "UPLOADED");
   appendFormValue(form, "image", body.imageFile);
   return apiRequestFormData<Record<string, unknown>>("/business", form, false, "POST");
+}
+
+export async function getBusinessDefaultImages(categoryId: string) {
+  const query = new URLSearchParams({ categoryId }).toString();
+  return apiRequest<BusinessDefaultImagesResponse>(`/business/default-images?${query}`, { method: "GET" });
+}
+
+export async function submitBusinessImageRequest(body: { imageSourceType: ImageSourceType; imageUrl?: string; imageFile?: File }) {
+  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
+  if (!wantsUpload) {
+    return apiRequest<BusinessImageRequest>(
+      "/business/image-requests",
+      {
+        method: "POST",
+        body: JSON.stringify({ imageSourceType: body.imageSourceType, imageUrl: body.imageUrl }),
+      },
+      true,
+    );
+  }
+
+  const form = new FormData();
+  appendFormValue(form, "imageSourceType", "UPLOADED");
+  appendFormValue(form, "image", body.imageFile);
+  return apiRequestFormData<BusinessImageRequest>("/business/image-requests", form, true, "POST");
+}
+
+export async function listBusinessImageRequests(params: { status?: string; businessId?: string } = {}) {
+  const query = new URLSearchParams();
+  if (params.status) query.set("status", params.status);
+  if (params.businessId) query.set("businessId", params.businessId);
+  const qs = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<BusinessImageRequest[]>(`/business/image-requests${qs}`, { method: "GET" }, true);
+}
+
+export async function reviewBusinessImageRequest(requestId: string, status: "APPROVED" | "DECLINED") {
+  return apiRequest<BusinessImageRequest>(
+    `/business/image-requests/${encodeURIComponent(requestId)}/review`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    },
+    true,
+  );
 }
 
 export async function listBusinesses(status?: BusinessStatus) {
