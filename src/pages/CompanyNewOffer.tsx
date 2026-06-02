@@ -39,8 +39,12 @@ type OfferPayload = {
   imageFile?: File;
   orderTimeFrom: string;
   orderTimeTo: string;
+  /** Daily redeem window start, HH:mm (24h). */
   validFrom: string;
+  /** Daily redeem window end, HH:mm (24h). */
   validTo: string;
+  /** How long a claimed QR remains valid (minutes). */
+  expireTime?: number;
   maxRedemptions?: number;
   perPersonRedemptions?: number;
 };
@@ -102,6 +106,11 @@ function addMinutesToTime(time: string, minutesToAdd: number) {
 function toLocalIsoWithOffset(date: Date) {
   // Backend-safe ISO string that preserves the local wall-clock time by including offset, e.g. 2026-04-23T11:40:00+02:00
   return format(date, "yyyy-MM-dd'T'HH:mm:ssxxx");
+}
+
+function isIsoDateTime(value: string) {
+  // Distinguish ISO-like timestamps from HH:mm.
+  return Boolean((value ?? "").includes("T"));
 }
 
 function getOrderImageUrl(order: Record<string, unknown>) {
@@ -519,18 +528,28 @@ export default function CompanyNewOffer() {
         })();
         setEditLocked(isActive);
         if (isActive) toast.info("Aktivt erbjudande kan inte redigeras.");
-        const orderTimeFrom = order.orderTimeFrom || order.validFrom || "";
-        const orderTimeTo = order.orderTimeTo || order.validTo || "";
-        const couponLifetimeMs = new Date(order.validTo).getTime() - new Date(orderTimeFrom).getTime();
-        const couponLifetimeMinutes = Number.isFinite(couponLifetimeMs) && couponLifetimeMs > 0
-          ? Math.max(1, Math.round(couponLifetimeMs / (60 * 1000)))
-          : 60;
+        const orderTimeFrom =
+          order.orderTimeFrom ||
+          (isIsoDateTime(String(order.validFrom ?? "")) ? String(order.validFrom) : "") ||
+          "";
+        const orderTimeTo =
+          order.orderTimeTo ||
+          (isIsoDateTime(String(order.validTo ?? "")) ? String(order.validTo) : "") ||
+          "";
+        const couponLifetimeMinutes =
+          typeof (order as unknown as { expireTime?: unknown }).expireTime === "number"
+            ? Math.max(1, Math.round((order as unknown as { expireTime: number }).expireTime))
+            : 60;
+        const redeemValidFrom =
+          typeof order.validFrom === "string" && !isIsoDateTime(order.validFrom) ? normalizeTime(order.validFrom) : "";
+        const redeemValidTo =
+          typeof order.validTo === "string" && !isIsoDateTime(order.validTo) ? normalizeTime(order.validTo) : "";
 
         setForm({
           title: order.title ?? "",
           imageUrl: getOrderImageUrl(order as unknown as Record<string, unknown>),
           startAt: orderTimeFrom ? format(new Date(orderTimeFrom), "yyyy-MM-dd") : "",
-          startTime: orderTimeFrom ? format(new Date(orderTimeFrom), "HH:mm") : "",
+          startTime: redeemValidFrom || (orderTimeFrom ? format(new Date(orderTimeFrom), "HH:mm") : ""),
           originalPrice: typeof order.originalPrice === "number" || typeof order.originalPrice === "string" ? String(order.originalPrice) : "",
           discountedPrice: typeof order.price === "number" || typeof order.price === "string" ? String(order.price) : "",
           claimsTotal: typeof order.maxRedemptions === "number" ? String(order.maxRedemptions) : "",
@@ -540,7 +559,7 @@ export default function CompanyNewOffer() {
           couponLifetimeMinutes: String(couponLifetimeMinutes),
           couponLifetimeUnit: "minutes",
           expiresAt: orderTimeTo ? format(new Date(orderTimeTo), "yyyy-MM-dd") : "",
-          expiresTime: orderTimeTo ? format(new Date(orderTimeTo), "HH:mm") : "",
+          expiresTime: redeemValidTo || (orderTimeTo ? format(new Date(orderTimeTo), "HH:mm") : ""),
         });
         setImageFile(null);
         setUploadedImageUrl("");
@@ -700,6 +719,17 @@ export default function CompanyNewOffer() {
           ? 60 * 60 * 1000
           : 24 * 60 * 60 * 1000;
 
+    const expireTimeMinutes =
+      form.couponLifetimeUnit === "minutes"
+        ? couponLifetimeValue
+        : form.couponLifetimeUnit === "hours"
+          ? couponLifetimeValue * 60
+          : couponLifetimeValue * 24 * 60;
+    if (!Number.isInteger(expireTimeMinutes) || expireTimeMinutes < 1 || expireTimeMinutes > 1440) {
+      toast.error("Kupong livstid måste vara mellan 1 och 1440 minuter.");
+      return;
+    }
+
     if (!form.expiresAt) {
       toast.error("Välj ett slutdatum för erbjudandet.");
       return;
@@ -754,21 +784,23 @@ export default function CompanyNewOffer() {
     const nowIso = toLocalIsoWithOffset(nowDate);
     const orderTimeFromIso = toLocalIsoWithOffset(orderTimeFromDate);
     const validToIso = toLocalIsoWithOffset(validToDate);
-    const couponValidToDate = new Date(orderTimeFromDate.getTime() + couponLifetimeValue * couponLifetimeMultiplier);
-    const couponValidToIso = toLocalIsoWithOffset(couponValidToDate);
 
     if (validToDate.getTime() <= Date.now()) {
       toast.error("Slutdatum måste vara i framtiden.");
       return;
     }
 
-    if (couponValidToDate.getTime() > validToDate.getTime()) {
-      toast.error("Kupong livstid får inte passera erbjudandets utgångsdatum.");
-      return;
-    }
+    void couponLifetimeMultiplier;
+    void nowIso;
 
     const description = form.title.trim();
     const wantsUpload = Boolean(imageFile);
+    const dailyValidFrom = normalizeTime(form.startTime);
+    const dailyValidTo = normalizeTime(form.expiresTime);
+    if (!dailyValidFrom || !dailyValidTo) {
+      toast.error("Giltighetstid måste vara i formatet HH:mm.");
+      return;
+    }
     const payload: OfferPayload = {
       title: form.title.trim(),
       description,
@@ -779,8 +811,9 @@ export default function CompanyNewOffer() {
       imageFile: wantsUpload ? imageFile ?? undefined : undefined,
       orderTimeFrom: orderTimeFromIso,
       orderTimeTo: validToIso,
-      validFrom: orderTimeFromIso,
-      validTo: couponValidToIso,
+      validFrom: dailyValidFrom,
+      validTo: dailyValidTo,
+      expireTime: expireTimeMinutes,
       maxRedemptions,
       perPersonRedemptions,
     };
