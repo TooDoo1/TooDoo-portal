@@ -1,6 +1,6 @@
 const API_BASE_URL = 
   (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
-  "https://toodoo-backend-ejml.onrender.com";
+  "https://toodoo-backend-production-10ee.up.railway.app";
 
 const TOKEN_STORAGE_KEY = "toodoo_jwt";
 const USER_EMAIL_STORAGE_KEY = "toodoo_user_email";
