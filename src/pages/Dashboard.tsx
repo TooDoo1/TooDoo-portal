@@ -1,26 +1,85 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Building2, Clock, CheckCircle, TrendingUp, ArrowUpRight, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { activeCompanies, pendingCompanies, categories } from "@/data/dummy-data";
+import { listBusinesses, listCategories, listOrders, type Business, type Category, type Order } from "@/lib/api";
 
-const stats = [
-  { label: "Aktiva företag", value: activeCompanies.length, icon: Building2, trend: "+2 denna vecka", color: "bg-accent/15 text-accent" },
-  { label: "Väntande", value: pendingCompanies.length, icon: Clock, trend: "3 nya idag", color: "bg-warning/15 text-warning" },
-  { label: "Godkända", value: 4, icon: CheckCircle, trend: "Denna månad", color: "bg-success/15 text-success" },
-  { label: "Tillväxt", value: "+12%", icon: TrendingUp, trend: "vs förra månaden", color: "bg-primary/15 text-primary" },
-];
-
-const allCompanies = [...activeCompanies, ...pendingCompanies];
-const categoryData = categories
-  .filter((c) => c !== "Alla")
-  .map((cat) => ({
-    name: cat,
-    total: allCompanies.filter((c) => c.category === cat).length,
-    active: activeCompanies.filter((c) => c.category === cat).length,
-    pending: pendingCompanies.filter((c) => c.category === cat).length,
-  }));
+type CategoryCard = {
+  name: string;
+  businessCount: number;
+  orderCount: number;
+};
 
 export default function Dashboard() {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [approvedBusinesses, setApprovedBusinesses] = useState<Business[]>([]);
+  const [pendingBusinessIds, setPendingBusinessIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [ordersData, categoriesData, approvedList, pendingBusinesses] = await Promise.all([
+          listOrders(),
+          listCategories(),
+          listBusinesses("APPROVED"),
+          listBusinesses("PENDING"),
+        ]);
+        setOrders(ordersData);
+        setCategories(categoriesData);
+        setApprovedBusinesses(approvedList);
+        setPendingBusinessIds(Array.from(new Set(pendingBusinesses.map((business) => business.id))));
+      } catch {
+        setOrders([]);
+        setCategories([]);
+        setApprovedBusinesses([]);
+        setPendingBusinessIds([]);
+      }
+    };
+
+    void load();
+  }, []);
+
+  const activeBusinessCount = useMemo(() => approvedBusinesses.length, [approvedBusinesses]);
+
+  const activeOrderCount = useMemo(() => {
+    const now = Date.now();
+    return orders.filter((order) => new Date(order.validTo).getTime() > now).length;
+  }, [orders]);
+
+  const pendingBusinessCount = useMemo(() => pendingBusinessIds.length, [pendingBusinessIds]);
+
+  const stats = [
+    { label: "Aktiva företag", value: activeBusinessCount, icon: Building2, trend: "Godkända företag", color: "bg-accent/15 text-accent" },
+    { label: "Väntande", value: pendingBusinessCount, icon: Clock, trend: "Unika företag med status PENDING", color: "bg-warning/15 text-warning" },
+    { label: "Aktiva erbjudanden", value: activeOrderCount, icon: CheckCircle, trend: "Giltiga just nu", color: "bg-success/15 text-success" },
+    { label: "Tillväxt", value: "-", icon: TrendingUp, trend: "Kräver historikdata", color: "bg-primary/15 text-primary" },
+  ];
+
+  const categoryData: CategoryCard[] = useMemo(() => {
+    const categoryNameById = new Map(categories.map((cat) => [cat.id, cat.name]));
+    const categoryNameByBusinessId = new Map<string, string>();
+    for (const business of approvedBusinesses) {
+      const resolvedName = business.categoryName ?? categoryNameById.get(business.categoryId);
+      if (resolvedName) {
+        categoryNameByBusinessId.set(business.id, resolvedName);
+      }
+    }
+
+    return categories.map((cat) => {
+      const businessCount = approvedBusinesses.filter((business) => {
+        const resolvedName = business.categoryName ?? categoryNameById.get(business.categoryId);
+        return resolvedName === cat.name;
+      }).length;
+      const orderCount = orders.filter((order) => {
+        const fromOrder = typeof order.categoryName === "string" ? order.categoryName : undefined;
+        const fromBusiness = categoryNameByBusinessId.get(order.businessId);
+        return (fromOrder ?? fromBusiness) === cat.name;
+      }).length;
+      return { name: cat.name, businessCount, orderCount };
+    });
+  }, [categories, approvedBusinesses, orders]);
+
   return (
     <div className="space-y-8">
       <div>
@@ -61,10 +120,9 @@ export default function Dashboard() {
                   <div>
                     <p className="font-semibold text-foreground">{cat.name}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                      <span>{cat.active} aktiva</span>
-                      {cat.pending > 0 && (
-                        <span className="text-warning">{cat.pending} väntande</span>
-                      )}
+                      <span>{cat.businessCount} företag</span>
+                      <span className="opacity-40">·</span>
+                      <span>{cat.orderCount} erbjudanden</span>
                     </div>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-accent transition-colors" />
@@ -80,9 +138,9 @@ export default function Dashboard() {
           <h2 className="text-lg font-semibold text-foreground mb-2">Senaste aktivitet</h2>
           <div className="space-y-3">
             {[
-              { text: "TechNova AB uppdaterade sin profil", time: "2 min sedan" },
-              { text: "StartUp Innovations skickade en ansökan", time: "1 timme sedan" },
-              { text: "GreenBuild Sverige lade till nytt erbjudande", time: "3 timmar sedan" },
+              { text: `${orders.length} orders hämtade från API`, time: "Nu" },
+              { text: `${categories.length} kategorier hämtade`, time: "Nu" },
+              { text: "Mock-data borttagen från dashboard", time: "Nu" },
             ].map((activity, i) => (
               <div key={i} className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0">
                 <span className="text-sm text-foreground/80">{activity.text}</span>

@@ -1,9 +1,16 @@
 import { useEffect, useState } from "react";
-import { Building2, ClipboardList, LayoutDashboard, LogOut, ReceiptText, ScrollText, ShieldCheck, Image as ImageIcon } from "lucide-react";
+import { BadgeCheck, Briefcase, LayoutDashboard, LogOut, ReceiptText, Tags, UserPlus, UserRound } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ADMIN_PENDING_COUNTS_REFRESH } from "@/lib/adminPendingCounts";
-import { clearAuthStorage, getAuthEmail, getAuthRole, listBusinessImageRequests, listBusinesses } from "@/lib/api";
+import {
+  clearAuthStorage,
+  getAuthEmail,
+  getAuthRole,
+  getBusinessById,
+  getBusinessId,
+  getUserByEmail,
+  setBusinessId,
+} from "@/lib/api";
 import {
   Sidebar,
   SidebarContent,
@@ -23,42 +30,46 @@ import { useMonochrome } from "@/hooks/useMonochrome";
 
 type MenuGroup = {
   label: string;
-  items: Array<{ title: string; url: string; icon: typeof LayoutDashboard; count?: number }>;
+  items: Array<{ title: string; url: string; icon: typeof LayoutDashboard }>;
 };
 
 const menuGroups: MenuGroup[] = [
   {
     label: "Översikt",
+    items: [{ title: "Dashboard", url: "/company", icon: LayoutDashboard }],
+  },
+  {
+    label: "Erbjudanden",
     items: [
-      { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
+      { title: "Erbjudanden", url: "/company/offers", icon: Tags },
+      { title: "Verifiering", url: "/company/verification", icon: BadgeCheck },
     ],
   },
   {
-    label: "Hantera",
-    items: [
-      { title: "Företag", url: "/companies", icon: Building2 },
-      { title: "Väntande", url: "/pending", icon: ClipboardList },
-      { title: "Kvalitets kontroll", url: "/admin/quality-control", icon: ImageIcon },
-      { title: "Fakturor", url: "/admin/invoices", icon: ReceiptText },
-    ],
+    label: "Ekonomi",
+    items: [{ title: "Fakturor", url: "/company/invoices", icon: ReceiptText }],
   },
   {
-    label: "System",
-    items: [{ title: "Loggar", url: "/admin/logs", icon: ScrollText }],
+    label: "Team",
+    items: [{ title: "Bjud in kollegor", url: "/company/workers/new", icon: UserPlus }],
+  },
+  {
+    label: "Konto",
+    items: [{ title: "Mitt företag", url: "/company/account", icon: UserRound }],
   },
 ];
 
 function getInitials(email: string | null | undefined) {
-  if (!email) return "AD";
+  if (!email) return "CO";
   const local = email.split("@")[0];
   const parts = local.split(/[._-]/).filter(Boolean);
   if (parts.length >= 2) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
-  return (local.slice(0, 2) || "AD").toUpperCase();
+  return (local.slice(0, 2) || "CO").toUpperCase();
 }
 
-export function AdminSidebar() {
+export function CompanySidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
@@ -66,8 +77,7 @@ export function AdminSidebar() {
 
   const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
-  const [pendingCompanyCount, setPendingCompanyCount] = useState(0);
-  const [pendingImageCount, setPendingImageCount] = useState(0);
+  const [businessName, setBusinessName] = useState<string | null>(null);
   const monochrome = useMonochrome();
 
   useEffect(() => {
@@ -77,37 +87,34 @@ export function AdminSidebar() {
 
   useEffect(() => {
     let cancelled = false;
-
-    const loadCounts = async () => {
+    const loadBusinessName = async () => {
       try {
-        const [pendingBusinesses, pendingImages] = await Promise.all([
-          listBusinesses("PENDING").catch(() => []),
-          listBusinessImageRequests({ status: "PENDING" }).catch(() => []),
-        ]);
-
-        if (cancelled) return;
-        setPendingCompanyCount(Array.isArray(pendingBusinesses) ? pendingBusinesses.length : 0);
-        setPendingImageCount(Array.isArray(pendingImages) ? pendingImages.length : 0);
-      } catch {
-        if (!cancelled) {
-          setPendingCompanyCount(0);
-          setPendingImageCount(0);
+        let resolvedId = getBusinessId();
+        if (!resolvedId) {
+          const authEmail = getAuthEmail();
+          if (authEmail) {
+            const user = await getUserByEmail(authEmail);
+            if (user.businessId) {
+              resolvedId = user.businessId;
+              setBusinessId(user.businessId);
+            }
+          }
         }
+        if (!resolvedId) {
+          if (!cancelled) setBusinessName(null);
+          return;
+        }
+        const business = await getBusinessById(resolvedId);
+        if (!cancelled) setBusinessName(business.name?.trim() || null);
+      } catch {
+        if (!cancelled) setBusinessName(null);
       }
     };
-
-    void loadCounts();
-
-    const onRefresh = () => void loadCounts();
-    window.addEventListener(ADMIN_PENDING_COUNTS_REFRESH, onRefresh);
-    window.addEventListener("focus", onRefresh);
-
+    void loadBusinessName();
     return () => {
       cancelled = true;
-      window.removeEventListener(ADMIN_PENDING_COUNTS_REFRESH, onRefresh);
-      window.removeEventListener("focus", onRefresh);
     };
-  }, [location.pathname]);
+  }, []);
 
   const handleLogout = () => {
     clearAuthStorage();
@@ -141,10 +148,15 @@ export function AdminSidebar() {
           </div>
           {!collapsed && (
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold text-foreground tracking-tight">TooDoo Admin</p>
+              <p
+                className="truncate text-sm font-bold text-foreground tracking-tight"
+                title={businessName ?? undefined}
+              >
+                {businessName ?? "Företag"}
+              </p>
               <p className="truncate text-[11px] text-muted-foreground flex items-center gap-1">
-                <ShieldCheck className="h-3 w-3 shrink-0 text-primary" />
-                Administratör
+                <Briefcase className="h-3 w-3 shrink-0 text-primary" />
+                Manager
               </p>
             </div>
           )}
@@ -163,8 +175,6 @@ export function AdminSidebar() {
               <SidebarMenu className="gap-0.5">
                 {group.items.map((item) => {
                   const active = location.pathname === item.url;
-                  const count = item.url === "/pending" ? pendingCompanyCount : item.url === "/admin/quality-control" ? pendingImageCount : 0;
-                  const showCount = !collapsed && count > 0;
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild isActive={active} tooltip={item.title} className="h-9">
@@ -190,11 +200,6 @@ export function AdminSidebar() {
                             }`}
                           />
                           {!collapsed && <span className="truncate text-sm">{item.title}</span>}
-                          {showCount && (
-                            <span className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#ff0000] text-[10px] font-semibold leading-none text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
-                              {count}
-                            </span>
-                          )}
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -220,7 +225,7 @@ export function AdminSidebar() {
                   {email ?? "Okänd användare"}
                 </p>
                 <p className="truncate text-[10px] uppercase tracking-wider text-primary/75">
-                  {role ?? "ADMIN"}
+                  {role ?? "MANAGER"}
                 </p>
               </div>
             </div>

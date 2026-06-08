@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Search, Filter, Eye, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -8,20 +8,63 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/StatusBadge";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { activeCompanies, categories, type Company } from "@/data/dummy-data";
+import { listBusinesses, listCategories } from "@/lib/api";
 import { toast } from "sonner";
 
+type Company = {
+  id: string;
+  name: string;
+  email: string;
+  logo?: string;
+  status: "active";
+  joinedAt: string;
+  category: string;
+};
+
 export default function Companies() {
-  const [companies, setCompanies] = useState<Company[]>(activeCompanies);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [categories, setCategories] = useState<string[]>(["Alla"]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
 
-  const filtered = companies.filter((c) => {
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [businessRows, categoryRows] = await Promise.all([
+          listBusinesses("APPROVED"),
+          listCategories(),
+        ]);
+
+        const categoryById = new Map(categoryRows.map((cat) => [cat.id, cat.name]));
+
+        setCompanies(
+          businessRows.map((business) => ({
+            id: business.id,
+            name: business.name,
+            email: business.contactEmail,
+            status: "active",
+            joinedAt: business.createdAt || new Date().toISOString(),
+            category: String(
+              business.categoryName ?? categoryById.get(business.categoryId) ?? "Okategoriserad",
+            ),
+          })),
+        );
+        setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
+      } catch {
+        setCompanies([]);
+        setCategories(["Alla"]);
+      }
+    };
+
+    void load();
+  }, []);
+
+  const filtered = useMemo(() => companies.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
     const matchCategory = category === "Alla" || c.category === category;
     return matchSearch && matchCategory;
-  });
+  }), [companies, search, category]);
 
   const handleDelete = () => {
     if (!deleteTarget) return;
@@ -73,15 +116,17 @@ export default function Companies() {
           {filtered.map((company) => (
             <Card key={company.id} className="card-hover bg-card border-border">
               <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <CompanyAvatar name={company.name} logo={company.logo} />
-                    <div>
-                      <p className="font-semibold text-foreground">{company.name}</p>
-                      <p className="text-sm text-muted-foreground">{company.email}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-foreground truncate" title={company.name}>{company.name}</p>
+                      <p className="text-sm text-muted-foreground truncate" title={company.email}>{company.email}</p>
                     </div>
                   </div>
-                  <StatusBadge status={company.status} />
+                  <div className="shrink-0">
+                    <StatusBadge status={company.status} />
+                  </div>
                 </div>
                 <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
                   <span>Gick med: {new Date(company.joinedAt).toLocaleDateString("sv-SE")}</span>
