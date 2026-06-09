@@ -28,6 +28,8 @@ const ManagerRegistration = lazy(() => import("./pages/ManagerRegistration"));
 const CompanyDashboard = lazy(() => import("./pages/CompanyDashboard"));
 const CompanyOffers = lazy(() => import("./pages/CompanyOffers"));
 const CompanyNewOffer = lazy(() => import("./pages/CompanyNewOffer"));
+const CompanyEvents = lazy(() => import("./pages/CompanyEvents"));
+const CompanyNewEvent = lazy(() => import("./pages/CompanyNewEvent"));
 const CompanyVerification = lazy(() => import("./pages/CompanyVerification"));
 const CompanyInvoices = lazy(() => import("./pages/CompanyInvoices"));
 const CompanyAccount = lazy(() => import("./pages/CompanyAccount"));
@@ -128,6 +130,8 @@ const App = () => {
                   <Route path="/company" element={<CompanyDashboard />} />
                   <Route path="/company/offers" element={<CompanyOffers />} />
                   <Route path="/company/offers/new" element={<CompanyNewOffer />} />
+                  <Route path="/company/events" element={<CompanyEvents />} />
+                  <Route path="/company/events/new" element={<CompanyNewEvent />} />
                   <Route path="/company/verification" element={<CompanyVerification />} />
                   <Route path="/company/invoices" element={<CompanyInvoices />} />
                   <Route path="/company/account" element={<CompanyAccount />} />

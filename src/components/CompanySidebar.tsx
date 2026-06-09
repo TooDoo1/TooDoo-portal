@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BadgeCheck, Briefcase, LayoutDashboard, LogOut, ReceiptText, Tags, UserPlus, UserRound } from "lucide-react";
+import { BadgeCheck, Briefcase, CalendarDays, LayoutDashboard, LogOut, ReceiptText, Tags, UserPlus, UserRound } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -42,6 +42,7 @@ const menuGroups: MenuGroup[] = [
     label: "Erbjudanden",
     items: [
       { title: "Erbjudanden", url: "/company/offers", icon: Tags },
+      { title: "Event", url: "/company/events", icon: CalendarDays },
       { title: "Verifiering", url: "/company/verification", icon: BadgeCheck },
     ],
   },
