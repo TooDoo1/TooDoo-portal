@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { addDays, format, parseISO, startOfDay } from "date-fns";
+import { addDays, format, getDay, parseISO, startOfDay } from "date-fns";
 import { toast } from "sonner";
 import { createOrder, createOrderPreset, getBusinessById, getBusinessId, getOrderById, listOrderPresets, resolveBusinessId, updateOrder, type Business, type OrderPreset } from "@/lib/api";
 import { TimePicker } from "@/components/TimePicker";
@@ -52,6 +52,18 @@ type OfferPayload = {
 type PreviewBusiness = Pick<Business, "name" | "address" | "city" | "contactPhone" | "website"> & {
   imageUrl?: string | null;
 };
+
+type OpeningHoursDayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+
+const dayKeysByDateFnsIndex: OpeningHoursDayKey[] = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
 
 function clamp2(value: number) {
   return String(Math.max(0, Math.min(99, value))).padStart(2, "0");
@@ -101,6 +113,24 @@ function addMinutesToTime(time: string, minutesToAdd: number) {
   const hh = Math.floor(clamped / 60);
   const mm = clamped % 60;
   return `${clamp2(hh)}:${clamp2(mm)}`;
+}
+
+function getOpeningHoursForDate(openingHours: Business["openingHours"], datePart: string) {
+  if (!openingHours || !datePart) return null;
+
+  const date = parseISO(datePart);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const dayKey = dayKeysByDateFnsIndex[getDay(date)];
+  const rawDay = openingHours[dayKey];
+  if (!rawDay || typeof rawDay !== "object" || Array.isArray(rawDay)) return null;
+
+  const day = rawDay as { from?: unknown; to?: unknown };
+  const from = typeof day.from === "string" ? normalizeTime(day.from) : "";
+  const to = typeof day.to === "string" ? normalizeTime(day.to) : "";
+  if (!from || !to || compareTime(to, from) < 0) return null;
+
+  return { from, to };
 }
 
 function toLocalIsoWithOffset(date: Date) {
@@ -442,6 +472,7 @@ export default function CompanyNewOffer() {
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<OfferPayload | null>(null);
   const [previewBusiness, setPreviewBusiness] = useState<PreviewBusiness | null>(null);
+  const [businessOpeningHours, setBusinessOpeningHours] = useState<Business["openingHours"]>(null);
   const [isLoadingOffer, setIsLoadingOffer] = useState(false);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [editLocked, setEditLocked] = useState(false);
@@ -496,8 +527,12 @@ export default function CompanyNewOffer() {
           website: b.website,
           imageUrl: b.imageUrl ?? null,
         });
+        setBusinessOpeningHours(b.openingHours ?? null);
       } catch {
-        if (!cancelled) setPreviewBusiness(null);
+        if (!cancelled) {
+          setPreviewBusiness(null);
+          setBusinessOpeningHours(null);
+        }
       }
     };
     void loadBusiness();
@@ -583,6 +618,36 @@ export default function CompanyNewOffer() {
     ? expiresDateForStartPicker
     : null;
 
+  useEffect(() => {
+    if (editOrderId) return;
+
+    setForm((prev) => {
+      const startHours = getOpeningHoursForDate(businessOpeningHours, prev.startAt);
+      const endHours = getOpeningHoursForDate(businessOpeningHours, prev.expiresAt);
+      let nextStartTime = startHours?.from ?? prev.startTime;
+      const nextExpiresTime = endHours?.to ?? prev.expiresTime;
+
+      if (startHours && prev.startAt === format(new Date(), "yyyy-MM-dd")) {
+        const now = new Date();
+        const nowTime = `${clamp2(now.getHours())}:${clamp2(now.getMinutes())}`;
+        const effectiveMin = ceilToStep(nowTime, 5);
+        if (effectiveMin && compareTime(nextStartTime, effectiveMin) < 0) {
+          nextStartTime = effectiveMin;
+        }
+      }
+
+      if (nextStartTime === prev.startTime && nextExpiresTime === prev.expiresTime) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        startTime: nextStartTime,
+        expiresTime: nextExpiresTime,
+      };
+    });
+  }, [businessOpeningHours, editOrderId, form.expiresAt, form.startAt]);
+
   const onChange = (field: keyof OfferForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -656,7 +721,6 @@ export default function CompanyNewOffer() {
     const trimmedImageUrl = form.imageUrl.trim();
     if (trimmedImageUrl) {
       try {
-        // eslint-disable-next-line no-new
         new URL(trimmedImageUrl);
       } catch {
         toast.error("Bild URL måste vara en giltig URL.");
@@ -884,7 +948,6 @@ export default function CompanyNewOffer() {
     const trimmedImageUrl = form.imageUrl.trim();
     if (trimmedImageUrl) {
       try {
-        // eslint-disable-next-line no-new
         new URL(trimmedImageUrl);
       } catch {
         toast.error("Bild URL måste vara en giltig URL.");
