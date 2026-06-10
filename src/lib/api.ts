@@ -227,7 +227,7 @@ export function clearAuthStorage() {
  * Prefers localStorage, falls back to GET /user/:email and stores it.
  */
 export async function resolveBusinessId() {
-  let resolved = getBusinessId();
+  const resolved = getBusinessId();
   if (resolved) return resolved;
 
   const email = getAuthEmail();
@@ -546,6 +546,44 @@ export type Order = {
   isActive?: boolean;
   businessId: string;
   [key: string]: unknown;
+};
+
+export type BusinessEvent = {
+  id: string;
+  title: string;
+  description: string;
+  visibleFrom: string;
+  visibleTo: string;
+  startsAt: string;
+  endsAt: string;
+  locationName?: string | null;
+  imageUrl?: string | null;
+  image?: ImageAsset | null;
+  imageAsset?: ImageAsset | null;
+  isActive?: boolean;
+  businessId: string;
+  business?: Business;
+  _count?: { interests?: number };
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+};
+
+export type CreateBusinessEventRequest = {
+  title: string;
+  description: string;
+  visibleFrom: string;
+  visibleTo: string;
+  startsAt: string;
+  endsAt: string;
+  locationName?: string;
+  imageSourceType?: ImageSourceType;
+  imageUrl?: string;
+  imageFile?: File;
+};
+
+export type UpdateBusinessEventRequest = Partial<CreateBusinessEventRequest> & {
+  isActive?: boolean;
 };
 
 export type CreateOrderRequest = {
@@ -1099,6 +1137,82 @@ export async function listOrders(categoryName?: string, businessId?: string) {
   }
   const query = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<Order[]>(`/orders${query}`, { method: "GET" }, Boolean(businessId));
+}
+
+export async function createBusinessEvent(body: CreateBusinessEventRequest) {
+  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
+  if (!wantsUpload) {
+    const { imageFile: _imageFile, ...jsonBody } = body;
+    return apiRequest<BusinessEvent>(
+      "/business-events",
+      {
+        method: "POST",
+        body: JSON.stringify(jsonBody),
+      },
+      true,
+    );
+  }
+
+  const form = new FormData();
+  appendFormValue(form, "title", body.title);
+  appendFormValue(form, "description", body.description);
+  appendFormValue(form, "visibleFrom", body.visibleFrom);
+  appendFormValue(form, "visibleTo", body.visibleTo);
+  appendFormValue(form, "startsAt", body.startsAt);
+  appendFormValue(form, "endsAt", body.endsAt);
+  appendFormValue(form, "locationName", body.locationName);
+  appendFormValue(form, "imageSourceType", "UPLOADED");
+  appendFormValue(form, "image", body.imageFile);
+  return apiRequestFormData<BusinessEvent>("/business-events", form, true, "POST");
+}
+
+export async function updateBusinessEvent(eventId: string, body: UpdateBusinessEventRequest) {
+  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
+  if (!wantsUpload) {
+    const { imageFile: _imageFile, ...jsonBody } = body;
+    return apiRequest<BusinessEvent>(
+      `/business-events/${encodeURIComponent(eventId)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(jsonBody),
+      },
+      true,
+    );
+  }
+
+  const form = new FormData();
+  appendFormValue(form, "title", body.title);
+  appendFormValue(form, "description", body.description);
+  appendFormValue(form, "visibleFrom", body.visibleFrom);
+  appendFormValue(form, "visibleTo", body.visibleTo);
+  appendFormValue(form, "startsAt", body.startsAt);
+  appendFormValue(form, "endsAt", body.endsAt);
+  appendFormValue(form, "locationName", body.locationName);
+  appendFormValue(form, "isActive", body.isActive);
+  appendFormValue(form, "imageSourceType", "UPLOADED");
+  appendFormValue(form, "image", body.imageFile);
+  return apiRequestFormData<BusinessEvent>(`/business-events/${encodeURIComponent(eventId)}`, form, true, "PUT");
+}
+
+export async function listBusinessEvents(params: { businessId?: string; categoryName?: string; city?: string } = {}) {
+  const query = new URLSearchParams();
+  if (params.businessId) query.set("businessId", params.businessId);
+  if (params.categoryName) query.set("categoryName", params.categoryName);
+  if (params.city) query.set("city", params.city);
+  const qs = query.toString() ? `?${query.toString()}` : "";
+  return apiRequest<BusinessEvent[]>(`/business-events${qs}`, { method: "GET" }, Boolean(params.businessId));
+}
+
+export async function listManagerBusinessEvents() {
+  return apiRequest<BusinessEvent[]>("/business-events/manager", { method: "GET" }, true);
+}
+
+export async function getBusinessEventById(eventId: string) {
+  return apiRequest<BusinessEvent>(`/business-events/${encodeURIComponent(eventId)}`, { method: "GET" });
+}
+
+export async function deleteBusinessEvent(eventId: string) {
+  return apiRequest<Record<string, unknown>>(`/business-events/${encodeURIComponent(eventId)}`, { method: "DELETE" }, true);
 }
 
 export async function createOrderPreset(body: CreateOrderPresetRequest) {
