@@ -2,6 +2,10 @@ const API_BASE_URL =
   (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
   "https://toodoo-backend-production-10ee.up.railway.app";
 
+export function getApiBaseUrl() {
+  return API_BASE_URL;
+}
+
 const TOKEN_STORAGE_KEY = "toodoo_jwt";
 const USER_EMAIL_STORAGE_KEY = "toodoo_user_email";
 const USER_ROLE_STORAGE_KEY = "toodoo_user_role";
@@ -140,10 +144,6 @@ function appendFormValue(form: FormData, key: string, value: unknown) {
     return;
   }
   form.append(key, String(value));
-}
-
-export function getApiBaseUrl() {
-  return API_BASE_URL;
 }
 
 export function resolveImageUrl(url?: string | null) {

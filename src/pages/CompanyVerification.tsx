@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, CameraOff, QrCode, ScanLine, Search, Ticket } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   type Order,
   type Redemption,
 } from "@/lib/api";
+import { useRealtime } from "@/hooks/useRealtime";
 import { toast } from "sonner";
 
 type ClaimFilter = "all" | "aktiv" | "inlöst" | "claimed";
@@ -30,32 +31,42 @@ export default function CompanyVerification() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
+  const reloadData = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
       setIsLoading(true);
-      try {
-        const businessId = await resolveBusinessId();
-        if (!businessId) {
-          setOrders([]);
-          setRedemptions([]);
-          return;
-        }
-        const [orderData, redemptionData] = await Promise.all([
-          listOrders(undefined, businessId),
-          getBusinessRedemptions(businessId),
-        ]);
-        setOrders(orderData);
-        setRedemptions(redemptionData);
-      } catch {
+    }
+    try {
+      const businessId = await resolveBusinessId();
+      if (!businessId) {
         setOrders([]);
         setRedemptions([]);
-      } finally {
+        return;
+      }
+      const [orderData, redemptionData] = await Promise.all([
+        listOrders(undefined, businessId),
+        getBusinessRedemptions(businessId),
+      ]);
+      setOrders(orderData);
+      setRedemptions(redemptionData);
+    } catch {
+      setOrders([]);
+      setRedemptions([]);
+    } finally {
+      if (!options?.silent) {
         setIsLoading(false);
       }
-    };
-
-    void load();
+    }
   }, []);
+
+  useEffect(() => {
+    void reloadData();
+  }, [reloadData]);
+
+  useRealtime((event) => {
+    if (event.type === "order.updated") {
+      void reloadData({ silent: true });
+    }
+  });
 
   useEffect(() => {
     return () => {
