@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowUpRight,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { listOrders, resolveBusinessId, type Order } from "@/lib/api";
+import { useRealtime } from "@/hooks/useRealtime";
 
 const quickLinks = [
   {
@@ -36,23 +37,29 @@ const quickLinks = [
 export default function CompanyDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const businessId = await resolveBusinessId();
-        if (!businessId) {
-          setOrders([]);
-          return;
-        }
-        const data = await listOrders(undefined, businessId);
-        setOrders(data);
-      } catch {
+  const loadOrders = useCallback(async () => {
+    try {
+      const businessId = await resolveBusinessId();
+      if (!businessId) {
         setOrders([]);
+        return;
       }
-    };
-
-    void load();
+      const data = await listOrders(undefined, businessId);
+      setOrders(data);
+    } catch {
+      setOrders([]);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadOrders();
+  }, [loadOrders]);
+
+  useRealtime((event) => {
+    if (event.type === "order.updated") {
+      void loadOrders();
+    }
+  });
 
   const activeOffers = useMemo(() => {
     const now = Date.now();

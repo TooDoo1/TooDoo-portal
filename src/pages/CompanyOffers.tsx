@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { deleteOrder, deleteOrderPreset, listOrderPresets, listOrders, resolveBusinessId, type Order, type OrderPreset } from "@/lib/api";
+import { useRealtime } from "@/hooks/useRealtime";
 import { toast } from "sonner";
 
 type FilterStatus = "all" | "active" | "draft" | "presets";
@@ -222,19 +223,19 @@ export default function CompanyOffers() {
   useEffect(() => {
     void fetchOrders();
 
-    // Keep counters fresh when users claim offers.
-    const interval = window.setInterval(() => {
-      void fetchOrders();
-    }, 15000);
-
     const onFocus = () => void fetchOrders();
     window.addEventListener("focus", onFocus);
 
     return () => {
-      window.clearInterval(interval);
       window.removeEventListener("focus", onFocus);
     };
   }, [fetchOrders]);
+
+  useRealtime((event) => {
+    if (event.type === "order.updated") {
+      void fetchOrders();
+    }
+  });
 
   const filteredOffers = offers.filter((offer) => {
     // If the offer has expired more than 24 hours ago, don't show it.

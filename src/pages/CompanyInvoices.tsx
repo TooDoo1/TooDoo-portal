@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AreaChart,
   Area,
@@ -38,6 +38,7 @@ import {
   type InvoicePaymentStatus,
   type Redemption,
 } from "@/lib/api";
+import { useRealtime } from "@/hooks/useRealtime";
 import { toast } from "sonner";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -151,31 +152,44 @@ export default function CompanyInvoices() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const businessId = await resolveBusinessId();
-        if (!businessId) throw new Error("Saknar businessId.");
-        const [response, reds] = await Promise.all([
-          listInvoices({ businessId }),
-          getBusinessRedemptions(businessId),
-        ]);
-        const list = Array.isArray(response)
-          ? response
-          : Array.isArray((response as { invoices?: Invoice[] }).invoices)
-            ? (response as { invoices: Invoice[] }).invoices
-            : [];
-        setInvoices(list);
-        setRedemptions(Array.isArray(reds) ? reds : []);
-      } catch {
-        setInvoices([]);
-        setRedemptions([]);
-      } finally {
+
+  const loadInvoices = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
+    try {
+      const businessId = await resolveBusinessId();
+      if (!businessId) throw new Error("Saknar businessId.");
+      const [response, reds] = await Promise.all([
+        listInvoices({ businessId }),
+        getBusinessRedemptions(businessId),
+      ]);
+      const list = Array.isArray(response)
+        ? response
+        : Array.isArray((response as { invoices?: Invoice[] }).invoices)
+          ? (response as { invoices: Invoice[] }).invoices
+          : [];
+      setInvoices(list);
+      setRedemptions(Array.isArray(reds) ? reds : []);
+    } catch {
+      setInvoices([]);
+      setRedemptions([]);
+    } finally {
+      if (!options?.silent) {
         setLoading(false);
       }
-    };
-    void load();
+    }
   }, []);
+
+  useEffect(() => {
+    void loadInvoices();
+  }, [loadInvoices]);
+
+  useRealtime((event) => {
+    if (event.type === "order.updated") {
+      void loadInvoices({ silent: true });
+    }
+  });
 
   const grossByInvoiceId = useMemo(() => {
     const map = new Map<string, number>();

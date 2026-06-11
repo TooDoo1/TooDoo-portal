@@ -2,6 +2,10 @@ const API_BASE_URL =
   (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
   "https://toodoo-backend-production-10ee.up.railway.app";
 
+export function getApiBaseUrl() {
+  return API_BASE_URL;
+}
+
 const TOKEN_STORAGE_KEY = "toodoo_jwt";
 const USER_EMAIL_STORAGE_KEY = "toodoo_user_email";
 const USER_ROLE_STORAGE_KEY = "toodoo_user_role";
@@ -16,7 +20,9 @@ type ApiErrorShape = {
 };
 
 export type ImageAsset = {
+  id?: string | null;
   url?: string | null;
+  publicUrl?: string | null;
   path?: string | null;
   mimeType?: string | null;
   [key: string]: unknown;
@@ -140,10 +146,6 @@ function appendFormValue(form: FormData, key: string, value: unknown) {
     return;
   }
   form.append(key, String(value));
-}
-
-export function getApiBaseUrl() {
-  return API_BASE_URL;
 }
 
 export function resolveImageUrl(url?: string | null) {
@@ -326,24 +328,15 @@ export type CreateBusinessRequest = {
   website?: string;
   address: string;
   city: string;
-  imageSourceType?: ImageSourceType;
-  imageUrl?: string;
-  imageFile?: File;
+  imageAssetId?: string;
   openingHours?: Record<string, unknown>;
   categoryId: string;
-};
-
-export type BusinessDefaultImagesResponse = {
-  category: {
-    id: string;
-    name: string;
-  };
-  images: string[];
 };
 
 export type BusinessImageRequest = {
   id?: string;
   businessId?: string;
+  sourceType?: ImageSourceType;
   imageSourceType?: ImageSourceType;
   imageUrl?: string | null;
   status?: string;
@@ -360,9 +353,7 @@ export type UpdateBusinessRequest = {
   website?: string | null;
   address?: string;
   city?: string;
-  imageSourceType?: ImageSourceType;
-  imageUrl?: string;
-  imageFile?: File;
+  imageAssetId?: string;
   openingHours?: Record<string, unknown>;
 };
 
@@ -577,9 +568,7 @@ export type CreateBusinessEventRequest = {
   startsAt: string;
   endsAt: string;
   locationName?: string;
-  imageSourceType?: ImageSourceType;
-  imageUrl?: string;
-  imageFile?: File;
+  imageAssetId?: string;
 };
 
 export type UpdateBusinessEventRequest = Partial<CreateBusinessEventRequest> & {
@@ -592,9 +581,7 @@ export type CreateOrderRequest = {
   detailedDescription?: string;
   price: number;
   originalPrice?: number;
-  imageSourceType?: ImageSourceType;
-  imageUrl?: string;
-  imageFile?: File;
+  imageAssetId?: string;
   orderTimeFrom: string;
   orderTimeTo: string;
   validFrom: string;
@@ -609,9 +596,7 @@ export type UpdateOrderRequest = {
   detailedDescription?: string;
   price?: number;
   originalPrice?: number;
-  imageSourceType?: ImageSourceType;
-  imageUrl?: string;
-  imageFile?: File;
+  imageAssetId?: string;
   orderTimeFrom?: string;
   orderTimeTo?: string;
   validFrom?: string;
@@ -664,6 +649,8 @@ export type OrderPreset = {
   price: number | string;
   originalPrice?: number | string | null;
   imageUrl?: string | null;
+  image?: ImageAsset | null;
+  imageAsset?: ImageAsset | null;
   maxRedemptions?: number;
   isArchived?: boolean;
   businessId: string;
@@ -677,9 +664,7 @@ export type CreateOrderPresetRequest = {
   description: string;
   price: number;
   originalPrice?: number;
-  imageSourceType?: ImageSourceType;
-  imageUrl?: string;
-  imageFile?: File;
+  imageAssetId?: string;
   maxRedemptions?: number;
 };
 
@@ -688,9 +673,7 @@ export type UpdateOrderPresetRequest = {
   description?: string;
   price?: number;
   originalPrice?: number;
-  imageSourceType?: ImageSourceType;
-  imageUrl?: string;
-  imageFile?: File;
+  imageAssetId?: string;
   maxRedemptions?: number;
   perPersonRedemptions?: number;
   isArchived?: boolean;
@@ -910,7 +893,8 @@ export async function removeWorkerFromBusiness(userId: string) {
 
 export type ImageGalleryItem = {
   id: string;
-  businessId?: string;
+  businessId?: string | null;
+  categoryId?: string | null;
   sourceType?: string;
   originalUrl?: string;
   storageKey?: string;
@@ -920,8 +904,13 @@ export type ImageGalleryItem = {
   updatedAt?: string;
 };
 
+export type ImageGalleryResponse = {
+  businessImages: ImageGalleryItem[];
+  defaultImages: ImageGalleryItem[];
+};
+
 export async function listImages() {
-  return apiRequest<ImageGalleryItem[]>(
+  return apiRequest<ImageGalleryResponse>(
     "/images",
     { method: "GET" },
     true,
@@ -957,33 +946,10 @@ export async function createCategory(body: CreateCategoryRequest) {
 }
 
 export async function createBusiness(body: CreateBusinessRequest) {
-  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
-  if (!wantsUpload) {
-    const { imageFile: _imageFile, ...jsonBody } = body;
-    return apiRequest<Record<string, unknown>>("/business", {
-      method: "POST",
-      body: JSON.stringify(jsonBody),
-    });
-  }
-
-  const form = new FormData();
-  appendFormValue(form, "name", body.name);
-  appendFormValue(form, "description", body.description);
-  appendFormValue(form, "contactEmail", body.contactEmail);
-  appendFormValue(form, "contactPhone", body.contactPhone);
-  appendFormValue(form, "website", body.website);
-  appendFormValue(form, "address", body.address);
-  appendFormValue(form, "city", body.city);
-  appendFormValue(form, "categoryId", body.categoryId);
-  appendFormValue(form, "openingHours", body.openingHours);
-  appendFormValue(form, "imageSourceType", "UPLOADED");
-  appendFormValue(form, "image", body.imageFile);
-  return apiRequestFormData<Record<string, unknown>>("/business", form, false, "POST");
-}
-
-export async function getBusinessDefaultImages(categoryId: string) {
-  const query = new URLSearchParams({ categoryId }).toString();
-  return apiRequest<BusinessDefaultImagesResponse>(`/business/default-images?${query}`, { method: "GET" });
+  return apiRequest<Record<string, unknown>>("/business", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export async function submitBusinessImageRequest(body: { imageSourceType: ImageSourceType; imageUrl?: string; imageFile?: File }) {
@@ -1045,86 +1011,28 @@ export async function updateBusinessStatus(id: string, status: BusinessStatus) {
 }
 
 export async function updateBusiness(id: string, body: UpdateBusinessRequest) {
-  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
-  if (!wantsUpload) {
-    const { imageFile: _imageFile, ...jsonBody } = body;
-    return apiRequest<Business>(
-      `/business/${encodeURIComponent(id)}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(jsonBody),
-      },
-      true,
-    );
-  }
-
-  const form = new FormData();
-  appendFormValue(form, "imageSourceType", "UPLOADED");
-  appendFormValue(form, "image", body.imageFile);
-  appendFormValue(form, "name", body.name);
-  appendFormValue(form, "description", body.description);
-  appendFormValue(form, "contactEmail", body.contactEmail);
-  appendFormValue(form, "contactPhone", body.contactPhone);
-  appendFormValue(form, "website", body.website);
-  appendFormValue(form, "address", body.address);
-  appendFormValue(form, "city", body.city);
-  appendFormValue(form, "openingHours", body.openingHours);
-  return apiRequestFormData<Business>(`/business/${encodeURIComponent(id)}`, form, true, "PUT");
+  return apiRequest<Business>(
+    `/business/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
+    },
+    true,
+  );
 }
 
 export async function createOrder(body: CreateOrderRequest) {
-  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
-  if (!wantsUpload) {
-    const { imageFile: _imageFile, ...jsonBody } = body;
-    return apiRequest<Order>("/orders", {
-      method: "POST",
-      body: JSON.stringify(jsonBody),
-    }, true);
-  }
-
-  const form = new FormData();
-  appendFormValue(form, "title", body.title);
-  appendFormValue(form, "description", body.description);
-  appendFormValue(form, "detailedDescription", body.detailedDescription);
-  appendFormValue(form, "price", body.price);
-  appendFormValue(form, "originalPrice", body.originalPrice);
-  appendFormValue(form, "orderTimeFrom", body.orderTimeFrom);
-  appendFormValue(form, "orderTimeTo", body.orderTimeTo);
-  appendFormValue(form, "validFrom", body.validFrom);
-  appendFormValue(form, "validTo", body.validTo);
-  appendFormValue(form, "maxRedemptions", body.maxRedemptions);
-  appendFormValue(form, "perPersonRedemptions", body.perPersonRedemptions);
-  appendFormValue(form, "imageSourceType", "UPLOADED");
-  appendFormValue(form, "image", body.imageFile);
-  return apiRequestFormData<Order>("/orders", form, true, "POST");
+  return apiRequest<Order>("/orders", {
+    method: "POST",
+    body: JSON.stringify(body),
+  }, true);
 }
 
 export async function updateOrder(orderId: string, body: UpdateOrderRequest) {
-  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
-  if (!wantsUpload) {
-    const { imageFile: _imageFile, ...jsonBody } = body;
-    return apiRequest<Order>(`/orders/${encodeURIComponent(orderId)}`, {
-      method: "PUT",
-      body: JSON.stringify(jsonBody),
-    }, true);
-  }
-
-  const form = new FormData();
-  appendFormValue(form, "imageSourceType", "UPLOADED");
-  appendFormValue(form, "image", body.imageFile);
-  appendFormValue(form, "title", body.title);
-  appendFormValue(form, "description", body.description);
-  appendFormValue(form, "detailedDescription", body.detailedDescription);
-  appendFormValue(form, "price", body.price);
-  appendFormValue(form, "originalPrice", body.originalPrice);
-  appendFormValue(form, "orderTimeFrom", body.orderTimeFrom);
-  appendFormValue(form, "orderTimeTo", body.orderTimeTo);
-  appendFormValue(form, "validFrom", body.validFrom);
-  appendFormValue(form, "validTo", body.validTo);
-  appendFormValue(form, "maxRedemptions", body.maxRedemptions);
-  appendFormValue(form, "perPersonRedemptions", body.perPersonRedemptions);
-  appendFormValue(form, "isActive", body.isActive);
-  return apiRequestFormData<Order>(`/orders/${encodeURIComponent(orderId)}`, form, true, "PUT");
+  return apiRequest<Order>(`/orders/${encodeURIComponent(orderId)}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  }, true);
 }
 
 export async function listOrders(categoryName?: string, businessId?: string) {
@@ -1140,58 +1048,25 @@ export async function listOrders(categoryName?: string, businessId?: string) {
 }
 
 export async function createBusinessEvent(body: CreateBusinessEventRequest) {
-  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
-  if (!wantsUpload) {
-    const { imageFile: _imageFile, ...jsonBody } = body;
-    return apiRequest<BusinessEvent>(
-      "/business-events",
-      {
-        method: "POST",
-        body: JSON.stringify(jsonBody),
-      },
-      true,
-    );
-  }
-
-  const form = new FormData();
-  appendFormValue(form, "title", body.title);
-  appendFormValue(form, "description", body.description);
-  appendFormValue(form, "visibleFrom", body.visibleFrom);
-  appendFormValue(form, "visibleTo", body.visibleTo);
-  appendFormValue(form, "startsAt", body.startsAt);
-  appendFormValue(form, "endsAt", body.endsAt);
-  appendFormValue(form, "locationName", body.locationName);
-  appendFormValue(form, "imageSourceType", "UPLOADED");
-  appendFormValue(form, "image", body.imageFile);
-  return apiRequestFormData<BusinessEvent>("/business-events", form, true, "POST");
+  return apiRequest<BusinessEvent>(
+    "/business-events",
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+    true,
+  );
 }
 
 export async function updateBusinessEvent(eventId: string, body: UpdateBusinessEventRequest) {
-  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
-  if (!wantsUpload) {
-    const { imageFile: _imageFile, ...jsonBody } = body;
-    return apiRequest<BusinessEvent>(
-      `/business-events/${encodeURIComponent(eventId)}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(jsonBody),
-      },
-      true,
-    );
-  }
-
-  const form = new FormData();
-  appendFormValue(form, "title", body.title);
-  appendFormValue(form, "description", body.description);
-  appendFormValue(form, "visibleFrom", body.visibleFrom);
-  appendFormValue(form, "visibleTo", body.visibleTo);
-  appendFormValue(form, "startsAt", body.startsAt);
-  appendFormValue(form, "endsAt", body.endsAt);
-  appendFormValue(form, "locationName", body.locationName);
-  appendFormValue(form, "isActive", body.isActive);
-  appendFormValue(form, "imageSourceType", "UPLOADED");
-  appendFormValue(form, "image", body.imageFile);
-  return apiRequestFormData<BusinessEvent>(`/business-events/${encodeURIComponent(eventId)}`, form, true, "PUT");
+  return apiRequest<BusinessEvent>(
+    `/business-events/${encodeURIComponent(eventId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
+    },
+    true,
+  );
 }
 
 export async function listBusinessEvents(params: { businessId?: string; categoryName?: string; city?: string } = {}) {
@@ -1216,52 +1091,17 @@ export async function deleteBusinessEvent(eventId: string) {
 }
 
 export async function createOrderPreset(body: CreateOrderPresetRequest) {
-  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
-  if (!wantsUpload) {
-    const { imageFile: _imageFile, ...jsonBody } = body;
-    return apiRequest<OrderPreset>("/order-presets", {
-      method: "POST",
-      body: JSON.stringify(jsonBody),
-    }, true);
-  }
-
-  const form = new FormData();
-  appendFormValue(form, "title", body.title);
-  appendFormValue(form, "description", body.description);
-  appendFormValue(form, "price", body.price);
-  appendFormValue(form, "originalPrice", body.originalPrice);
-  appendFormValue(form, "maxRedemptions", body.maxRedemptions);
-  appendFormValue(form, "imageSourceType", "UPLOADED");
-  appendFormValue(form, "image", body.imageFile);
-  return apiRequestFormData<OrderPreset>("/order-presets", form, true, "POST");
+  return apiRequest<OrderPreset>("/order-presets", {
+    method: "POST",
+    body: JSON.stringify(body),
+  }, true);
 }
 
 export async function updateOrderPreset(orderPresetId: string, body: UpdateOrderPresetRequest) {
-  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
-  if (!wantsUpload) {
-    const { imageFile: _imageFile, ...jsonBody } = body;
-    return apiRequest<OrderPreset>(
-      `/order-presets/${encodeURIComponent(orderPresetId)}`,
-      { method: "PUT", body: JSON.stringify(jsonBody) },
-      true,
-    );
-  }
-
-  const form = new FormData();
-  appendFormValue(form, "imageSourceType", "UPLOADED");
-  appendFormValue(form, "image", body.imageFile);
-  appendFormValue(form, "title", body.title);
-  appendFormValue(form, "description", body.description);
-  appendFormValue(form, "price", body.price);
-  appendFormValue(form, "originalPrice", body.originalPrice);
-  appendFormValue(form, "maxRedemptions", body.maxRedemptions);
-  appendFormValue(form, "perPersonRedemptions", body.perPersonRedemptions);
-  appendFormValue(form, "isArchived", body.isArchived);
-  return apiRequestFormData<OrderPreset>(
+  return apiRequest<OrderPreset>(
     `/order-presets/${encodeURIComponent(orderPresetId)}`,
-    form,
+    { method: "PUT", body: JSON.stringify(body) },
     true,
-    "PUT",
   );
 }
 

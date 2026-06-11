@@ -165,7 +165,7 @@ export default function AdminQualityControl() {
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                       <span className="rounded-full border border-border bg-background px-2 py-1">
-                        {request.imageSourceType === "UPLOADED" ? "Uppladdad" : "Länk"}
+                        {(request.sourceType ?? request.imageSourceType) === "UPLOADED" ? "Uppladdad" : "Länk"}
                       </span>
                       {request.createdAt && (
                         <span className="rounded-full border border-border bg-background px-2 py-1">
