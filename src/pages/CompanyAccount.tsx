@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Building2, ImageIcon, Mail, MapPin, Moon, Phone, Save, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,14 +17,13 @@ import {
   changeMyPassword,
   getUserByEmail,
   getBusinessById,
-  getBusinessDefaultImages,
   listCategories,
-  listImages,
+  resolveImageUrl,
   setBusinessId,
-  submitBusinessImageRequest,
   updateBusiness,
   type Business,
   type BusinessStatus,
+  type ImageGalleryItem,
 } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -155,11 +154,8 @@ function mapStatusToBadge(status: BusinessStatus | undefined) {
 export default function CompanyAccount() {
   const [form, setForm] = useState<CompanyAccountForm>(emptyForm);
   const [originalForm, setOriginalForm] = useState<CompanyAccountForm>(emptyForm);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [uploadedImageUrl, setUploadedImageUrl] = useState("");
   const [galleryDialogOpen, setGalleryDialogOpen] = useState(false);
-  const [isImageFromGallery, setIsImageFromGallery] = useState(false);
-  const imageFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedGalleryImageAssetId, setSelectedGalleryImageAssetId] = useState<string | null>(null);
   const [openingHours, setOpeningHours] = useState<OpeningHoursState>(defaultOpeningHours);
   const [originalOpeningHours, setOriginalOpeningHours] = useState<OpeningHoursState>(defaultOpeningHours);
   const [groupWeekdays, setGroupWeekdays] = useState(true);
@@ -171,32 +167,19 @@ export default function CompanyAccount() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [businessId, setActiveBusinessId] = useState<string | null>(null);
-  const [categoryId, setActiveCategoryId] = useState<string>("");
   const [categoryName, setCategoryName] = useState<string>("");
   const [status, setStatus] = useState<BusinessStatus | undefined>(undefined);
   const monochrome = useMonochrome();
   const formRef = useRef<HTMLFormElement | null>(null);
 
-  const imageFilePreviewUrl = useMemo(() => {
-    if (!imageFile) return "";
-    return URL.createObjectURL(imageFile);
-  }, [imageFile]);
-
-  useEffect(() => {
-    if (!imageFilePreviewUrl) return;
-    return () => URL.revokeObjectURL(imageFilePreviewUrl);
-  }, [imageFilePreviewUrl]);
-
-  useEffect(() => {
-    if (!imageFilePreviewUrl) {
-      setUploadedImageUrl("");
-      return;
-    }
-    setUploadedImageUrl(imageFilePreviewUrl);
-  }, [imageFilePreviewUrl]);
-
   const updateField = (field: keyof CompanyAccountForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const selectGalleryImage = (image: ImageGalleryItem) => {
+    const rawUrl = image.publicUrl || image.originalUrl || "";
+    updateField("imageUrl", rawUrl ? resolveImageUrl(rawUrl) : "");
+    setSelectedGalleryImageAssetId(image.id);
   };
 
   useEffect(() => {
@@ -236,12 +219,9 @@ export default function CompanyAccount() {
           ...businessToForm(business),
           imageUrl: getBusinessImageUrl(business),
         };
-        setImageFile(null);
-        setUploadedImageUrl("");
-        setIsImageFromGallery(true);
+        setSelectedGalleryImageAssetId(null);
         const nextOpeningHours = toOpeningHoursState(business.openingHours);
         setActiveBusinessId(business.id);
-        setActiveCategoryId(business.categoryId ?? "");
         setCategoryName(resolvedCategory);
         setStatus(business.status);
         setForm(nextForm);
@@ -259,79 +239,6 @@ export default function CompanyAccount() {
 
     void loadBusiness();
   }, []);
-
-  const resetImageRequestUi = () => {
-    setIsImageFromGallery(true);
-    setImageFile(null);
-    setUploadedImageUrl("");
-    setForm((prev) => ({ ...prev, imageUrl: originalForm.imageUrl }));
-  };
-
-  const handleSubmitImageRequest = async () => {
-    if (!businessId) {
-      toast.error("Saknar businessId. Logga in igen.");
-      return;
-    }
-
-    const trimmedImageUrl = form.imageUrl.trim();
-    const originalImageUrl = (originalForm.imageUrl ?? "").trim();
-
-    if (!imageFile && !trimmedImageUrl) {
-      toast.error("Välj en bild eller ange en bild-URL.");
-      return;
-    }
-
-    if (!imageFile && trimmedImageUrl) {
-      try {
-        const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmedImageUrl)
-          ? trimmedImageUrl
-          : `https://${trimmedImageUrl}`;
-        new URL(withProtocol);
-      } catch {
-        toast.error("Bild-URL måste vara en giltig URL.");
-        return;
-      }
-    }
-
-    if (trimmedImageUrl && trimmedImageUrl !== originalImageUrl) {
-      const [managerImages, defaultImagesResponse] = await Promise.all([
-        listImages().catch(() => []),
-        categoryId ? getBusinessDefaultImages(categoryId).catch(() => null) : Promise.resolve(null),
-      ]);
-      const managerImageUrls = new Set(
-        managerImages
-          .map((image) => image.publicUrl || image.originalUrl || "")
-          .filter((url): url is string => Boolean(url)),
-      );
-      const defaultImageUrls = new Set(defaultImagesResponse?.images ?? []);
-      const galleryImageUrls = new Set([...managerImageUrls, ...defaultImageUrls]);
-      if (galleryImageUrls.has(trimmedImageUrl)) {
-        toast.info("Bilder från galleriet uppdateras med knappen Spara ändringar.");
-        return;
-      }
-    }
-
-    if (!imageFile && (!trimmedImageUrl || trimmedImageUrl === originalImageUrl)) {
-      toast.error("Välj en ny bild att skicka.");
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await submitBusinessImageRequest(
-        imageFile
-          ? { imageSourceType: "UPLOADED", imageFile }
-          : { imageSourceType: "EXTERNAL_URL", imageUrl: trimmedImageUrl },
-      );
-      toast.success("Bildförfrågan skickad till admin för granskning.");
-      resetImageRequestUi();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Kunde inte skicka bildförfrågan.";
-      toast.error(message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -374,33 +281,6 @@ export default function CompanyAccount() {
     }
 
     const trimmedWebsite = form.website.trim();
-    const trimmedImageUrl = form.imageUrl.trim();
-    const originalImageUrl = (originalForm.imageUrl ?? "").trim();
-    let galleryImageSource: "UPLOADED" | "EXTERNAL_URL" | null = null;
-    let galleryImageUrls = new Set<string>();
-
-    if (trimmedImageUrl && trimmedImageUrl !== originalImageUrl) {
-      const [managerImages, defaultImagesResponse] = await Promise.all([
-        listImages().catch(() => []),
-        categoryId ? getBusinessDefaultImages(categoryId).catch(() => null) : Promise.resolve(null),
-      ]);
-
-      const managerImageUrls = new Set(
-        managerImages
-          .map((image) => image.publicUrl || image.originalUrl || "")
-          .filter((url): url is string => Boolean(url)),
-      );
-      const defaultImageUrls = new Set(defaultImagesResponse?.images ?? []);
-      galleryImageUrls = new Set([...managerImageUrls, ...defaultImageUrls]);
-
-      if (managerImageUrls.has(trimmedImageUrl)) {
-        galleryImageSource = "UPLOADED";
-      } else if (defaultImageUrls.has(trimmedImageUrl)) {
-        galleryImageSource = "EXTERNAL_URL";
-      }
-    }
-
-    const shouldRequestReview = imageFile !== null || (trimmedImageUrl && trimmedImageUrl !== originalImageUrl && !galleryImageUrls.has(trimmedImageUrl));
     const effectiveOpeningHours: OpeningHoursState = groupWeekdays
       ? {
           ...openingHours,
@@ -423,30 +303,11 @@ export default function CompanyAccount() {
         website: trimmedWebsite ? trimmedWebsite : null,
         address: trimmedAddress,
         city: trimmedCity,
-        ...(galleryImageSource && trimmedImageUrl && trimmedImageUrl !== originalImageUrl
-          ? { imageSourceType: galleryImageSource, imageUrl: trimmedImageUrl }
-          : {}),
+        ...(selectedGalleryImageAssetId ? { imageAssetId: selectedGalleryImageAssetId } : {}),
         openingHours: openingHoursPayload,
       });
 
-      if (shouldRequestReview) {
-        try {
-          await submitBusinessImageRequest(
-            imageFile
-              ? { imageSourceType: "UPLOADED", imageFile }
-              : { imageSourceType: "EXTERNAL_URL", imageUrl: trimmedImageUrl },
-          );
-          toast.success("Bildförfrågan skickad till admin för granskning.");
-          resetImageRequestUi();
-        } catch (requestError) {
-          const message = requestError instanceof Error ? requestError.message : "Kunde inte skicka bildförfrågan.";
-          toast.warning(message);
-        }
-      }
-
-      const savedImageUrl = shouldRequestReview
-        ? originalImageUrl
-        : getBusinessImageUrl(updated) || originalImageUrl || "";
+      const savedImageUrl = getBusinessImageUrl(updated) || form.imageUrl.trim() || originalForm.imageUrl || "";
 
       const nextForm = businessToForm({
         ...updated,
@@ -461,11 +322,7 @@ export default function CompanyAccount() {
       });
       setForm(nextForm);
       setOriginalForm(nextForm);
-      setImageFile(null);
-      setUploadedImageUrl("");
-      if (shouldRequestReview || (galleryImageSource && trimmedImageUrl && trimmedImageUrl !== originalImageUrl)) {
-        setIsImageFromGallery(true);
-      }
+      setSelectedGalleryImageAssetId(null);
       if (updated.status) setStatus(updated.status);
       toast.success("Kontoinformation uppdaterad.");
     } catch (error) {
@@ -480,6 +337,7 @@ export default function CompanyAccount() {
     setForm(originalForm);
     setOpeningHours(originalOpeningHours);
     setWeekdayGroup({ ...originalOpeningHours.monday });
+    setSelectedGalleryImageAssetId(null);
     toast.info("Ändringar återställda.");
   };
 
@@ -521,7 +379,7 @@ export default function CompanyAccount() {
     JSON.stringify(form) !== JSON.stringify(originalForm) ||
     JSON.stringify(openingHours) !== JSON.stringify(originalOpeningHours) ||
     (groupWeekdays && JSON.stringify(weekdayGroup) !== JSON.stringify(originalOpeningHours.monday)) ||
-    imageFile !== null;
+    selectedGalleryImageAssetId !== null;
 
   return (
     <div className="space-y-6 max-w-full min-w-0">
@@ -878,76 +736,28 @@ export default function CompanyAccount() {
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground flex items-center gap-2">
                 <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                Bildförfrågan till admin <span className="text-xs text-muted-foreground">(valfri)</span>
+                Företagsbild <span className="text-xs text-muted-foreground">(valfri)</span>
               </label>
               <p className="text-xs text-muted-foreground">
-                Bilder från galleriet uppdateras direkt. Egna bilder eller länkar som inte finns i galleriet skickas till admin för granskning.
+                Välj en bild från företagets galleri eller de förvalda bilderna. Nya egna bilder läggs till via admin-granskade bildförfrågningar.
               </p>
 
               <div className="space-y-3 rounded-xl border border-border bg-background/30 p-3">
-                <div className="flex gap-2">
-                  <Input
-                    value={imageFile ? uploadedImageUrl : form.imageUrl}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      setIsImageFromGallery(false);
-                      if (imageFile) {
-                        if (!next.trim()) {
-                          setImageFile(null);
-                          setUploadedImageUrl("");
-                          updateField("imageUrl", "");
-                          return;
-                        }
-                        if (next !== uploadedImageUrl) {
-                          setImageFile(null);
-                          setUploadedImageUrl("");
-                          updateField("imageUrl", next);
-                        }
-                        return;
-                      }
-                      updateField("imageUrl", next);
-                    }}
-                    disabled={isLoading}
-                    placeholder="https://example.com/image.png"
-                    className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-                  />
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Button
                     type="button"
-                    variant="default"
                     disabled={isLoading}
                     className="h-11 shrink-0 bg-blue-600 text-white hover:bg-blue-700"
-                    onClick={() => imageFileInputRef.current?.click()}
-                  >
-                    Välj bild
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={isLoading}
-                    className="h-11 shrink-0"
                     onClick={() => setGalleryDialogOpen(true)}
                   >
                     Välj från galleri
                   </Button>
-                  <input
-                    ref={imageFileInputRef}
-                    type="file"
-                    accept="image/*,.svg,image/svg+xml"
-                    disabled={isLoading}
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] ?? null;
-                      setImageFile(file);
-                      if (file) {
-                        updateField("imageUrl", "");
-                        setIsImageFromGallery(false);
-                      }
-                      if (imageFileInputRef.current) imageFileInputRef.current.value = "";
-                    }}
-                  />
+                  <span className="text-xs text-muted-foreground">
+                    {selectedGalleryImageAssetId ? "Ny galleribild vald" : "Ingen ny bild vald"}
+                  </span>
                 </div>
 
-                {isImageFromGallery && form.imageUrl.trim() && (
+                {form.imageUrl.trim() && (
                   <div className="flex items-center gap-3">
                     <div className="h-16 w-16 rounded-lg border border-border bg-background overflow-hidden flex items-center justify-center">
                       <img
@@ -963,26 +773,11 @@ export default function CompanyAccount() {
                   </div>
                 )}
 
-                {!isImageFromGallery && (
-                  <BusinessAppPreviewCard
-                    companyName={form.name.trim() || originalForm.name || "Ditt företag"}
-                    categoryName={categoryName}
-                    imageUrl={imageFilePreviewUrl || form.imageUrl.trim() || undefined}
-                  />
-                )}
-
-                {!isImageFromGallery && (
-                  <div className="flex justify-end pt-1">
-                    <Button
-                      type="button"
-                      onClick={() => void handleSubmitImageRequest()}
-                      disabled={isLoading || isSaving || (!imageFile && !form.imageUrl.trim())}
-                      className="bg-blue-600 text-white hover:bg-blue-700"
-                    >
-                      Skicka bild
-                    </Button>
-                  </div>
-                )}
+                <BusinessAppPreviewCard
+                  companyName={form.name.trim() || originalForm.name || "Ditt företag"}
+                  categoryName={categoryName}
+                  imageUrl={form.imageUrl.trim() || undefined}
+                />
               </div>
             </div>
           </CardContent>
@@ -1159,14 +954,8 @@ export default function CompanyAccount() {
       <ImageGalleryDialog
         open={galleryDialogOpen}
         onOpenChange={setGalleryDialogOpen}
-        onSelect={(imageUrl) => {
-          updateField("imageUrl", imageUrl);
-          setImageFile(null);
-          setUploadedImageUrl("");
-          setIsImageFromGallery(true);
-        }}
+        onSelect={selectGalleryImage}
         categoryName={categoryName}
-        categoryId={categoryId || undefined}
       />
     </div>
   );
