@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, X, Image as ImageIcon, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { BusinessAppPreviewCard } from "@/components/BusinessAppPreviewCard";
 import { toast } from "sonner";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { listBusinessImageRequests, reviewBusinessImageRequest, getBusinessById, resolveImageUrl, type BusinessImageRequest, type Business } from "@/lib/api";
+import { useRealtime } from "@/hooks/useRealtime";
 
 interface RequestWithBusiness extends BusinessImageRequest {
   business?: Business;
@@ -38,12 +39,8 @@ export default function AdminQualityControl() {
   const [pendingRequests, setPendingRequests] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
 
-  useEffect(() => {
-    loadRequests();
-  }, []);
-
-  const loadRequests = async () => {
-    setLoading(true);
+  const loadRequests = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     try {
       const data = await listBusinessImageRequests();
       const requestsWithBusiness: RequestWithBusiness[] = [];
@@ -63,12 +60,25 @@ export default function AdminQualityControl() {
       
       setRequests(requestsWithBusiness);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Kunde inte ladda bildförfrågningar.";
-      toast.error(message);
+      if (!options?.silent) {
+        const message = error instanceof Error ? error.message : "Kunde inte ladda bildförfrågningar.";
+        toast.error(message);
+      }
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadRequests();
+  }, [loadRequests]);
+
+  useRealtime((event) => {
+    if (event.type === "business-image-request.updated") {
+      void loadRequests({ silent: true });
+      refreshAdminPendingCounts();
+    }
+  });
 
   const handleReview = async (requestId: string, status: "APPROVED" | "DECLINED") => {
     if (!requestId) return;

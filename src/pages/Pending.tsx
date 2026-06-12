@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, X, Clock, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { getAuthEmail, getAuthRole, getUserByEmail, inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus } from "@/lib/api";
+import { useRealtime } from "@/hooks/useRealtime";
 import { toast } from "sonner";
 
 type ActionType = "approve" | "deny";
@@ -56,33 +57,40 @@ export default function Pending() {
   const [category, setCategory] = useState("Alla");
   const [dialogState, setDialogState] = useState<{ company: Company; action: ActionType } | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [businessRows, categoryRows] = await Promise.all([listBusinesses(), listCategories()]);
+  const load = useCallback(async () => {
+    try {
+      const [businessRows, categoryRows] = await Promise.all([listBusinesses(), listCategories()]);
 
-        const pendingRows = businessRows.filter((business) => mapBusinessStatusToBadge(business.status) === "pending");
+      const pendingRows = businessRows.filter((business) => mapBusinessStatusToBadge(business.status) === "pending");
 
-        setCompanies(
-          pendingRows.map((business) => ({
-            id: business.id,
-            name: business.name,
-            email: business.contactEmail,
-            category: String(business.categoryName ?? "Okategoriserad"),
-            status: mapBusinessStatusToBadge(business.status),
-            description: business.description,
-            appliedAt: business.createdAt || new Date().toISOString(),
-          })),
-        );
-        setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
-      } catch {
-        setCompanies([]);
-        setCategories(["Alla"]);
-      }
-    };
-
-    void load();
+      setCompanies(
+        pendingRows.map((business) => ({
+          id: business.id,
+          name: business.name,
+          email: business.contactEmail,
+          category: String(business.categoryName ?? "Okategoriserad"),
+          status: mapBusinessStatusToBadge(business.status),
+          description: business.description,
+          appliedAt: business.createdAt || new Date().toISOString(),
+        })),
+      );
+      setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
+    } catch {
+      setCompanies([]);
+      setCategories(["Alla"]);
+    }
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useRealtime((event) => {
+    if (event.type === "business.updated") {
+      void load();
+      refreshAdminPendingCounts();
+    }
+  });
 
   const filtered = useMemo(() => companies.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());

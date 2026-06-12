@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { listImages, resolveImageUrl, type ImageGalleryItem } from "@/lib/api";
 import { toast } from "sonner";
 import { Search, Loader } from "lucide-react";
+import { useRealtime } from "@/hooks/useRealtime";
 
 interface ImageGalleryDialogProps {
   open: boolean;
@@ -33,27 +34,34 @@ export function ImageGalleryDialog({
   const [selectedImage, setSelectedImage] = useState<ImageGalleryItem | null>(null);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (!open) return;
-
-    const loadImages = async () => {
-      setLoading(true);
-      try {
-        const result = await listImages();
-        setBusinessImages(result.businessImages ?? []);
-        setDefaultImages(result.defaultImages ?? []);
-      } catch (error) {
+  const loadImages = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
+    try {
+      const result = await listImages();
+      setBusinessImages(result.businessImages ?? []);
+      setDefaultImages(result.defaultImages ?? []);
+    } catch (error) {
+      if (!options?.silent) {
         const message = error instanceof Error ? error.message : "Kunde inte ladda galleriet.";
         toast.error(message);
-        setBusinessImages([]);
-        setDefaultImages([]);
-      } finally {
-        setLoading(false);
       }
-    };
+      setBusinessImages([]);
+      setDefaultImages([]);
+    } finally {
+      if (!options?.silent) setLoading(false);
+    }
+  }, []);
 
+  useEffect(() => {
+    if (!open) return;
     void loadImages();
-  }, [open]);
+  }, [loadImages, open]);
+
+  useRealtime((event) => {
+    if (open && event.type === "image-gallery.updated") {
+      void loadImages({ silent: true });
+    }
+  }, open);
 
   const managerEntries: GalleryEntry[] = businessImages
     .map((img) => {

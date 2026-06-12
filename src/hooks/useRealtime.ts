@@ -12,9 +12,28 @@ export type RealtimeEvent =
       type: "business-event.updated";
       eventId: string;
       businessId: string;
+    }
+  | {
+      type: "business.updated";
+      businessId: string;
+    }
+  | {
+      type: "image-gallery.updated";
+      businessId: string;
+    }
+  | {
+      type: "business-image-request.updated";
+      requestId: string;
+      businessId: string;
     };
 
-const EVENT_TYPES: RealtimeEvent["type"][] = ["order.updated", "business-event.updated"];
+const EVENT_TYPES: RealtimeEvent["type"][] = [
+  "order.updated",
+  "business-event.updated",
+  "business.updated",
+  "image-gallery.updated",
+  "business-image-request.updated",
+];
 
 export function useRealtime(onEvent: (event: RealtimeEvent) => void, enabled = true) {
   const onEventRef = useRef(onEvent);

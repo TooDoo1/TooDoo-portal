@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ImagePlus, Link2, Send, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { BusinessAppPreviewCard } from "@/components/BusinessAppPreviewCard";
 import { getBusinessById, resolveBusinessId, resolveImageUrl, submitBusinessImageRequest, type Business } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useRealtime } from "@/hooks/useRealtime";
 
 type RequestMode = "upload" | "url";
 
@@ -49,32 +50,33 @@ export default function CompanyImageRequest() {
     return () => URL.revokeObjectURL(filePreviewUrl);
   }, [filePreviewUrl]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadBusiness = async () => {
-      setIsLoadingBusiness(true);
-      try {
-        const businessId = await resolveBusinessId();
-        if (!businessId) throw new Error("Saknar businessId. Logga in igen.");
-        const loadedBusiness = await getBusinessById(businessId);
-        if (!cancelled) setBusiness(loadedBusiness);
-      } catch (error) {
-        if (!cancelled) {
-          setBusiness(null);
-          const message = error instanceof Error ? error.message : "Kunde inte läsa företagsinformationen.";
-          toast.error(message);
-        }
-      } finally {
-        if (!cancelled) setIsLoadingBusiness(false);
+  const loadBusiness = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setIsLoadingBusiness(true);
+    try {
+      const businessId = await resolveBusinessId();
+      if (!businessId) throw new Error("Saknar businessId. Logga in igen.");
+      const loadedBusiness = await getBusinessById(businessId);
+      setBusiness(loadedBusiness);
+    } catch (error) {
+      setBusiness(null);
+      if (!options?.silent) {
+        const message = error instanceof Error ? error.message : "Kunde inte läsa företagsinformationen.";
+        toast.error(message);
       }
-    };
-
-    void loadBusiness();
-    return () => {
-      cancelled = true;
-    };
+    } finally {
+      if (!options?.silent) setIsLoadingBusiness(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadBusiness();
+  }, [loadBusiness]);
+
+  useRealtime((event) => {
+    if (event.type === "business.updated" || event.type === "image-gallery.updated") {
+      void loadBusiness({ silent: true });
+    }
+  });
 
   const previewUrl = mode === "upload" ? filePreviewUrl : imageUrl.trim();
   const currentBusinessImageUrl = business ? resolveImageUrl(getBusinessImageUrl(business)) : "";

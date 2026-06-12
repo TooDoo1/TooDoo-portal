@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Building2, ImageIcon, Mail, MapPin, Moon, Phone, Save, Tag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { setMonochromeEnabled } from "@/lib/monochrome";
 import { useMonochrome } from "@/hooks/useMonochrome";
 import { TimePicker } from "@/components/TimePicker";
+import { useRealtime } from "@/hooks/useRealtime";
 import {
   getAuthEmail,
   getBusinessId,
@@ -184,63 +185,71 @@ export default function CompanyAccount() {
     setSelectedGalleryImageAssetId(image.id);
   };
 
-  useEffect(() => {
-    const loadBusiness = async () => {
-      setIsLoading(true);
-      try {
-        let resolvedBusinessId = getBusinessId();
+  const loadBusiness = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setIsLoading(true);
+    try {
+      let resolvedBusinessId = getBusinessId();
 
-        if (!resolvedBusinessId) {
-          const authEmail = getAuthEmail();
-          if (authEmail) {
-            const user = await getUserByEmail(authEmail);
-            if (user.businessId) {
-              resolvedBusinessId = user.businessId;
-              setBusinessId(user.businessId);
-            }
+      if (!resolvedBusinessId) {
+        const authEmail = getAuthEmail();
+        if (authEmail) {
+          const user = await getUserByEmail(authEmail);
+          if (user.businessId) {
+            resolvedBusinessId = user.businessId;
+            setBusinessId(user.businessId);
           }
         }
+      }
 
-        if (!resolvedBusinessId) {
-          throw new Error("Saknar businessId. Logga in igen.");
-        }
+      if (!resolvedBusinessId) {
+        throw new Error("Saknar businessId. Logga in igen.");
+      }
 
-        const [business, categories] = await Promise.all([
-          getBusinessById(resolvedBusinessId),
-          listCategories(),
-        ]);
+      const [business, categories] = await Promise.all([
+        getBusinessById(resolvedBusinessId),
+        listCategories(),
+      ]);
 
-        if (!business) {
-          throw new Error("Kunde inte hitta ditt företag.");
-        }
+      if (!business) {
+        throw new Error("Kunde inte hitta ditt företag.");
+      }
 
-        const categoryById = new Map(categories.map((cat) => [cat.id, cat.name]));
-        const resolvedCategory = business.categoryName ?? categoryById.get(business.categoryId) ?? "";
+      const categoryById = new Map(categories.map((cat) => [cat.id, cat.name]));
+      const resolvedCategory = business.categoryName ?? categoryById.get(business.categoryId) ?? "";
 
-        const nextForm = {
-          ...businessToForm(business),
-          imageUrl: getBusinessImageUrl(business),
-        };
-        setSelectedGalleryImageAssetId(null);
-        const nextOpeningHours = toOpeningHoursState(business.openingHours);
-        setActiveBusinessId(business.id);
-        setCategoryName(resolvedCategory);
-        setStatus(business.status);
-        setForm(nextForm);
-        setOriginalForm(nextForm);
-        setOpeningHours(nextOpeningHours);
-        setOriginalOpeningHours(nextOpeningHours);
-        setWeekdayGroup({ ...nextOpeningHours.monday });
-      } catch (error) {
+      const nextForm = {
+        ...businessToForm(business),
+        imageUrl: getBusinessImageUrl(business),
+      };
+      setSelectedGalleryImageAssetId(null);
+      const nextOpeningHours = toOpeningHoursState(business.openingHours);
+      setActiveBusinessId(business.id);
+      setCategoryName(resolvedCategory);
+      setStatus(business.status);
+      setForm(nextForm);
+      setOriginalForm(nextForm);
+      setOpeningHours(nextOpeningHours);
+      setOriginalOpeningHours(nextOpeningHours);
+      setWeekdayGroup({ ...nextOpeningHours.monday });
+    } catch (error) {
+      if (!options?.silent) {
         const message = error instanceof Error ? error.message : "Kunde inte ladda kontoinformation.";
         toast.error(message);
-      } finally {
-        setIsLoading(false);
       }
-    };
-
-    void loadBusiness();
+    } finally {
+      if (!options?.silent) setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadBusiness();
+  }, [loadBusiness]);
+
+  useRealtime((event) => {
+    if (event.type === "business.updated" || event.type === "image-gallery.updated") {
+      void loadBusiness({ silent: true });
+    }
+  });
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
