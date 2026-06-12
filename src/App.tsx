@@ -33,6 +33,7 @@ const CompanyNewEvent = lazy(() => import("./pages/CompanyNewEvent"));
 const CompanyVerification = lazy(() => import("./pages/CompanyVerification"));
 const CompanyInvoices = lazy(() => import("./pages/CompanyInvoices"));
 const CompanyAccount = lazy(() => import("./pages/CompanyAccount"));
+const CompanyImageRequest = lazy(() => import("./pages/CompanyImageRequest"));
 const WorkerCreation = lazy(() => import("./pages/WorkerCreation"));
 const WorkerOnboard = lazy(() => import("./pages/WorkerOnboard"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -135,6 +136,7 @@ const App = () => {
                   <Route path="/company/verification" element={<CompanyVerification />} />
                   <Route path="/company/invoices" element={<CompanyInvoices />} />
                   <Route path="/company/account" element={<CompanyAccount />} />
+                  <Route path="/company/image-request" element={<CompanyImageRequest />} />
                   <Route path="/company/workers/new" element={<WorkerCreation />} />
                 </Route>
               </Route>

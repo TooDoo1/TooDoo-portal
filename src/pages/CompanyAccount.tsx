@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Building2, ImageIcon, Mail, MapPin, Moon, Phone, Save, Tag } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -152,6 +153,7 @@ function mapStatusToBadge(status: BusinessStatus | undefined) {
 }
 
 export default function CompanyAccount() {
+  const navigate = useNavigate();
   const [form, setForm] = useState<CompanyAccountForm>(emptyForm);
   const [originalForm, setOriginalForm] = useState<CompanyAccountForm>(emptyForm);
   const [galleryDialogOpen, setGalleryDialogOpen] = useState(false);
@@ -751,6 +753,15 @@ export default function CompanyAccount() {
                     onClick={() => setGalleryDialogOpen(true)}
                   >
                     Välj från galleri
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isLoading}
+                    className="h-11 shrink-0"
+                    onClick={() => navigate("/company/image-request")}
+                  >
+                    Skicka ny bild
                   </Button>
                   <span className="text-xs text-muted-foreground">
                     {selectedGalleryImageAssetId ? "Ny galleribild vald" : "Ingen ny bild vald"}
