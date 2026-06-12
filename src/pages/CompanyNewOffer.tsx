@@ -614,12 +614,20 @@ export default function CompanyNewOffer() {
     if (editOrderId) return;
 
     setForm((prev) => {
+      if (!prev.startAt || !prev.expiresAt) {
+        return prev;
+      }
+
       const startHours = getOpeningHoursForDate(businessOpeningHours, prev.startAt);
       const endHours = getOpeningHoursForDate(businessOpeningHours, prev.expiresAt);
-      let nextStartTime = startHours?.from ?? prev.startTime;
-      const nextExpiresTime = endHours?.to ?? prev.expiresTime;
+      if (!startHours || !endHours) {
+        return prev;
+      }
 
-      if (startHours && prev.startAt === format(new Date(), "yyyy-MM-dd")) {
+      let nextStartTime = startHours.from;
+      const nextExpiresTime = endHours.to;
+
+      if (prev.startAt === format(new Date(), "yyyy-MM-dd")) {
         const now = new Date();
         const nowTime = `${clamp2(now.getHours())}:${clamp2(now.getMinutes())}`;
         const effectiveMin = ceilToStep(nowTime, 5);
