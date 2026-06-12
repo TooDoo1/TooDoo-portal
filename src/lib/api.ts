@@ -1152,6 +1152,23 @@ export type Redemption = {
   user?: { id: string; email: string; firstName?: string | null; lastName?: string | null };
 };
 
+export type BusinessDailySummary = {
+  businessId: string;
+  businessName: string;
+  dateLabel: string;
+  offersUpToday: number;
+  claimsToday: number;
+  redemptionsToday: number;
+};
+
+export async function getBusinessDailySummary(businessId: string) {
+  return apiRequest<BusinessDailySummary>(
+    `/business/${encodeURIComponent(businessId)}/daily-summary`,
+    { method: "GET" },
+    true,
+  );
+}
+
 export async function getBusinessRedemptions(businessId: string) {
   return apiRequest<Redemption[]>(
     `/business/${encodeURIComponent(businessId)}/redemptions`,

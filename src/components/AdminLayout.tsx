@@ -56,8 +56,9 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
     setEmail(getAuthEmail());
   }, []);
 
+  const managerDigestEnabled = isCompanyRoute || notificationsOn;
   const notificationHelpText = isCompanyRoute
-    ? "När aktiv skickar mail varje 60 min på hur många som aktiverat ert erbjudande och vilket."
+    ? "Daglig sammanfattning skickas via mail på kvällen med dagens erbjudanden, claims och inlösta kuponger."
     : "När aktiv skickar mail varje 60 min på vilka och hur många företag som väntar";
 
   const pageTitle = formatPageTitle(location.pathname, isCompanyRoute);
@@ -88,10 +89,14 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
               <TooltipTrigger asChild>
                 <Button
                   size="icon"
-                  className={`h-7 w-7 ${notificationsOn ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"} text-white`}
-                  onClick={() => setNotificationsOn(!notificationsOn)}
+                  className={`h-7 w-7 ${managerDigestEnabled ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"} text-white`}
+                  onClick={() => {
+                    if (!isCompanyRoute) {
+                      setNotificationsOn(!notificationsOn);
+                    }
+                  }}
                 >
-                  {notificationsOn ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+                  {managerDigestEnabled ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="left" align="end" sideOffset={14} className="relative max-w-[280px] overflow-visible data-[side=left]:translate-y-2">
