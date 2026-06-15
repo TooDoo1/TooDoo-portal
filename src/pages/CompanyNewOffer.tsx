@@ -548,14 +548,12 @@ export default function CompanyNewOffer() {
     const loadOrder = async () => {
       try {
         const order = await getOrderById(orderId);
-        const isActive = (() => {
+        const orderIsActive = (() => {
           const raw = (order as unknown as { isActive?: unknown }).isActive;
           if (typeof raw === "boolean") return raw;
           if (typeof raw === "string") return raw.toLowerCase() === "true";
-          return false;
+          return true;
         })();
-        setEditLocked(isActive);
-        if (isActive) toast.info("Aktivt erbjudande kan inte redigeras.");
         const orderTimeFrom =
           order.orderTimeFrom ||
           (isIsoDateTime(String(order.validFrom ?? "")) ? String(order.validFrom) : "") ||
@@ -564,6 +562,21 @@ export default function CompanyNewOffer() {
           order.orderTimeTo ||
           (isIsoDateTime(String(order.validTo ?? "")) ? String(order.validTo) : "") ||
           "";
+        const startTime = new Date(orderTimeFrom || 0).getTime();
+        const endTime = new Date(orderTimeTo || 0).getTime();
+        const now = Date.now();
+        const isLive =
+          orderIsActive &&
+          Number.isFinite(startTime) &&
+          Number.isFinite(endTime) &&
+          startTime <= now &&
+          now <= endTime;
+        setEditLocked(!orderIsActive || isLive);
+        if (!orderIsActive) {
+          toast.info("Detta erbjudande kan inte redigeras.");
+        } else if (isLive) {
+          toast.info("Aktivt erbjudande kan inte redigeras.");
+        }
         const couponLifetimeMinutes =
           typeof (order as unknown as { expireTime?: unknown }).expireTime === "number"
             ? Math.max(1, Math.round((order as unknown as { expireTime: number }).expireTime))
