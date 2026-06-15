@@ -63,7 +63,8 @@ export default function WorkerOnboard() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const emailParam = params.get("email")?.trim() ?? "";
-    const inviteTokenParam = params.get("inviteToken")?.trim() ?? "";
+    const inviteTokenParam =
+      params.get("inviteToken")?.trim() ?? params.get("token")?.trim() ?? "";
     const existingParam = params.get("existing") === "true";
     const storedToken = sessionStorage.getItem(INVITE_TOKEN_STORAGE_KEY)?.trim() ?? "";
 

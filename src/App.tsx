@@ -89,7 +89,9 @@ function AppearanceController() {
     pathname === "/reset-password" ||
     pathname === "/manager-registration" ||
     pathname === "/manager/onboard" ||
-    pathname === "/worker/onboard";
+    pathname === "/invite/manager" ||
+    pathname === "/worker/onboard" ||
+    pathname === "/invite/worker";
 
   useEffect(() => {
     applyMonochrome(isPublicRoute ? false : monochrome);
@@ -114,7 +116,9 @@ const App = () => {
               <Route path="/registration" element={<Registration />} />
               <Route path="/manager-registration" element={<ManagerRegistration />} />
               <Route path="/manager/onboard" element={<ManagerRegistration />} />
+              <Route path="/invite/manager" element={<ManagerRegistration />} />
               <Route path="/worker/onboard" element={<WorkerOnboard />} />
+              <Route path="/invite/worker" element={<WorkerOnboard />} />
 
               <Route element={<PrivateLayout />}>
                 <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
