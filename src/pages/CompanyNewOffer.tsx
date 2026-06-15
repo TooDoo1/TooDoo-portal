@@ -1620,20 +1620,6 @@ export default function CompanyNewOffer() {
                 <DialogTitle>Förhandsvisning i appen</DialogTitle>
               </DialogHeader>
 
-              <div className="mt-4 flex justify-center">
-                <div className="origin-top scale-[0.78]">
-                  <OfferPreviewCard
-                    businessName={previewBusiness?.name?.trim() || "Företag"}
-                    offerText={pendingPayload?.title || form.title || "Titel"}
-                    priceKr={pendingPayload?.price ?? 0}
-                    originalPriceKr={pendingPayload?.originalPrice}
-                    claimedCount={0}
-                    totalCount={pendingPayload?.maxRedemptions ?? 1}
-                    countdownText="13:52:57"
-                    imageUrl={form.imageUrl.trim() ? form.imageUrl.trim() : undefined}
-                    ctaLabel="Logga in för att claima!"
-                  />
-                </div>
               <div className="mt-4 flex justify-center overflow-x-auto pb-2">
                 <OfferPreviewCard
                   businessName={previewBusiness?.name?.trim() || "Företag"}
