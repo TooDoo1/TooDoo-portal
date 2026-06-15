@@ -13,7 +13,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
-import { getUserByEmail, loginPortal, requestPasswordResetLink, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
+import { getUserByEmail, loginPortal, requestPasswordResetLink, setAuthEmail, setAuthRole, setAuthToken, setBusinessId, clearBusinessId } from "@/lib/api";
 import { toast } from "sonner";
 
 
@@ -59,6 +59,11 @@ export default function LoggIn() {
 			setAuthEmail(trimmedEmail);
 			if (role) {
 				setAuthRole(role);
+			}
+			if (user.businessId) {
+				setBusinessId(user.businessId);
+			} else {
+				clearBusinessId();
 			}
 			toast.success("Inloggning lyckades.");
 			if (role?.toLowerCase() === "admin") {

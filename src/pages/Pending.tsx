@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, X, Clock, Search, Filter } from "lucide-react";
+import { Check, X, Clock, Search, Filter, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { getAuthEmail, getAuthRole, getUserByEmail, inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus } from "@/lib/api";
 import { useRealtime } from "@/hooks/useRealtime";
@@ -56,6 +57,7 @@ export default function Pending() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
   const [dialogState, setDialogState] = useState<{ company: Company; action: ActionType } | null>(null);
+  const [detailTarget, setDetailTarget] = useState<Company | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -199,6 +201,14 @@ export default function Pending() {
                   <div className="flex gap-2 sm:flex-col sm:min-w-[110px]">
                     <Button
                       size="sm"
+                      className="flex-1 sm:flex-none bg-accent hover:bg-accent/90 text-accent-foreground"
+                      onClick={() => setDetailTarget(company)}
+                    >
+                      <Eye className="mr-1.5 h-3.5 w-3.5" />
+                      Visa detaljer
+                    </Button>
+                    <Button
+                      size="sm"
                       className="flex-1 sm:flex-none bg-success hover:bg-success/90 text-success-foreground"
                       onClick={() => setDialogState({ company, action: "approve" })}
                     >
@@ -221,6 +231,14 @@ export default function Pending() {
           ))}
         </div>
       )}
+
+      <CompanyDetailsDialog
+        open={!!detailTarget}
+        onOpenChange={(open) => !open && setDetailTarget(null)}
+        companyId={detailTarget?.id ?? null}
+        companyName={detailTarget?.name}
+        category={detailTarget?.category}
+      />
 
       <ConfirmDialog
         open={!!dialogState}

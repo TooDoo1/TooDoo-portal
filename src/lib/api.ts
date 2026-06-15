@@ -225,23 +225,29 @@ export function clearAuthStorage() {
 }
 
 /**
- * Resolve the current manager's businessId.
- * Prefers localStorage, falls back to GET /user/:email and stores it.
+ * Resolve the current user's businessId from the API.
+ * Non-admin users may only use the business linked to their account — never a stale localStorage value.
  */
 export async function resolveBusinessId() {
-  const resolved = getBusinessId();
-  if (resolved) return resolved;
-
   const email = getAuthEmail();
-  if (!email) return null;
-
-  const user = await getUserByEmail(email);
-  if (user.businessId) {
-    setBusinessId(user.businessId);
-    return user.businessId;
+  if (!email) {
+    clearBusinessId();
+    return null;
   }
 
-  return null;
+  try {
+    const user = await getUserByEmail(email);
+    if (user.businessId) {
+      setBusinessId(user.businessId);
+      return user.businessId;
+    }
+
+    clearBusinessId();
+    return null;
+  } catch {
+    clearBusinessId();
+    return null;
+  }
 }
 
 export type HealthResponse = { ok?: boolean; status?: string; [key: string]: unknown };
