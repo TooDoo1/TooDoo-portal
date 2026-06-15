@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StatusBadge } from "@/components/StatusBadge";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { listBusinesses, listCategories } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -27,6 +28,7 @@ export default function Companies() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
+  const [detailTarget, setDetailTarget] = useState<Company | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -136,7 +138,7 @@ export default function Companies() {
                   <Button
                     size="sm"
                     className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground"
-                    onClick={() => toast.info(`Visar detaljer för ${company.name}`)}
+                    onClick={() => setDetailTarget(company)}
                   >
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
                     Visa detaljer
@@ -155,6 +157,14 @@ export default function Companies() {
           ))}
         </div>
       )}
+
+      <CompanyDetailsDialog
+        open={!!detailTarget}
+        onOpenChange={(open) => !open && setDetailTarget(null)}
+        companyId={detailTarget?.id ?? null}
+        companyName={detailTarget?.name}
+        category={detailTarget?.category}
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

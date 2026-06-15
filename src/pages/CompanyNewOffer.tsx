@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { ArrowLeft, CalendarDays, ChevronDown, ChevronUp, PlusCircle } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronUp, Globe, Heart, MapPin, PlusCircle } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -11,8 +11,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { addDays, format, parseISO, startOfDay } from "date-fns";
 import { toast } from "sonner";
-import { createOrder, createOrderPreset, getBusinessById, getBusinessId, getOrderById, listOrderPresets, resolveBusinessId, updateOrder, type Business, type OrderPreset } from "@/lib/api";
+import { createOrder, createOrderPreset, getBusinessById, getBusinessId, getOrderById, listOrderPresets, resolveBusinessId, resolveImageUrl, updateOrder, type Business, type OrderPreset } from "@/lib/api";
 import { TimePicker } from "@/components/TimePicker";
+import { BackArrowLabel } from "@/components/BackArrowLabel";
 
 type OfferForm = {
   title: string;
@@ -49,9 +50,21 @@ type OfferPayload = {
   perPersonRedemptions?: number;
 };
 
-type PreviewBusiness = Pick<Business, "name" | "address" | "city" | "contactPhone" | "website"> & {
+type PreviewBusiness = Pick<Business, "name" | "address" | "city" | "contactPhone" | "website" | "description"> & {
   imageUrl?: string | null;
 };
+
+function formatPreviewCountdown(orderTimeTo?: string) {
+  if (!orderTimeTo) return "00:00:00";
+  const end = new Date(orderTimeTo).getTime();
+  if (Number.isNaN(end)) return "00:00:00";
+  const diff = Math.max(0, end - Date.now());
+  const totalSeconds = Math.floor(diff / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
 
 function clamp2(value: number) {
   return String(Math.max(0, Math.min(99, value))).padStart(2, "0");
@@ -149,58 +162,117 @@ function getPresetImageUrl(preset: Record<string, unknown>) {
 
 type OfferPreviewCardProps = {
   businessName: string;
+  address?: string;
+  city?: string;
+  phone?: string;
+  aboutText?: string;
   offerText: string;
   priceKr: number | string;
   originalPriceKr?: number | string;
   claimedCount?: number;
   totalCount?: number;
   countdownText?: string;
+  heroImageUrl?: string;
   imageUrl?: string;
   ctaLabel?: string;
 };
 
 function OfferPreviewCard({
   businessName,
+  address,
+  city,
+  phone,
+  aboutText,
   offerText,
   priceKr,
   originalPriceKr,
   claimedCount = 0,
   totalCount = 1,
-  countdownText = "13:52:57",
+  countdownText = "00:00:00",
+  heroImageUrl,
   imageUrl,
-  ctaLabel = "Logga in för att claima!",
+  ctaLabel = "Claima",
 }: OfferPreviewCardProps) {
-  const [imageFailed, setImageFailed] = useState(false);
+  const [heroFailed, setHeroFailed] = useState(false);
+  const [thumbFailed, setThumbFailed] = useState(false);
   const progress =
     totalCount > 0 ? Math.max(0, Math.min(100, (claimedCount / totalCount) * 100)) : 0;
+
+  const addressLine = [address, city].filter(Boolean).join(", ");
+  const resolvedHero = resolveImageUrl(heroImageUrl);
+  const resolvedThumb = resolveImageUrl(imageUrl);
+  const showOriginal =
+    originalPriceKr !== undefined &&
+    originalPriceKr !== null &&
+    String(originalPriceKr).trim() !== "" &&
+    Number(originalPriceKr) > 0;
 
   return (
     <div style={previewStyles.page}>
       <div style={previewStyles.phoneFrame}>
-        <div style={previewStyles.hero} />
+        <div style={previewStyles.hero}>
+          {resolvedHero && !heroFailed ? (
+            <img
+              alt=""
+              src={resolvedHero}
+              style={previewStyles.heroImg}
+              onError={() => setHeroFailed(true)}
+            />
+          ) : (
+            <div style={previewStyles.heroFallback} />
+          )}
+          <div style={previewStyles.heroOverlay} />
+          <div style={previewStyles.statusBar}>
+            <span>10:11</span>
+            <span style={previewStyles.statusIcons}>●●●</span>
+          </div>
+          <button type="button" style={previewStyles.heroNavBtn} aria-hidden>
+            <ChevronLeft size={18} strokeWidth={2.5} />
+          </button>
+          <button type="button" style={{ ...previewStyles.heroNavBtn, ...previewStyles.heroNavBtnRight }} aria-hidden>
+            <Heart size={16} strokeWidth={2.5} />
+          </button>
+        </div>
 
         <div style={previewStyles.content}>
           <div style={previewStyles.title}>{businessName}</div>
 
+          {addressLine ? (
+            <div style={previewStyles.contactLine}>
+              <span style={previewStyles.contactLabel}>Adress:</span> {addressLine}
+            </div>
+          ) : null}
+          {phone ? (
+            <div style={previewStyles.contactLine}>
+              <span style={previewStyles.contactLabel}>Telefon:</span>{" "}
+              <span style={previewStyles.phoneLink}>{phone}</span>
+            </div>
+          ) : null}
+
           <div style={previewStyles.pillsRow}>
-            <button type="button" style={{ ...previewStyles.pill, outline: "none" }}>Hitta hit</button>
-            <button type="button" style={{ ...previewStyles.pill, outline: "none" }}>Webbplats</button>
+            <button type="button" style={{ ...previewStyles.pill, outline: "none" }}>
+              <MapPin size={15} strokeWidth={2.25} />
+              Hitta hit
+            </button>
+            <button type="button" style={{ ...previewStyles.pill, outline: "none" }}>
+              <Globe size={15} strokeWidth={2.25} />
+              Webbplats
+            </button>
           </div>
 
           <div style={previewStyles.card}>
             <div style={previewStyles.cardTop}>
               <div style={previewStyles.thumbWrap}>
-                {imageUrl && !imageFailed ? (
+                {resolvedThumb && !thumbFailed ? (
                   <img
                     alt=""
-                    src={imageUrl}
+                    src={resolvedThumb}
                     style={previewStyles.thumbImg}
-                    onError={() => setImageFailed(true)}
+                    onError={() => setThumbFailed(true)}
                   />
                 ) : (
                   <div style={previewStyles.thumbFallback} />
                 )}
-
                 <div style={previewStyles.countdownChip}>{countdownText}</div>
               </div>
 
@@ -208,8 +280,8 @@ function OfferPreviewCard({
                 <div style={previewStyles.offerText}>{offerText}</div>
 
                 <div style={previewStyles.priceRow}>
-                  <div style={previewStyles.price}>{priceKr} kr</div>
-                  {originalPriceKr !== undefined && originalPriceKr !== null ? (
+                  <span style={previewStyles.price}>{priceKr} kr</span>
+                  {showOriginal ? (
                     <span style={previewStyles.originalPrice}>{originalPriceKr} kr</span>
                   ) : null}
                 </div>
@@ -224,8 +296,17 @@ function OfferPreviewCard({
               </div>
             </div>
 
-            <button type="button" style={{ ...previewStyles.cta, outline: "none" }}>{ctaLabel}</button>
+            <button type="button" style={{ ...previewStyles.cta, outline: "none" }}>
+              {ctaLabel}
+            </button>
           </div>
+
+          {aboutText?.trim() ? (
+            <div style={previewStyles.aboutCard}>
+              <div style={previewStyles.aboutTitle}>Om oss:</div>
+              <div style={previewStyles.aboutText}>{aboutText.trim()}</div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -242,36 +323,119 @@ const previewStyles: Record<string, CSSProperties> = {
   },
 
   phoneFrame: {
-    width: 380,
-    borderRadius: 28,
+    width: 390,
+    borderRadius: 32,
     overflow: "hidden",
     border: "1px solid rgba(255,255,255,0.08)",
-    background: "linear-gradient(180deg, #000b2a 0%, #061333 55%, #000b2a 100%)",
+    background: "#000b2a",
     boxShadow: "0 18px 55px rgba(0,0,0,0.55)",
   },
 
   hero: {
-    height: 190,
-    background: "#000b2a",
+    position: "relative",
+    height: 220,
+    background: "#061333",
+    overflow: "hidden",
+  },
+
+  heroImg: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+  },
+
+  heroFallback: {
+    width: "100%",
+    height: "100%",
+    background: "linear-gradient(180deg, #0a1a3d 0%, #061333 100%)",
+  },
+
+  heroOverlay: {
+    position: "absolute",
+    inset: 0,
+    background: "linear-gradient(180deg, rgba(0,11,42,0.05) 0%, rgba(0,11,42,0.35) 100%)",
+    pointerEvents: "none",
+  },
+
+  statusBar: {
+    position: "absolute",
+    top: 10,
+    left: 0,
+    right: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "0 22px",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#fff",
+    zIndex: 2,
+    pointerEvents: "none",
+  },
+
+  statusIcons: {
+    letterSpacing: 2,
+    fontSize: 10,
+    opacity: 0.85,
+  },
+
+  heroNavBtn: {
+    position: "absolute",
+    top: 44,
+    left: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    border: "0",
+    background: "rgba(0,0,0,0.45)",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "default",
+    zIndex: 2,
+  },
+
+  heroNavBtnRight: {
+    left: "auto",
+    right: 16,
   },
 
   content: {
-    padding: 20,
-    paddingTop: 18,
+    padding: "18px 20px 24px",
+    background: "linear-gradient(180deg, #000b2a 0%, #061333 55%, #000b2a 100%)",
   },
 
   title: {
-    fontSize: 36,
-    lineHeight: "40px",
-    fontWeight: 650,
-    letterSpacing: -0.6,
-    marginBottom: 40,
+    fontSize: 32,
+    lineHeight: "36px",
+    fontWeight: 700,
+    letterSpacing: -0.5,
+    marginBottom: 10,
+  },
+
+  contactLine: {
+    fontSize: 15,
+    lineHeight: "22px",
+    color: "rgba(255,255,255,0.92)",
+    marginBottom: 4,
+  },
+
+  contactLabel: {
+    fontWeight: 600,
+  },
+
+  phoneLink: {
+    color: "#60a5fa",
+    fontWeight: 600,
   },
 
   pillsRow: {
     display: "flex",
     gap: 12,
-    marginBottom: 12,
+    marginTop: 14,
+    marginBottom: 16,
   },
 
   pill: {
@@ -279,37 +443,36 @@ const previewStyles: Record<string, CSSProperties> = {
     height: 44,
     borderRadius: 999,
     border: "0",
-    background: "hsl(var(--accent) / 0.14)",
-    color: "hsl(var(--accent))",
+    background: "#fff",
+    color: "#111827",
     fontWeight: 700,
-    fontSize: 16,
-    cursor: "pointer",
-    backdropFilter: "none",
+    fontSize: 15,
+    cursor: "default",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
 
   card: {
-    position: "relative",
-    borderRadius: 24,
+    borderRadius: 22,
     border: "1px solid rgba(255,255,255,0.10)",
     background: "#0a1535",
     boxShadow: "0 12px 30px rgba(0,0,0,0.45)",
     padding: 14,
-    overflow: "hidden",
   },
 
   cardTop: {
     display: "flex",
     gap: 12,
-    alignItems: "center",
-    position: "relative",
-    zIndex: 1,
+    alignItems: "flex-start",
   },
 
   thumbWrap: {
     position: "relative",
-    width: 112,
-    height: 112,
-    borderRadius: 20,
+    width: 108,
+    height: 108,
+    borderRadius: 18,
     overflow: "hidden",
     background: "rgba(255,255,255,0.10)",
     border: "1px solid rgba(255,255,255,0.10)",
@@ -333,42 +496,42 @@ const previewStyles: Record<string, CSSProperties> = {
   countdownChip: {
     position: "absolute",
     left: 8,
+    right: 8,
     bottom: 8,
     padding: "4px 8px",
     borderRadius: 999,
-    background: "rgba(0,0,0,0.55)",
+    background: "rgba(0,0,0,0.62)",
     border: "1px solid rgba(255,255,255,0.12)",
     fontSize: 11,
     fontWeight: 700,
     color: "#fff",
-    opacity: 0.8,
+    textAlign: "center",
     zIndex: 2,
   },
 
   offerBody: {
     flex: 1,
     minWidth: 0,
-    position: "relative",
-    zIndex: 1,
+    paddingTop: 2,
   },
 
   offerText: {
     fontSize: 16,
     fontWeight: 600,
-    color: "rgba(255,255,255,0.78)",
-    whiteSpace: "nowrap",
+    color: "rgba(255,255,255,0.88)",
+    lineHeight: "22px",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
     overflow: "hidden",
-    textOverflow: "ellipsis",
-    marginBottom: 0,
+    marginBottom: 8,
   },
 
   priceRow: {
     display: "flex",
-    alignItems: "flex-end",
+    alignItems: "baseline",
     gap: 10,
-    marginTop: 6,
-    flexWrap: "nowrap",
-    whiteSpace: "nowrap",
+    flexWrap: "wrap",
   },
 
   price: {
@@ -380,31 +543,26 @@ const previewStyles: Record<string, CSSProperties> = {
   },
 
   originalPrice: {
-    display: "inline-block",
     fontSize: 16,
     fontWeight: 600,
     color: "rgb(147, 197, 253)",
     textDecoration: "line-through",
-    textDecorationColor: "rgb(147, 197, 253)",
-    marginBottom: 0,
     lineHeight: "20px",
   },
 
   meta: {
-    marginTop: 6,
-    fontSize: 16,
+    marginTop: 8,
+    fontSize: 15,
     fontWeight: 600,
     color: "rgba(255,255,255,0.55)",
   },
 
   progressTrack: {
-    marginTop: 12,
-    height: 8,
+    marginTop: 10,
+    height: 6,
     borderRadius: 999,
     background: "rgba(255,255,255,0.12)",
     overflow: "hidden",
-    position: "relative",
-    zIndex: 1,
   },
 
   progressFill: {
@@ -423,10 +581,28 @@ const previewStyles: Record<string, CSSProperties> = {
     color: "#fff",
     fontSize: 17,
     fontWeight: 600,
-    cursor: "pointer",
+    cursor: "default",
     boxShadow: "0 10px 24px rgba(255,59,48,0.18)",
-    position: "relative",
-    zIndex: 1,
+  },
+
+  aboutCard: {
+    marginTop: 16,
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background: "#0a1535",
+    padding: "16px 18px",
+  },
+
+  aboutTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    marginBottom: 8,
+  },
+
+  aboutText: {
+    fontSize: 15,
+    lineHeight: "22px",
+    color: "rgba(255,255,255,0.78)",
   },
 };
 
@@ -494,6 +670,7 @@ export default function CompanyNewOffer() {
           city: b.city,
           contactPhone: b.contactPhone,
           website: b.website,
+          description: b.description,
           imageUrl: b.imageUrl ?? null,
         });
       } catch {
@@ -924,14 +1101,11 @@ export default function CompanyNewOffer() {
             transition-duration: 0ms !important;
           }
 
-          .no-hover-motion.group:hover .anim-back-arrow,
-          .no-hover-motion.group:hover .anim-back-text {
+          .no-hover-motion.group:hover .anim-back-arrow-wrap,
+          .no-hover-motion.group:hover .anim-back-text,
+          .no-hover-motion.group:hover .anim-back-line {
             transform: none !important;
             opacity: 1 !important;
-          }
-
-          .no-hover-motion.group:hover .anim-back-line {
-            transform: scaleX(0) !important;
           }
 
           .anim-back-line {
@@ -954,13 +1128,7 @@ export default function CompanyNewOffer() {
           className="group no-hover-motion relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent"
           aria-label="Tillbaka till erbjudanden"
         >
-          <span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
-            <ArrowLeft className="anim-back-arrow h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
-          </span>
-          <span className="anim-back-line pointer-events-none absolute left-4 right-4 z-0 h-[1px] origin-left scale-x-0 rounded-full bg-foreground transition-transform duration-300 group-hover:scale-x-100" />
-          <span className="anim-back-text pointer-events-none relative z-10 ml-1 whitespace-nowrap transition-all duration-300 group-hover:translate-x-2 group-hover:opacity-0">
-            Tillbaka
-          </span>
+          <BackArrowLabel>Tillbaka</BackArrowLabel>
         </button>
       </div>
 
@@ -1418,27 +1586,33 @@ export default function CompanyNewOffer() {
       </Dialog>
 
       <Dialog open={previewOpen} onOpenChange={(open) => !isSubmitting && setPreviewOpen(open)}>
-        <DialogContent hideClose className="max-h-[85vh] max-w-[840px] overflow-hidden border-border bg-card p-0">
-          <div className="grid gap-0 md:grid-cols-[max-content_1fr]">
-            <div className="border-b border-border bg-background/30 px-6 py-6 md:border-b-0 md:border-r">
+        <DialogContent hideClose className="max-h-[90vh] max-w-[920px] overflow-y-auto border-border bg-card p-0">
+          <div className="grid gap-0 lg:grid-cols-[max-content_1fr]">
+            <div className="border-b border-border bg-background/30 px-5 py-5 lg:border-b-0 lg:border-r lg:px-6 lg:py-6">
               <DialogHeader className="items-start text-left">
                 <DialogTitle>Förhandsvisning i appen</DialogTitle>
               </DialogHeader>
 
-              <div className="mt-4 flex justify-center">
-                <div className="origin-top scale-[0.78]">
-                  <OfferPreviewCard
-                    businessName={previewBusiness?.name?.trim() || "Företag"}
-                    offerText={pendingPayload?.title || form.title || "Titel"}
-                    priceKr={pendingPayload?.price ?? 0}
-                    originalPriceKr={pendingPayload?.originalPrice}
-                    claimedCount={0}
-                    totalCount={pendingPayload?.maxRedemptions ?? 1}
-                    countdownText="13:52:57"
-                    imageUrl={imageFilePreviewUrl ? imageFilePreviewUrl : form.imageUrl.trim() ? form.imageUrl.trim() : undefined}
-                    ctaLabel="Logga in för att claima!"
-                  />
-                </div>
+              <div className="mt-4 flex justify-center overflow-x-auto pb-2">
+                <OfferPreviewCard
+                  businessName={previewBusiness?.name?.trim() || "Företag"}
+                  address={previewBusiness?.address}
+                  city={previewBusiness?.city}
+                  phone={previewBusiness?.contactPhone}
+                  aboutText={previewBusiness?.description}
+                  offerText={pendingPayload?.title || form.title || "Titel"}
+                  priceKr={pendingPayload?.price ?? 0}
+                  originalPriceKr={pendingPayload?.originalPrice}
+                  claimedCount={0}
+                  totalCount={pendingPayload?.maxRedemptions ?? 1}
+                  countdownText={formatPreviewCountdown(pendingPayload?.orderTimeTo)}
+                  heroImageUrl={
+                    previewBusiness?.imageUrl ??
+                    (imageFilePreviewUrl || form.imageUrl.trim() || undefined)
+                  }
+                  imageUrl={imageFilePreviewUrl ? imageFilePreviewUrl : form.imageUrl.trim() ? form.imageUrl.trim() : undefined}
+                  ctaLabel="Claima"
+                />
               </div>
             </div>
 
@@ -1477,13 +1651,7 @@ export default function CompanyNewOffer() {
                   className="group no-hover-motion relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
                   aria-label="Tillbaka"
                 >
-                  <span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
-                    <ArrowLeft className="anim-back-arrow h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
-                  </span>
-                  <span className="anim-back-line pointer-events-none absolute left-4 right-4 z-0 h-[1px] origin-left scale-x-0 rounded-full bg-foreground transition-transform duration-300 group-hover:scale-x-100" />
-                  <span className="anim-back-text pointer-events-none relative z-10 ml-1 whitespace-nowrap transition-all duration-300 group-hover:translate-x-2 group-hover:opacity-0">
-                    Tillbaka
-                  </span>
+                  <BackArrowLabel>Tillbaka</BackArrowLabel>
                 </button>
                 <Button
                   type="button"

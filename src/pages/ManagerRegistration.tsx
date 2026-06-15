@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
+import { LoginArrowLabel } from "@/components/LoginArrowLabel";
+import { BackArrowLabel } from "@/components/BackArrowLabel";
 import { getUserByEmail, loginPortal, redeemManagerInvite, registerManager, setAuthEmail, setAuthRole, setAuthToken, setBusinessId } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -178,21 +180,18 @@ export default function ManagerRegistration() {
             transition-duration: 0ms !important;
           }
 
-          .no-hover-motion.group:hover .anim-back-arrow,
-          .no-hover-motion.group:hover .anim-submit-arrow,
+          .no-hover-motion.group:hover .anim-back-arrow-wrap,
           .no-hover-motion.group:hover .anim-back-text,
-          .no-hover-motion.group:hover .anim-submit-text,
-          .no-hover-motion.group:hover .anim-submit-line {
+          .no-hover-motion.group:hover .anim-back-line,
+          .no-hover-motion.group:hover .anim-login-arrow-wrap,
+          .no-hover-motion.group:hover .anim-login-text,
+          .no-hover-motion.group:hover .anim-login-line {
             transform: none !important;
             opacity: 1 !important;
           }
 
-          .no-hover-motion.group:hover .anim-back-line {
-            transform: scaleX(0) !important;
-          }
-
           .anim-back-line,
-          .anim-submit-line {
+          .anim-login-line {
             display: none !important;
           }
         }
@@ -209,13 +208,7 @@ export default function ManagerRegistration() {
           className="group no-hover-motion relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent"
           aria-label="Tillbaka till inloggning"
         >
-          <span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
-            <ArrowLeft className="anim-back-arrow h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
-          </span>
-          <span className="anim-back-line pointer-events-none absolute left-4 right-4 z-0 h-[1px] origin-left scale-x-0 rounded-full bg-foreground transition-transform duration-300 group-hover:scale-x-100" />
-          <span className="anim-back-text pointer-events-none relative z-10 ml-1 whitespace-nowrap transition-all duration-300 group-hover:translate-x-2 group-hover:opacity-0">
-            Tillbaka
-          </span>
+          <BackArrowLabel>Tillbaka</BackArrowLabel>
         </button>
       </div>
 
@@ -286,13 +279,7 @@ export default function ManagerRegistration() {
                 disabled={isSubmitting}
                 className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90"
               >
-                <span className="anim-submit-text pointer-events-none relative z-10 whitespace-nowrap transition-all duration-300 group-hover:-translate-x-2">
-                  {isSubmitting ? "Registrerar" : "Registrera dig"}
-                </span>
-                <span className="anim-submit-line pointer-events-none absolute right-12 z-0 h-[1px] w-14 origin-right mr-24 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100 group-hover:translate-x-10" />
-                <span className="pointer-events-none relative z-10 flex h-4 w-4 shrink-0 items-center justify-center">
-                  <ArrowRight className="anim-submit-arrow h-4 w-4 transition-transform duration-300 group-hover:translate-x-10" />
-                </span>
+                <LoginArrowLabel>{isSubmitting ? "Registrerar" : "Registrera dig"}</LoginArrowLabel>
               </button>
             </form>
           </div>
