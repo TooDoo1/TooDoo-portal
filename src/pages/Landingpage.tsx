@@ -14,6 +14,7 @@ import {
 	Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LoginArrowLabel } from "@/components/LoginArrowLabel";
 
 const slides = [
 	"/Icon.jpg",
@@ -255,16 +256,7 @@ export default function LandingPage() {
 								onClick={() => navigate("/login")}
 								className="group no-hover-motion relative inline-flex h-12 items-center justify-center overflow-hidden rounded-lg bg-accent pl-7 pr-10 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90"
 							>
-								<span className="anim-login-text pointer-events-none relative z-10 whitespace-nowrap transition-transform duration-300 group-hover:-translate-x-3">
-									Kom igång
-								</span>
-								<span className="pointer-events-none relative z-10 ml-1.5 flex h-4 w-4 shrink-0 items-center justify-center transition-transform duration-300 group-hover:translate-x-5">
-									<span
-										aria-hidden
-										className="anim-login-line absolute right-[calc(100%-3px)] top-1/2 h-px w-10 origin-right -translate-y-1/2 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100"
-									/>
-									<ArrowRight className="anim-login-arrow h-4 w-4" strokeWidth={2} />
-								</span>
+								<LoginArrowLabel>Kom igång</LoginArrowLabel>
 							</button>
 							<button className="inline-flex h-12 items-center justify-center rounded-lg border border-border bg-card px-7 text-sm font-semibold transition-colors hover:bg-secondary">
 								Ladda ner appen

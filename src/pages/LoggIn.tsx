@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ArrowRight, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LoginArrowLabel } from "@/components/LoginArrowLabel";
 import {
 	Dialog,
 	DialogContent,
@@ -231,16 +232,7 @@ export default function LoggIn() {
 								disabled={isSubmitting}
 								className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent px-6 text-accent-foreground font-semibold transition-colors hover:bg-accent/90"
 							>
-								<span className="anim-login-text pointer-events-none relative z-10 whitespace-nowrap transition-transform duration-300 group-hover:-translate-x-3">
-									{isSubmitting ? "Loggar in" : "Logga in"}
-								</span>
-								<span className="pointer-events-none relative z-10 ml-1.5 flex h-4 w-4 shrink-0 items-center justify-center transition-transform duration-300 group-hover:translate-x-5">
-									<span
-										aria-hidden
-										className="anim-login-line absolute right-[calc(100%+-0.5rem)] top-1/2 h-[1.5px] w-10 origin-right -translate-y-1/2 scale-x-0 rounded-full bg-accent-foreground transition-transform duration-300 group-hover:scale-x-100"
-									/>
-									<ArrowRight className="anim-login-arrow h-4 w-4" strokeWidth={2} />
-								</span>
+								<LoginArrowLabel>{isSubmitting ? "Loggar in" : "Logga in"}</LoginArrowLabel>
 							</button>
 
 							<Button type="button" className="h-11 w-full bg-primary font-semibold text-primary-foreground hover:bg-primary/90">
