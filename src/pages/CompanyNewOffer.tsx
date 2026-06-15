@@ -1,3 +1,5 @@
+import { useEffect, useState, type CSSProperties } from "react";
+import { ArrowLeft, CalendarDays, ChevronDown, ChevronUp, PlusCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronUp, Globe, Heart, MapPin, PlusCircle } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -9,8 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { addDays, format, parseISO, startOfDay } from "date-fns";
+import { addDays, format, getDay, parseISO, startOfDay } from "date-fns";
 import { toast } from "sonner";
+import { createOrder, createOrderPreset, getBusinessById, getBusinessId, getOrderById, listOrderPresets, resolveBusinessId, resolveImageUrl, updateOrder, type Business, type ImageGalleryItem, type OrderPreset } from "@/lib/api";
+import { TimePicker } from "@/components/TimePicker";
+import { ImageGalleryDialog } from "@/components/ImageGalleryDialog";
 import { createOrder, createOrderPreset, getBusinessById, getBusinessId, getOrderById, listOrderPresets, resolveBusinessId, resolveImageUrl, updateOrder, type Business, type OrderPreset } from "@/lib/api";
 import { TimePicker } from "@/components/TimePicker";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
@@ -35,9 +40,7 @@ type OfferPayload = {
   description: string;
   price: number;
   originalPrice?: number;
-  imageSourceType?: "EXTERNAL_URL" | "UPLOADED";
-  imageUrl?: string;
-  imageFile?: File;
+  imageAssetId?: string;
   orderTimeFrom: string;
   orderTimeTo: string;
   /** Daily redeem window start, HH:mm (24h). */
@@ -54,6 +57,17 @@ type PreviewBusiness = Pick<Business, "name" | "address" | "city" | "contactPhon
   imageUrl?: string | null;
 };
 
+type OpeningHoursDayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+
+const dayKeysByDateFnsIndex: OpeningHoursDayKey[] = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+];
 function formatPreviewCountdown(orderTimeTo?: string) {
   if (!orderTimeTo) return "00:00:00";
   const end = new Date(orderTimeTo).getTime();
@@ -116,6 +130,24 @@ function addMinutesToTime(time: string, minutesToAdd: number) {
   return `${clamp2(hh)}:${clamp2(mm)}`;
 }
 
+function getOpeningHoursForDate(openingHours: Business["openingHours"], datePart: string) {
+  if (!openingHours || !datePart) return null;
+
+  const date = parseISO(datePart);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const dayKey = dayKeysByDateFnsIndex[getDay(date)];
+  const rawDay = openingHours[dayKey];
+  if (!rawDay || typeof rawDay !== "object" || Array.isArray(rawDay)) return null;
+
+  const day = rawDay as { from?: unknown; to?: unknown };
+  const from = typeof day.from === "string" ? normalizeTime(day.from) : "";
+  const to = typeof day.to === "string" ? normalizeTime(day.to) : "";
+  if (!from || !to || compareTime(to, from) < 0) return null;
+
+  return { from, to };
+}
+
 function toLocalIsoWithOffset(date: Date) {
   // Backend-safe ISO string that preserves the local wall-clock time by including offset, e.g. 2026-04-23T11:40:00+02:00
   return format(date, "yyyy-MM-dd'T'HH:mm:ssxxx");
@@ -157,6 +189,16 @@ function getPresetImageUrl(preset: Record<string, unknown>) {
   for (const c of candidates) {
     if (typeof c === "string" && c.trim()) return c.trim();
   }
+  return "";
+}
+
+function getImageAssetId(value: Record<string, unknown>) {
+  const direct = value.imageAssetId;
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+  const image = value.image as { id?: unknown } | undefined;
+  if (image && typeof image.id === "string" && image.id.trim()) return image.id.trim();
+  const imageAsset = value.imageAsset as { id?: unknown } | undefined;
+  if (imageAsset && typeof imageAsset.id === "string" && imageAsset.id.trim()) return imageAsset.id.trim();
   return "";
 }
 
@@ -618,27 +660,12 @@ export default function CompanyNewOffer() {
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<OfferPayload | null>(null);
   const [previewBusiness, setPreviewBusiness] = useState<PreviewBusiness | null>(null);
+  const [businessOpeningHours, setBusinessOpeningHours] = useState<Business["openingHours"]>(null);
   const [isLoadingOffer, setIsLoadingOffer] = useState(false);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [editLocked, setEditLocked] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [uploadedImageUrl, setUploadedImageUrl] = useState("");
-  const imageFileInputRef = useRef<HTMLInputElement | null>(null);
-  const imageFilePreviewUrl = useMemo(() => {
-    if (!imageFile) return "";
-    return URL.createObjectURL(imageFile);
-  }, [imageFile]);
-  useEffect(() => {
-    if (!imageFilePreviewUrl) return;
-    return () => URL.revokeObjectURL(imageFilePreviewUrl);
-  }, [imageFilePreviewUrl]);
-  useEffect(() => {
-    if (!imageFilePreviewUrl) {
-      setUploadedImageUrl("");
-      return;
-    }
-    setUploadedImageUrl(imageFilePreviewUrl);
-  }, [imageFilePreviewUrl]);
+  const [galleryDialogOpen, setGalleryDialogOpen] = useState(false);
+  const [selectedGalleryImageAssetId, setSelectedGalleryImageAssetId] = useState<string | null>(null);
   const today = startOfDay(new Date());
   const tomorrow = addDays(today, 1);
   const [form, setForm] = useState<OfferForm>({
@@ -673,8 +700,12 @@ export default function CompanyNewOffer() {
           description: b.description,
           imageUrl: b.imageUrl ?? null,
         });
+        setBusinessOpeningHours(b.openingHours ?? null);
       } catch {
-        if (!cancelled) setPreviewBusiness(null);
+        if (!cancelled) {
+          setPreviewBusiness(null);
+          setBusinessOpeningHours(null);
+        }
       }
     };
     void loadBusiness();
@@ -697,14 +728,12 @@ export default function CompanyNewOffer() {
     const loadOrder = async () => {
       try {
         const order = await getOrderById(orderId);
-        const isActive = (() => {
+        const orderIsActive = (() => {
           const raw = (order as unknown as { isActive?: unknown }).isActive;
           if (typeof raw === "boolean") return raw;
           if (typeof raw === "string") return raw.toLowerCase() === "true";
-          return false;
+          return true;
         })();
-        setEditLocked(isActive);
-        if (isActive) toast.info("Aktivt erbjudande kan inte redigeras.");
         const orderTimeFrom =
           order.orderTimeFrom ||
           (isIsoDateTime(String(order.validFrom ?? "")) ? String(order.validFrom) : "") ||
@@ -713,6 +742,21 @@ export default function CompanyNewOffer() {
           order.orderTimeTo ||
           (isIsoDateTime(String(order.validTo ?? "")) ? String(order.validTo) : "") ||
           "";
+        const startTime = new Date(orderTimeFrom || 0).getTime();
+        const endTime = new Date(orderTimeTo || 0).getTime();
+        const now = Date.now();
+        const isLive =
+          orderIsActive &&
+          Number.isFinite(startTime) &&
+          Number.isFinite(endTime) &&
+          startTime <= now &&
+          now <= endTime;
+        setEditLocked(!orderIsActive || isLive);
+        if (!orderIsActive) {
+          toast.info("Detta erbjudande kan inte redigeras.");
+        } else if (isLive) {
+          toast.info("Aktivt erbjudande kan inte redigeras.");
+        }
         const couponLifetimeMinutes =
           typeof (order as unknown as { expireTime?: unknown }).expireTime === "number"
             ? Math.max(1, Math.round((order as unknown as { expireTime: number }).expireTime))
@@ -738,8 +782,7 @@ export default function CompanyNewOffer() {
           expiresAt: orderTimeTo ? format(new Date(orderTimeTo), "yyyy-MM-dd") : "",
           expiresTime: redeemValidTo || (orderTimeTo ? format(new Date(orderTimeTo), "HH:mm") : ""),
         });
-        setImageFile(null);
-        setUploadedImageUrl("");
+        setSelectedGalleryImageAssetId(null);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Kunde inte läsa erbjudandet.";
         toast.error(message);
@@ -760,8 +803,52 @@ export default function CompanyNewOffer() {
     ? expiresDateForStartPicker
     : null;
 
+  useEffect(() => {
+    if (editOrderId) return;
+
+    setForm((prev) => {
+      if (!prev.startAt || !prev.expiresAt) {
+        return prev;
+      }
+
+      const startHours = getOpeningHoursForDate(businessOpeningHours, prev.startAt);
+      const endHours = getOpeningHoursForDate(businessOpeningHours, prev.expiresAt);
+      if (!startHours || !endHours) {
+        return prev;
+      }
+
+      let nextStartTime = startHours.from;
+      const nextExpiresTime = endHours.to;
+
+      if (prev.startAt === format(new Date(), "yyyy-MM-dd")) {
+        const now = new Date();
+        const nowTime = `${clamp2(now.getHours())}:${clamp2(now.getMinutes())}`;
+        const effectiveMin = ceilToStep(nowTime, 5);
+        if (effectiveMin && compareTime(nextStartTime, effectiveMin) < 0) {
+          nextStartTime = effectiveMin;
+        }
+      }
+
+      if (nextStartTime === prev.startTime && nextExpiresTime === prev.expiresTime) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        startTime: nextStartTime,
+        expiresTime: nextExpiresTime,
+      };
+    });
+  }, [businessOpeningHours, editOrderId, form.expiresAt, form.startAt]);
+
   const onChange = (field: keyof OfferForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const selectGalleryImage = (image: ImageGalleryItem) => {
+    const rawUrl = image.publicUrl || image.originalUrl || "";
+    onChange("imageUrl", rawUrl ? resolveImageUrl(rawUrl) : "");
+    setSelectedGalleryImageAssetId(image.id);
   };
 
   const stepNumericField = (field: "originalPrice" | "discountedPrice" | "claimsTotal" | "couponLifetimeMinutes", delta: number) => {
@@ -813,6 +900,7 @@ export default function CompanyNewOffer() {
       originalPrice,
       claimsTotal,
     }));
+    setSelectedGalleryImageAssetId(getImageAssetId(preset as unknown as Record<string, unknown>) || null);
     setPresetPickerOpen(false);
     toast.success("Preset laddat.");
   };
@@ -828,17 +916,6 @@ export default function CompanyNewOffer() {
     if (!form.title.trim()) {
       toast.error("Fyll i titel.");
       return;
-    }
-
-    const trimmedImageUrl = form.imageUrl.trim();
-    if (trimmedImageUrl) {
-      try {
-        // eslint-disable-next-line no-new
-        new URL(trimmedImageUrl);
-      } catch {
-        toast.error("Bild URL måste vara en giltig URL.");
-        return;
-      }
     }
 
     const businessId = getBusinessId();
@@ -971,7 +1048,6 @@ export default function CompanyNewOffer() {
     void nowIso;
 
     const description = form.title.trim();
-    const wantsUpload = Boolean(imageFile);
     const dailyValidFrom = normalizeTime(form.startTime);
     const dailyValidTo = normalizeTime(form.expiresTime);
     if (!dailyValidFrom || !dailyValidTo) {
@@ -983,9 +1059,7 @@ export default function CompanyNewOffer() {
       description,
       price,
       originalPrice,
-      imageSourceType: wantsUpload ? "UPLOADED" : trimmedImageUrl ? "EXTERNAL_URL" : undefined,
-      imageUrl: wantsUpload ? undefined : trimmedImageUrl ? trimmedImageUrl : undefined,
-      imageFile: wantsUpload ? imageFile ?? undefined : undefined,
+      imageAssetId: selectedGalleryImageAssetId ?? undefined,
       orderTimeFrom: orderTimeFromIso,
       orderTimeTo: validToIso,
       validFrom: dailyValidFrom,
@@ -1058,18 +1132,6 @@ export default function CompanyNewOffer() {
       maxRedemptions = parsedMaxRedemptions;
     }
 
-    const trimmedImageUrl = form.imageUrl.trim();
-    if (trimmedImageUrl) {
-      try {
-        // eslint-disable-next-line no-new
-        new URL(trimmedImageUrl);
-      } catch {
-        toast.error("Bild URL måste vara en giltig URL.");
-        return;
-      }
-    }
-    const wantsUpload = Boolean(imageFile);
-
     setIsSubmitting(true);
     try {
       await createOrderPreset({
@@ -1078,9 +1140,7 @@ export default function CompanyNewOffer() {
         price,
         originalPrice,
         maxRedemptions,
-        imageSourceType: wantsUpload ? "UPLOADED" : trimmedImageUrl ? "EXTERNAL_URL" : undefined,
-        imageUrl: wantsUpload ? undefined : trimmedImageUrl ? trimmedImageUrl : undefined,
-        imageFile: wantsUpload ? imageFile ?? undefined : undefined,
+        imageAssetId: selectedGalleryImageAssetId ?? undefined,
       });
       toast.success("Preset skapat.");
       navigate("/company/offers");
@@ -1151,52 +1211,19 @@ export default function CompanyNewOffer() {
 
               <div className="space-y-2 md:col-span-2">
                 <label className="text-sm font-medium text-foreground">
-                  Bild URL <span className="text-xs text-muted-foreground">(valfritt)</span>
+                  Bild <span className="text-xs text-muted-foreground">(valfritt)</span>
                 </label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="https://example.com/image.jpg"
-                    value={imageFile ? uploadedImageUrl : form.imageUrl}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      if (imageFile) {
-                        // If the user edits the field, switch to URL mode.
-                        if (!next.trim()) {
-                          setImageFile(null);
-                          setUploadedImageUrl("");
-                          onChange("imageUrl", "");
-                          return;
-                        }
-                        if (next !== uploadedImageUrl) {
-                          setImageFile(null);
-                          setUploadedImageUrl("");
-                          onChange("imageUrl", next);
-                        }
-                        return;
-                      }
-                      onChange("imageUrl", next);
-                    }}
-                  />
+                <div className="flex flex-col gap-3 rounded-xl border border-border bg-background/30 p-3 sm:flex-row sm:items-center">
                   <Button
                     type="button"
-                    variant="default"
                     className="shrink-0 bg-blue-600 text-white hover:bg-blue-700"
-                    onClick={() => imageFileInputRef.current?.click()}
+                    onClick={() => setGalleryDialogOpen(true)}
                   >
-                    Ladda upp
+                    Välj från galleri
                   </Button>
-                  <input
-                    ref={imageFileInputRef}
-                    type="file"
-                    accept="image/*,.svg,image/svg+xml"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] ?? null;
-                      setImageFile(file);
-                      if (file) onChange("imageUrl", "");
-                      if (imageFileInputRef.current) imageFileInputRef.current.value = "";
-                    }}
-                  />
+                  <span className="text-xs text-muted-foreground">
+                    {selectedGalleryImageAssetId ? "Ny galleribild vald" : form.imageUrl.trim() ? "Nuvarande bild visas i förhandsvisningen" : "Ingen bild vald"}
+                  </span>
                 </div>
                 <p className="text-xs text-muted-foreground">Används som bild för erbjudandet i appen.</p>
               </div>
@@ -1593,6 +1620,20 @@ export default function CompanyNewOffer() {
                 <DialogTitle>Förhandsvisning i appen</DialogTitle>
               </DialogHeader>
 
+              <div className="mt-4 flex justify-center">
+                <div className="origin-top scale-[0.78]">
+                  <OfferPreviewCard
+                    businessName={previewBusiness?.name?.trim() || "Företag"}
+                    offerText={pendingPayload?.title || form.title || "Titel"}
+                    priceKr={pendingPayload?.price ?? 0}
+                    originalPriceKr={pendingPayload?.originalPrice}
+                    claimedCount={0}
+                    totalCount={pendingPayload?.maxRedemptions ?? 1}
+                    countdownText="13:52:57"
+                    imageUrl={form.imageUrl.trim() ? form.imageUrl.trim() : undefined}
+                    ctaLabel="Logga in för att claima!"
+                  />
+                </div>
               <div className="mt-4 flex justify-center overflow-x-auto pb-2">
                 <OfferPreviewCard
                   businessName={previewBusiness?.name?.trim() || "Företag"}
@@ -1666,6 +1707,12 @@ export default function CompanyNewOffer() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ImageGalleryDialog
+        open={galleryDialogOpen}
+        onOpenChange={setGalleryDialogOpen}
+        onSelect={selectGalleryImage}
+      />
     </div>
   );
 }

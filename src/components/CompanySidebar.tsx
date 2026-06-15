@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { BadgeCheck, Briefcase, CalendarDays, LayoutDashboard, LogOut, ReceiptText, Tags, UserPlus, UserRound } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { BadgeCheck, Briefcase, CalendarDays, ImagePlus, LayoutDashboard, LogOut, ReceiptText, Tags, UserPlus, UserRound } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -27,6 +27,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useMonochrome } from "@/hooks/useMonochrome";
+import { useRealtime } from "@/hooks/useRealtime";
 
 type MenuGroup = {
   label: string;
@@ -56,7 +57,10 @@ const menuGroups: MenuGroup[] = [
   },
   {
     label: "Konto",
-    items: [{ title: "Mitt företag", url: "/company/account", icon: UserRound }],
+    items: [
+      { title: "Mitt företag", url: "/company/account", icon: UserRound },
+      { title: "Bildförfrågan", url: "/company/image-request", icon: ImagePlus },
+    ],
   },
 ];
 
@@ -86,36 +90,39 @@ export function CompanySidebar() {
     setRole(getAuthRole());
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadBusinessName = async () => {
-      try {
-        let resolvedId = getBusinessId();
-        if (!resolvedId) {
-          const authEmail = getAuthEmail();
-          if (authEmail) {
-            const user = await getUserByEmail(authEmail);
-            if (user.businessId) {
-              resolvedId = user.businessId;
-              setBusinessId(user.businessId);
-            }
+  const loadBusinessName = useCallback(async () => {
+    try {
+      let resolvedId = getBusinessId();
+      if (!resolvedId) {
+        const authEmail = getAuthEmail();
+        if (authEmail) {
+          const user = await getUserByEmail(authEmail);
+          if (user.businessId) {
+            resolvedId = user.businessId;
+            setBusinessId(user.businessId);
           }
         }
-        if (!resolvedId) {
-          if (!cancelled) setBusinessName(null);
-          return;
-        }
-        const business = await getBusinessById(resolvedId);
-        if (!cancelled) setBusinessName(business.name?.trim() || null);
-      } catch {
-        if (!cancelled) setBusinessName(null);
       }
-    };
-    void loadBusinessName();
-    return () => {
-      cancelled = true;
-    };
+      if (!resolvedId) {
+        setBusinessName(null);
+        return;
+      }
+      const business = await getBusinessById(resolvedId);
+      setBusinessName(business.name?.trim() || null);
+    } catch {
+      setBusinessName(null);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadBusinessName();
+  }, [loadBusinessName]);
+
+  useRealtime((event) => {
+    if (event.type === "business.updated") {
+      void loadBusinessName();
+    }
+  });
 
   const handleLogout = () => {
     clearAuthStorage();

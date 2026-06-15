@@ -20,6 +20,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useMonochrome } from "@/hooks/useMonochrome";
+import { useRealtime } from "@/hooks/useRealtime";
 
 type MenuGroup = {
   label: string;
@@ -108,6 +109,12 @@ export function AdminSidebar() {
       window.removeEventListener("focus", onRefresh);
     };
   }, [location.pathname]);
+
+  useRealtime((event) => {
+    if (event.type === "business.updated" || event.type === "business-image-request.updated") {
+      window.dispatchEvent(new CustomEvent(ADMIN_PENDING_COUNTS_REFRESH));
+    }
+  });
 
   const handleLogout = () => {
     clearAuthStorage();

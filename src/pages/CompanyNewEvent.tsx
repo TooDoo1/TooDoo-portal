@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, CalendarDays, PlusCircle, Upload } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, CalendarDays, PlusCircle } from "lucide-react";
 import { format, parseISO, startOfDay } from "date-fns";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -13,11 +13,14 @@ import { TimePicker } from "@/components/TimePicker";
 import {
   createBusinessEvent,
   getBusinessEventById,
+  resolveImageUrl,
   updateBusinessEvent,
   type BusinessEvent,
   type CreateBusinessEventRequest,
+  type ImageGalleryItem,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { ImageGalleryDialog } from "@/components/ImageGalleryDialog";
 
 type EventForm = {
   title: string;
@@ -123,18 +126,8 @@ export default function CompanyNewEvent() {
   const [visibleToOpen, setVisibleToOpen] = useState(false);
   const [startOpen, setStartOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const imageFileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const imageFilePreviewUrl = useMemo(() => {
-    if (!imageFile) return "";
-    return URL.createObjectURL(imageFile);
-  }, [imageFile]);
-
-  useEffect(() => {
-    if (!imageFilePreviewUrl) return;
-    return () => URL.revokeObjectURL(imageFilePreviewUrl);
-  }, [imageFilePreviewUrl]);
+  const [galleryDialogOpen, setGalleryDialogOpen] = useState(false);
+  const [selectedGalleryImageAssetId, setSelectedGalleryImageAssetId] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -160,7 +153,7 @@ export default function CompanyNewEvent() {
           endsAt: toDatePart(event.endsAt),
           endsTime: toTimePart(event.endsAt),
         });
-        setImageFile(null);
+        setSelectedGalleryImageAssetId(null);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Kunde inte läsa eventet.";
         toast.error(message);
@@ -181,6 +174,12 @@ export default function CompanyNewEvent() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const selectGalleryImage = (image: ImageGalleryItem) => {
+    const rawUrl = image.publicUrl || image.originalUrl || "";
+    onChange("imageUrl", rawUrl ? resolveImageUrl(rawUrl) : "");
+    setSelectedGalleryImageAssetId(image.id);
+  };
+
   const buildPayload = (): CreateBusinessEventRequest | null => {
     if (!form.title.trim()) {
       toast.error("Fyll i titel.");
@@ -197,17 +196,6 @@ export default function CompanyNewEvent() {
     if (!form.startsAt || !form.startsTime || !form.endsAt || !form.endsTime) {
       toast.error("Välj start- och sluttid för eventet.");
       return null;
-    }
-
-    const trimmedImageUrl = form.imageUrl.trim();
-    if (!imageFile && trimmedImageUrl) {
-      try {
-        // eslint-disable-next-line no-new
-        new URL(trimmedImageUrl);
-      } catch {
-        toast.error("Bild URL måste vara en giltig URL.");
-        return null;
-      }
     }
 
     if (form.visibleFrom === form.visibleTo && compareTime(form.visibleToTime, addMinutesToTime(form.visibleFromTime, 1)) < 0) {
@@ -248,7 +236,6 @@ export default function CompanyNewEvent() {
       return null;
     }
 
-    const wantsUpload = Boolean(imageFile);
     return {
       title: form.title.trim(),
       description: form.description.trim(),
@@ -257,9 +244,7 @@ export default function CompanyNewEvent() {
       visibleTo: toLocalIsoWithOffset(visibleToDate),
       startsAt: toLocalIsoWithOffset(startsAtDate),
       endsAt: toLocalIsoWithOffset(endsAtDate),
-      imageSourceType: wantsUpload ? "UPLOADED" : trimmedImageUrl ? "EXTERNAL_URL" : undefined,
-      imageUrl: wantsUpload ? undefined : trimmedImageUrl || undefined,
-      imageFile: wantsUpload ? imageFile ?? undefined : undefined,
+      imageAssetId: selectedGalleryImageAssetId ?? undefined,
     };
   };
 
@@ -342,32 +327,14 @@ export default function CompanyNewEvent() {
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-medium text-foreground">Bild URL eller uppladdning (valfritt)</label>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="https://example.com/event.jpg"
-                      value={imageFile ? imageFilePreviewUrl : form.imageUrl}
-                      onChange={(e) => {
-                        if (imageFile) setImageFile(null);
-                        onChange("imageUrl", e.target.value);
-                      }}
-                    />
-                    <Button type="button" className="shrink-0 gap-2 bg-blue-600 text-white hover:bg-blue-700" onClick={() => imageFileInputRef.current?.click()}>
-                      <Upload className="h-4 w-4" />
-                      Ladda upp
+                  <label className="text-sm font-medium text-foreground">Bild (valfritt)</label>
+                  <div className="flex flex-col gap-3 rounded-xl border border-border bg-background/30 p-3 sm:flex-row sm:items-center">
+                    <Button type="button" className="shrink-0 gap-2 bg-blue-600 text-white hover:bg-blue-700" onClick={() => setGalleryDialogOpen(true)}>
+                      Välj från galleri
                     </Button>
-                    <input
-                      ref={imageFileInputRef}
-                      type="file"
-                      accept="image/*,.svg,image/svg+xml"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] ?? null;
-                        setImageFile(file);
-                        if (file) onChange("imageUrl", "");
-                        if (imageFileInputRef.current) imageFileInputRef.current.value = "";
-                      }}
-                    />
+                    <span className="text-xs text-muted-foreground">
+                      {selectedGalleryImageAssetId ? "Ny galleribild vald" : form.imageUrl.trim() ? "Nuvarande bild visas" : "Ingen bild vald"}
+                    </span>
                   </div>
                 </div>
 
@@ -533,6 +500,12 @@ export default function CompanyNewEvent() {
           )}
         </CardContent>
       </Card>
+
+      <ImageGalleryDialog
+        open={galleryDialogOpen}
+        onOpenChange={setGalleryDialogOpen}
+        onSelect={selectGalleryImage}
+      />
     </div>
   );
 }

@@ -42,7 +42,8 @@ export default function ManagerRegistration() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const emailParam = params.get("email")?.trim() ?? "";
-    const inviteTokenParam = params.get("inviteToken")?.trim() ?? "";
+    const inviteTokenParam =
+      params.get("inviteToken")?.trim() ?? params.get("token")?.trim() ?? "";
     const storedInviteToken = sessionStorage.getItem(INVITE_TOKEN_STORAGE_KEY)?.trim() ?? "";
 
     if (emailParam) {

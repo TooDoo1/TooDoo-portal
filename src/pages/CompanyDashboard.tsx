@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowUpRight,
   BadgeCheck,
   ChevronRight,
-  CircleDollarSign,
   Gift,
   ScanLine,
   Wallet,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { listOrders, resolveBusinessId, type Order } from "@/lib/api";
+import { getBusinessDailySummary, resolveBusinessId, type BusinessDailySummary } from "@/lib/api";
+import { useRealtime } from "@/hooks/useRealtime";
 
 const quickLinks = [
   {
@@ -34,66 +34,87 @@ const quickLinks = [
 ];
 
 export default function CompanyDashboard() {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [summary, setSummary] = useState<BusinessDailySummary | null>(null);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(true);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const businessId = await resolveBusinessId();
-        if (!businessId) {
-          setOrders([]);
-          return;
-        }
-        const data = await listOrders(undefined, businessId);
-        setOrders(data);
-      } catch {
-        setOrders([]);
+  const loadSummary = useCallback(async () => {
+    try {
+      setSummaryError(null);
+      const businessId = await resolveBusinessId();
+      if (!businessId) {
+        setSummary(null);
+        setSummaryError("Saknar businessId. Logga in igen.");
+        return;
       }
-    };
-
-    void load();
+      const data = await getBusinessDailySummary(businessId);
+      setSummary(data);
+    } catch (error) {
+      setSummary(null);
+      setSummaryError(error instanceof Error ? error.message : "Kunde inte hämta dagens sammanfattning.");
+    } finally {
+      setIsLoadingSummary(false);
+    }
   }, []);
 
-  const activeOffers = useMemo(() => {
-    const now = Date.now();
-    return orders.filter((order) => new Date(order.validTo).getTime() > now);
-  }, [orders]);
+  useEffect(() => {
+    void loadSummary();
+  }, [loadSummary]);
 
-  const totalClaims = activeOffers.reduce((sum, offer) => sum + Number(offer.maxRedemptions ?? 0), 0);
-  const totalEarnings = activeOffers.reduce((sum, offer) => sum + Number(offer.price ?? 0), 0);
+  useRealtime((event) => {
+    if (event.type === "order.updated") {
+      void loadSummary();
+    }
+  });
+
+  const claimedNotRedeemedToday = useMemo(
+    () => Math.max((summary?.claimsToday ?? 0) - (summary?.redemptionsToday ?? 0), 0),
+    [summary],
+  );
+  const redemptionRate = summary && summary.claimsToday > 0
+    ? Math.round((summary.redemptionsToday / summary.claimsToday) * 100)
+    : 0;
+  const summaryDate = summary?.dateLabel
+    ? new Date(`${summary.dateLabel}T12:00:00`).toLocaleDateString("sv-SE", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
+    : "idag";
+  const displayValue = (value: number) => (isLoadingSummary ? "..." : value);
 
   const stats = [
     {
-      label: "Aktiva erbjudanden",
-      value: activeOffers.length,
-      detail: `${orders.length - activeOffers.length} utgångna`,
+      label: "Erbjudanden uppe idag",
+      value: displayValue(summary?.offersUpToday ?? 0),
+      detail: `Stockholmstid, ${summaryDate}`,
       icon: Gift,
       color: "bg-accent/15 text-accent",
       to: null as string | null,
     },
     {
-      label: "Aktiverade kuponger",
-      value: totalClaims,
-      detail: "Från maxRedemptions",
+      label: "Claimade idag",
+      value: displayValue(summary?.claimsToday ?? 0),
+      detail: "Skapade kuponger idag",
       icon: BadgeCheck,
       color: "bg-success/15 text-success",
       to: null as string | null,
     },
     {
-      label: "Ej använda kuponger",
-      value: 0,
-      detail: "Kräver claim-statistik endpoint",
-      icon: Wallet,
-      color: "bg-warning/15 text-warning",
+      label: "Inlösta idag",
+      value: displayValue(summary?.redemptionsToday ?? 0),
+      detail: `${redemptionRate}% av dagens claims`,
+      icon: ScanLine,
+      color: "bg-primary/15 text-primary",
       to: null as string | null,
     },
     {
-      label: "Vecko intäkt",
-      value: `${totalEarnings.toLocaleString("sv-SE")} kr`,
-      detail: "Klicka för att se detaljer →",
-      icon: CircleDollarSign,
-      color: "bg-primary/15 text-primary",
-      to: "/company/invoices" as string | null,
+      label: "Claimade ej inlösta",
+      value: displayValue(claimedNotRedeemedToday),
+      detail: "Återstår från dagens claims",
+      icon: Wallet,
+      color: "bg-warning/15 text-warning",
+      to: null as string | null,
     },
   ];
 
@@ -101,8 +122,16 @@ export default function CompanyDashboard() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Översikt över dina erbjudanden och kuponger</p>
+        <p className="text-muted-foreground mt-1">Dagens sammanfattning över erbjudanden och kuponger</p>
       </div>
+
+      {summaryError ? (
+        <Card className="bg-destructive/10 border-destructive/30">
+          <CardContent className="p-4 text-sm text-destructive">
+            {summaryError}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => {
@@ -166,9 +195,11 @@ export default function CompanyDashboard() {
         </CardHeader>
         <CardContent className="space-y-3">
           {[
-            `Live orders hämtade: ${orders.length}`,
-            `${activeOffers.length} erbjudanden aktiva just nu`,
-            "Mock-data borttagen från dashboard",
+            summary
+              ? `Dagens sammanfattning hämtad för ${summary.businessName}`
+              : "Dagens sammanfattning hämtas",
+            `${summary?.offersUpToday ?? 0} erbjudanden är uppe idag`,
+            `${summary?.claimsToday ?? 0} claimade, ${summary?.redemptionsToday ?? 0} inlösta`,
           ].map((activity, index) => (
             <div key={index} className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0">
               <span className="text-sm text-foreground/80">{activity}</span>

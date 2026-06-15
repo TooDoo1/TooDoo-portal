@@ -1,23 +1,24 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { getBusinessDefaultImages, listImages, resolveImageUrl, type ImageGalleryItem } from "@/lib/api";
+import { listImages, resolveImageUrl, type ImageGalleryItem } from "@/lib/api";
 import { toast } from "sonner";
 import { Search, Loader } from "lucide-react";
+import { useRealtime } from "@/hooks/useRealtime";
 
 interface ImageGalleryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (imageUrl: string) => void;
+  onSelect: (image: ImageGalleryItem) => void;
   categoryName?: string;
-  categoryId?: string;
 }
 
 type GalleryEntry = {
   key: string;
   url: string;
   source: "default" | "uploaded";
+  image: ImageGalleryItem;
 };
 
 export function ImageGalleryDialog({
@@ -25,42 +26,44 @@ export function ImageGalleryDialog({
   onOpenChange,
   onSelect,
   categoryName,
-  categoryId,
 }: ImageGalleryDialogProps) {
-  const [images, setImages] = useState<ImageGalleryItem[]>([]);
-  const [defaultImages, setDefaultImages] = useState<string[]>([]);
+  const [businessImages, setBusinessImages] = useState<ImageGalleryItem[]>([]);
+  const [defaultImages, setDefaultImages] = useState<ImageGalleryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<ImageGalleryItem | null>(null);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+
+  const loadImages = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
+    try {
+      const result = await listImages();
+      setBusinessImages(result.businessImages ?? []);
+      setDefaultImages(result.defaultImages ?? []);
+    } catch (error) {
+      if (!options?.silent) {
+        const message = error instanceof Error ? error.message : "Kunde inte ladda galleriet.";
+        toast.error(message);
+      }
+      setBusinessImages([]);
+      setDefaultImages([]);
+    } finally {
+      if (!options?.silent) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) return;
-
-    const loadImages = async () => {
-      setLoading(true);
-      try {
-        const [result, defaultsResponse] = await Promise.all([
-          listImages(),
-          categoryId ? getBusinessDefaultImages(categoryId) : Promise.resolve(null),
-        ]);
-        console.log("Loaded images from gallery:", result);
-        setImages(result);
-        setDefaultImages(defaultsResponse?.images ?? []);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Kunde inte ladda galleriet.";
-        toast.error(message);
-        setImages([]);
-        setDefaultImages([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     void loadImages();
-  }, [open]);
+  }, [loadImages, open]);
 
-  const managerEntries: GalleryEntry[] = images
+  useRealtime((event) => {
+    if (open && event.type === "image-gallery.updated") {
+      void loadImages({ silent: true });
+    }
+  }, open);
+
+  const managerEntries: GalleryEntry[] = businessImages
     .map((img) => {
       const rawUrl = img.publicUrl || img.originalUrl || "";
       if (!rawUrl) return null;
@@ -69,15 +72,23 @@ export function ImageGalleryDialog({
         key: `uploaded:${img.id}`,
         url,
         source: "uploaded" as const,
+        image: img,
       };
     })
     .filter((entry): entry is GalleryEntry => Boolean(entry));
 
-  const defaultEntries: GalleryEntry[] = defaultImages.map((url, index) => ({
-    key: `default:${index}:${url}`,
-    url: resolveImageUrl(url),
-    source: "default" as const,
-  }));
+  const defaultEntries: GalleryEntry[] = defaultImages
+    .map((img) => {
+      const rawUrl = img.publicUrl || img.originalUrl || "";
+      if (!rawUrl) return null;
+      return {
+        key: `default:${img.id}`,
+        url: resolveImageUrl(rawUrl),
+        source: "default" as const,
+        image: img,
+      };
+    })
+    .filter((entry): entry is GalleryEntry => Boolean(entry));
 
   const filterBySearch = (entry: GalleryEntry) => {
     const matchesSearch =
@@ -150,9 +161,9 @@ export function ImageGalleryDialog({
                         return (
                           <div
                             key={entry.key}
-                            onClick={() => setSelectedImage(entry.url)}
+                            onClick={() => setSelectedImage(entry.image)}
                             className={`relative rounded-lg border-2 overflow-hidden cursor-pointer transition-all ${
-                              selectedImage === entry.url
+                              selectedImage?.id === entry.image.id
                                 ? "border-accent bg-accent/10"
                                 : "border-border hover:border-accent/50"
                             }`}
@@ -194,9 +205,9 @@ export function ImageGalleryDialog({
                         return (
                           <div
                             key={entry.key}
-                            onClick={() => setSelectedImage(entry.url)}
+                            onClick={() => setSelectedImage(entry.image)}
                             className={`relative rounded-lg border-2 overflow-hidden cursor-pointer transition-all ${
-                              selectedImage === entry.url
+                              selectedImage?.id === entry.image.id
                                 ? "border-accent bg-accent/10"
                                 : "border-border hover:border-accent/50"
                             }`}

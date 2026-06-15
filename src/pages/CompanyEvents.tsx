@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { deleteBusinessEvent, listManagerBusinessEvents, resolveBusinessId, type BusinessEvent } from "@/lib/api";
+import { useRealtime } from "@/hooks/useRealtime";
 import { cn } from "@/lib/utils";
 
 function getEventStatus(event: BusinessEvent): "active" | "draft" | "ended" {
@@ -46,13 +47,17 @@ export default function CompanyEvents() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<BusinessEvent | null>(null);
 
-  const loadEvents = useCallback(async () => {
-    setLoading(true);
+  const loadEvents = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
     try {
       const businessId = await resolveBusinessId();
       if (!businessId) {
         setEvents([]);
-        toast.error("Saknar businessId. Logga in igen.");
+        if (!options?.silent) {
+          toast.error("Saknar businessId. Logga in igen.");
+        }
         return;
       }
 
@@ -60,16 +65,26 @@ export default function CompanyEvents() {
       setEvents([...data].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte hämta event.";
-      toast.error(message);
+      if (!options?.silent) {
+        toast.error(message);
+      }
       setEvents([]);
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void loadEvents();
   }, [loadEvents]);
+
+  useRealtime((event) => {
+    if (event.type === "business-event.updated") {
+      void loadEvents({ silent: true });
+    }
+  });
 
   const handleDelete = async (event: BusinessEvent) => {
     setIsDeleting(true);

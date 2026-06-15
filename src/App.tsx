@@ -33,6 +33,7 @@ const CompanyNewEvent = lazy(() => import("./pages/CompanyNewEvent"));
 const CompanyVerification = lazy(() => import("./pages/CompanyVerification"));
 const CompanyInvoices = lazy(() => import("./pages/CompanyInvoices"));
 const CompanyAccount = lazy(() => import("./pages/CompanyAccount"));
+const CompanyImageRequest = lazy(() => import("./pages/CompanyImageRequest"));
 const WorkerCreation = lazy(() => import("./pages/WorkerCreation"));
 const WorkerOnboard = lazy(() => import("./pages/WorkerOnboard"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -88,7 +89,9 @@ function AppearanceController() {
     pathname === "/reset-password" ||
     pathname === "/manager-registration" ||
     pathname === "/manager/onboard" ||
-    pathname === "/worker/onboard";
+    pathname === "/invite/manager" ||
+    pathname === "/worker/onboard" ||
+    pathname === "/invite/worker";
 
   useEffect(() => {
     applyMonochrome(isPublicRoute ? false : monochrome);
@@ -113,7 +116,9 @@ const App = () => {
               <Route path="/registration" element={<Registration />} />
               <Route path="/manager-registration" element={<ManagerRegistration />} />
               <Route path="/manager/onboard" element={<ManagerRegistration />} />
+              <Route path="/invite/manager" element={<ManagerRegistration />} />
               <Route path="/worker/onboard" element={<WorkerOnboard />} />
+              <Route path="/invite/worker" element={<WorkerOnboard />} />
 
               <Route element={<PrivateLayout />}>
                 <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
@@ -135,6 +140,7 @@ const App = () => {
                   <Route path="/company/verification" element={<CompanyVerification />} />
                   <Route path="/company/invoices" element={<CompanyInvoices />} />
                   <Route path="/company/account" element={<CompanyAccount />} />
+                  <Route path="/company/image-request" element={<CompanyImageRequest />} />
                   <Route path="/company/workers/new" element={<WorkerCreation />} />
                 </Route>
               </Route>

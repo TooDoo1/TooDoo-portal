@@ -3,7 +3,6 @@ import { Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
@@ -12,7 +11,6 @@ import { LoginArrowLabel } from "@/components/LoginArrowLabel";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
 import {
 	createBusiness,
-	getBusinessDefaultImages,
 	listCategories,
 	searchScbWorkplacesByOrgNumber,
 	setBusinessId,
@@ -36,14 +34,11 @@ export default function Registration() {
 	const [orgSearchResults, setOrgSearchResults] = useState<ScbCompanySearchHit[]>([]);
 	const [orgResultFilter, setOrgResultFilter] = useState("");
 	const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(null);
+	const [businessName, setBusinessName] = useState("");
 	const [selectedCfarNr, setSelectedCfarNr] = useState<string | null>(null);
 	const [manualEntry, setManualEntry] = useState(false);
 	const showRestOfForm = Boolean(selectedCfarNr) || manualEntry;
 	const [prefill, setPrefill] = useState({ email: "", phone: "", city: "", address: "" });
-	const [defaultImageUrls, setDefaultImageUrls] = useState<string[]>([]);
-	const [selectedDefaultImageUrl, setSelectedDefaultImageUrl] = useState("");
-	const [isLoadingDefaultImages, setIsLoadingDefaultImages] = useState(false);
-	const [isDefaultImageGalleryOpen, setIsDefaultImageGalleryOpen] = useState(false);
 	const navigate = useNavigate();
 	const longDescRef = useRef<HTMLTextAreaElement>(null);
 	const [openingHours, setOpeningHours] = useState<Record<
@@ -163,30 +158,6 @@ export default function Registration() {
 		void loadCategories();
 	}, []);
 
-	useEffect(() => {
-		if (!categoryId) {
-			setDefaultImageUrls([]);
-			setSelectedDefaultImageUrl("");
-			return;
-		}
-
-		const loadDefaultImages = async () => {
-			setIsLoadingDefaultImages(true);
-			try {
-				const response = await getBusinessDefaultImages(categoryId);
-				const images = Array.isArray(response.images) ? response.images : [];
-				setDefaultImageUrls(images);
-				setSelectedDefaultImageUrl((prev) => (prev && images.includes(prev) ? prev : images[0] ?? ""));
-			} catch {
-				setDefaultImageUrls([]);
-				setSelectedDefaultImageUrl("");
-			}
-			setIsLoadingDefaultImages(false);
-		};
-
-		void loadDefaultImages();
-	}, [categoryId]);
-
 	const handleRegister = async () => {
 		const email = (document.getElementById("email") as HTMLInputElement | null)?.value.trim() ?? "";
 		const phone = (document.getElementById("phonenumber") as HTMLInputElement | null)?.value.trim() ?? "";
@@ -194,10 +165,7 @@ export default function Registration() {
 		const city = (document.getElementById("companyCity") as HTMLInputElement | null)?.value.trim() ?? "";
 		const address = (document.getElementById("companyAddress") as HTMLInputElement | null)?.value.trim() ?? "";
 		const longDescription = longDescRef.current?.value.trim() ?? "";
-		const companyName =
-			selectedCompanyName?.trim() ||
-			companyOptions.find((option) => option.value === company)?.label ||
-			"Annat företag";
+		const companyName = businessName.trim();
 
 		let normalizedWebsite: string | undefined;
 		if (website) {
@@ -219,17 +187,6 @@ export default function Registration() {
 		if (!email || !phone || !city || !address || !companyName || !longDescription || !categoryId) {
 			toast.error("Fyll i e-post, telefon, stad, adress, företag, kategori och lång beskrivning.");
 			return;
-		}
-
-		const trimmedImageUrl = selectedDefaultImageUrl.trim();
-		if (trimmedImageUrl) {
-			try {
-				// eslint-disable-next-line no-new
-				new URL(trimmedImageUrl);
-			} catch {
-				toast.error("Bild URL måste vara en giltig URL.");
-				return;
-			}
 		}
 
 		setIsSubmitting(true);
@@ -261,8 +218,6 @@ export default function Registration() {
 				address,
 				city,
 				categoryId: categoryId,
-				imageSourceType: trimmedImageUrl ? "EXTERNAL_URL" : undefined,
-				imageUrl: trimmedImageUrl || undefined,
 				...(shouldSendOpeningHours ? { openingHours: openingHoursPayload } : {}),
 			});
 
@@ -318,6 +273,7 @@ export default function Registration() {
 
 	const applySelectedCompany = (c: ScbCompanySearchHit) => {
 		setSelectedCompanyName(c.name);
+		setBusinessName(c.name);
 		setSelectedCfarNr(c.cfarNr || null);
 		setCompany("annat");
 		setCompanyOpen(false);
@@ -364,11 +320,11 @@ export default function Registration() {
 	}, [orgSearchResults, orgResultFilter]);
 
 	const previewCompanyName =
+		businessName.trim() ||
 		selectedCompanyName?.trim() ||
 		(company ? companyOptions.find((option) => option.value === company)?.label : "") ||
 		"Ditt företag";
 	const previewCategoryName = categoryOptions.find((c) => c.id === categoryId)?.name ?? "";
-	const previewImageUrl = selectedDefaultImageUrl.trim() || defaultImageUrls[0] || "";
 
 	return (
 		<div className="relative min-h-screen overflow-hidden bg-background text-foreground lg:h-screen">
@@ -504,6 +460,7 @@ export default function Registration() {
 											type="button"
 											onClick={() => {
 												setSelectedCompanyName(null);
+												setBusinessName("");
 												setSelectedCfarNr(null);
 												setManualEntry(false);
 											}}
@@ -518,7 +475,10 @@ export default function Registration() {
 									<span>Manuell registrering — inget SCB-uppslag.</span>
 									<button
 										type="button"
-										onClick={() => setManualEntry(false)}
+										onClick={() => {
+											setManualEntry(false);
+											setBusinessName("");
+										}}
 										className="shrink-0 text-xs font-semibold text-accent underline underline-offset-4 hover:opacity-90"
 									>
 										Ångra
@@ -530,6 +490,17 @@ export default function Registration() {
 						{showRestOfForm ? (
 						<>
 						<div className="mt-8 space-y-2">
+							<div className="space-y-2">
+								<label htmlFor="businessName" className="text-lg font-semibold text-foreground">Företagsnamn:</label>
+								<Input
+									id="businessName"
+									value={businessName}
+									onChange={(e) => setBusinessName(e.target.value)}
+									placeholder="Ange företagsnamn"
+									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+								/>
+							</div>
+							<div className="space-y-2 pt-2">
 							<label htmlFor="email" className="text-lg font-semibold text-foreground">E-post:</label>
 							<Input
 								key={`email-${selectedCfarNr ?? "manual"}`}
@@ -538,6 +509,7 @@ export default function Registration() {
 								placeholder="Din e-postadress"
 								className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 							/>
+							</div>
 							<div className="space-y-2 pt-2">
 								<label htmlFor="phonenumber" className="text-lg font-semibold text-foreground">Telefonnummer:</label>
 								<Input
@@ -638,66 +610,16 @@ export default function Registration() {
 
 							<div className="space-y-2">
 								<label className="ml-0.5 text-sm font-semibold text-muted-foreground">
-									Välj standardbild <span className="text-xs text-muted-foreground">(baserat på kategori)</span>
+									Företagsbild <span className="text-xs text-muted-foreground">(automatiskt)</span>
 								</label>
-								<div className="flex items-center gap-2">
-									<Dialog open={isDefaultImageGalleryOpen} onOpenChange={setIsDefaultImageGalleryOpen}>
-										<DialogTrigger asChild>
-											<button
-												type="button"
-												className="inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-												disabled={isLoadingDefaultImages}
-											>
-												{isLoadingDefaultImages ? "Laddar..." : "Öppna galleri"}
-											</button>
-										</DialogTrigger>
-										<DialogContent className="max-w-3xl border-border bg-card">
-											<DialogHeader>
-												<DialogTitle>Standardbilder</DialogTitle>
-												<DialogDescription>
-													Välj en förvald bild för kategorin {previewCategoryName || "vald kategori"}.
-												</DialogDescription>
-											</DialogHeader>
-											{defaultImageUrls.length > 0 ? (
-												<div className="grid max-h-[60vh] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
-													{defaultImageUrls.map((url) => {
-														const selected = selectedDefaultImageUrl === url;
-														return (
-															<button
-																key={url}
-																type="button"
-																onClick={() => {
-																	setSelectedDefaultImageUrl(url);
-																	setIsDefaultImageGalleryOpen(false);
-																}}
-																className={cn(
-																	"overflow-hidden rounded-lg border-2 bg-background transition",
-																	selected ? "border-accent" : "border-border hover:border-accent/50",
-																)}
-															>
-																<img src={url} alt="Standardbild" className="h-28 w-full object-cover" />
-															</button>
-														);
-													})}
-												</div>
-											) : (
-												<div className="rounded-xl border border-border bg-background/30 p-3 text-sm text-muted-foreground">
-													Inga standardbilder hittades för vald kategori. TooDoo sätter en standardbild automatiskt.
-												</div>
-											)}
-										</DialogContent>
-									</Dialog>
-									{selectedDefaultImageUrl ? (
-										<span className="text-xs text-muted-foreground">1 bild vald</span>
-									) : (
-										<span className="text-xs text-muted-foreground">Ingen bild vald</span>
-									)}
+								<div className="rounded-xl border border-border bg-background/30 p-3 text-sm text-muted-foreground">
+									TooDoo väljer automatiskt en standardbild baserat på kategorin
+									{previewCategoryName ? ` ${previewCategoryName}` : ""}. Du kan byta bild från galleriet när företaget är godkänt och du är inloggad som manager.
 								</div>
 
 								<BusinessAppPreviewCard
 									companyName={previewCompanyName}
 									categoryName={previewCategoryName}
-									imageUrl={previewImageUrl || undefined}
 								/>
 							</div>
 
