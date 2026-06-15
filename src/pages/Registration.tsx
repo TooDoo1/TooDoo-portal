@@ -32,6 +32,7 @@ export default function Registration() {
 	const [orgSearchResults, setOrgSearchResults] = useState<ScbCompanySearchHit[]>([]);
 	const [orgResultFilter, setOrgResultFilter] = useState("");
 	const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(null);
+	const [businessName, setBusinessName] = useState("");
 	const [selectedCfarNr, setSelectedCfarNr] = useState<string | null>(null);
 	const [manualEntry, setManualEntry] = useState(false);
 	const showRestOfForm = Boolean(selectedCfarNr) || manualEntry;
@@ -162,10 +163,7 @@ export default function Registration() {
 		const city = (document.getElementById("companyCity") as HTMLInputElement | null)?.value.trim() ?? "";
 		const address = (document.getElementById("companyAddress") as HTMLInputElement | null)?.value.trim() ?? "";
 		const longDescription = longDescRef.current?.value.trim() ?? "";
-		const companyName =
-			selectedCompanyName?.trim() ||
-			companyOptions.find((option) => option.value === company)?.label ||
-			"Annat företag";
+		const companyName = businessName.trim();
 
 		let normalizedWebsite: string | undefined;
 		if (website) {
@@ -273,6 +271,7 @@ export default function Registration() {
 
 	const applySelectedCompany = (c: ScbCompanySearchHit) => {
 		setSelectedCompanyName(c.name);
+		setBusinessName(c.name);
 		setSelectedCfarNr(c.cfarNr || null);
 		setCompany("annat");
 		setCompanyOpen(false);
@@ -319,6 +318,7 @@ export default function Registration() {
 	}, [orgSearchResults, orgResultFilter]);
 
 	const previewCompanyName =
+		businessName.trim() ||
 		selectedCompanyName?.trim() ||
 		(company ? companyOptions.find((option) => option.value === company)?.label : "") ||
 		"Ditt företag";
@@ -464,6 +464,7 @@ export default function Registration() {
 											type="button"
 											onClick={() => {
 												setSelectedCompanyName(null);
+												setBusinessName("");
 												setSelectedCfarNr(null);
 												setManualEntry(false);
 											}}
@@ -478,7 +479,10 @@ export default function Registration() {
 									<span>Manuell registrering — inget SCB-uppslag.</span>
 									<button
 										type="button"
-										onClick={() => setManualEntry(false)}
+										onClick={() => {
+											setManualEntry(false);
+											setBusinessName("");
+										}}
 										className="shrink-0 text-xs font-semibold text-accent underline underline-offset-4 hover:opacity-90"
 									>
 										Ångra
@@ -490,6 +494,17 @@ export default function Registration() {
 						{showRestOfForm ? (
 						<>
 						<div className="mt-8 space-y-2">
+							<div className="space-y-2">
+								<label htmlFor="businessName" className="text-lg font-semibold text-foreground">Företagsnamn:</label>
+								<Input
+									id="businessName"
+									value={businessName}
+									onChange={(e) => setBusinessName(e.target.value)}
+									placeholder="Ange företagsnamn"
+									className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+								/>
+							</div>
+							<div className="space-y-2 pt-2">
 							<label htmlFor="email" className="text-lg font-semibold text-foreground">E-post:</label>
 							<Input
 								key={`email-${selectedCfarNr ?? "manual"}`}
@@ -498,6 +513,7 @@ export default function Registration() {
 								placeholder="Din e-postadress"
 								className="h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
 							/>
+							</div>
 							<div className="space-y-2 pt-2">
 								<label htmlFor="phonenumber" className="text-lg font-semibold text-foreground">Telefonnummer:</label>
 								<Input
