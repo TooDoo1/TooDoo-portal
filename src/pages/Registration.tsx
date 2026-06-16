@@ -6,7 +6,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { BusinessAppPreviewCard } from "@/components/BusinessAppPreviewCard";
 import { LoginArrowLabel } from "@/components/LoginArrowLabel";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
 import {
@@ -319,12 +318,7 @@ export default function Registration() {
 		});
 	}, [orgSearchResults, orgResultFilter]);
 
-	const previewCompanyName =
-		businessName.trim() ||
-		selectedCompanyName?.trim() ||
-		(company ? companyOptions.find((option) => option.value === company)?.label : "") ||
-		"Ditt företag";
-	const previewCategoryName = categoryOptions.find((c) => c.id === categoryId)?.name ?? "";
+	const selectedCategoryName = categoryOptions.find((c) => c.id === categoryId)?.name ?? "";
 
 	return (
 		<div className="relative min-h-screen overflow-hidden bg-background text-foreground lg:h-screen">
@@ -614,13 +608,9 @@ export default function Registration() {
 								</label>
 								<div className="rounded-xl border border-border bg-background/30 p-3 text-sm text-muted-foreground">
 									TooDoo väljer automatiskt en standardbild baserat på kategorin
-									{previewCategoryName ? ` ${previewCategoryName}` : ""}. Du kan byta bild från galleriet när företaget är godkänt och du är inloggad som manager.
+									{selectedCategoryName ? ` ${selectedCategoryName}` : ""}
+									. Du kan byta bild från galleriet när företaget är godkänt och du är inloggad som manager.
 								</div>
-
-								<BusinessAppPreviewCard
-									companyName={previewCompanyName}
-									categoryName={previewCategoryName}
-								/>
 							</div>
 
 							<div className="space-y-3 pt-2">

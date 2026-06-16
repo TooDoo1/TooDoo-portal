@@ -237,7 +237,7 @@ export default function LandingPage() {
 					className="pointer-events-none absolute bottom-0 left-0 -z-10 h-[400px] w-[400px] -translate-x-1/3 rounded-full bg-accent/10 blur-3xl"
 				/>
 
-				<div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-[1.1fr_1fr] lg:items-center">
+				<div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-[0.95fr_1.2fr] lg:items-center">
 					<div className="flex flex-col gap-6">
 						
 
@@ -281,7 +281,8 @@ export default function LandingPage() {
 						</div>
 					</div>
 
-					<div className="relative mx-auto aspect-square w-full max-w-md overflow-hidden rounded-3xl border border-border bg-card shadow-2xl shadow-primary/10 lg:max-w-[34rem]">
+					<div className="relative mx-auto w-full lg:mx-0 lg:-mr-16 xl:-mr-24">
+						<div className="relative aspect-[4/5] min-h-[420px] w-full overflow-hidden rounded-3xl border border-border bg-card shadow-2xl shadow-primary/10 sm:min-h-[480px] lg:min-h-[560px] lg:max-h-[72vh] lg:rounded-l-none lg:rounded-r-[2rem] lg:border-l-0">
 						{slides.map((slide, i) => (
 							<div
 								key={slide}
@@ -292,24 +293,31 @@ export default function LandingPage() {
 								style={{ backgroundImage: `url(${slide})` }}
 							/>
 						))}
-						<div className="absolute inset-0 bg-gradient-to-t from-card via-card/30 to-transparent" />
+						<div
+							aria-hidden
+							className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-background via-background/75 via-[22%] to-transparent"
+						/>
+						<div
+							aria-hidden
+							className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-background/50 via-transparent to-transparent"
+						/>
 
 						<button
 							onClick={prevSlide}
-							className="absolute left-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-background/40 text-foreground backdrop-blur transition-colors hover:bg-background/60"
+							className="absolute left-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-background/40 text-foreground backdrop-blur transition-colors hover:bg-background/60"
 							aria-label="Föregående"
 						>
 							<ChevronLeft className="h-5 w-5" />
 						</button>
 						<button
 							onClick={nextSlide}
-							className="absolute right-4 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-background/40 text-foreground backdrop-blur transition-colors hover:bg-background/60"
+							className="absolute right-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-background/40 text-foreground backdrop-blur transition-colors hover:bg-background/60"
 							aria-label="Nästa"
 						>
 							<ChevronRight className="h-5 w-5" />
 						</button>
 
-						<div className="absolute inset-x-0 bottom-5 flex justify-center gap-2">
+						<div className="absolute inset-x-0 bottom-5 z-10 flex justify-center gap-2">
 							{slides.map((_, i) => (
 								<button
 									key={i}
@@ -325,6 +333,7 @@ export default function LandingPage() {
 									)}
 								/>
 							))}
+						</div>
 						</div>
 					</div>
 				</div>

@@ -7,9 +7,7 @@ import {
   getAuthEmail,
   getAuthRole,
   getBusinessById,
-  getBusinessId,
-  getUserByEmail,
-  setBusinessId,
+  resolveBusinessId,
 } from "@/lib/api";
 import {
   Sidebar,
@@ -92,17 +90,7 @@ export function CompanySidebar() {
 
   const loadBusinessName = useCallback(async () => {
     try {
-      let resolvedId = getBusinessId();
-      if (!resolvedId) {
-        const authEmail = getAuthEmail();
-        if (authEmail) {
-          const user = await getUserByEmail(authEmail);
-          if (user.businessId) {
-            resolvedId = user.businessId;
-            setBusinessId(user.businessId);
-          }
-        }
-      }
+      const resolvedId = await resolveBusinessId();
       if (!resolvedId) {
         setBusinessName(null);
         return;

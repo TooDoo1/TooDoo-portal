@@ -1,7 +1,5 @@
-import { useEffect, useState, type CSSProperties } from "react";
-import { ArrowLeft, CalendarDays, ChevronDown, ChevronUp, PlusCircle } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronUp, Globe, Heart, MapPin, PlusCircle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CalendarDays, ChevronDown, ChevronUp, PlusCircle } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -13,12 +11,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { addDays, format, getDay, parseISO, startOfDay } from "date-fns";
 import { toast } from "sonner";
-import { createOrder, createOrderPreset, getBusinessById, getBusinessId, getOrderById, listOrderPresets, resolveBusinessId, resolveImageUrl, updateOrder, type Business, type ImageGalleryItem, type OrderPreset } from "@/lib/api";
+import { createOrder, createOrderPreset, getBusinessById, getOrderById, listOrderPresets, resolveBusinessId, resolveImageUrl, updateOrder, type Business, type ImageGalleryItem, type OrderPreset } from "@/lib/api";
 import { TimePicker } from "@/components/TimePicker";
 import { ImageGalleryDialog } from "@/components/ImageGalleryDialog";
-import { createOrder, createOrderPreset, getBusinessById, getBusinessId, getOrderById, listOrderPresets, resolveBusinessId, resolveImageUrl, updateOrder, type Business, type OrderPreset } from "@/lib/api";
-import { TimePicker } from "@/components/TimePicker";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
+import { OfferPreviewCard } from "@/components/OfferPreviewCard";
 
 type OfferForm = {
   title: string;
@@ -54,8 +51,20 @@ type OfferPayload = {
 };
 
 type PreviewBusiness = Pick<Business, "name" | "address" | "city" | "contactPhone" | "website" | "description"> & {
+  /** Resolved company profile/cover image — not the offer image. */
   imageUrl?: string | null;
 };
+
+function getBusinessImageUrl(business: Business) {
+  if (typeof business.imageUrl === "string" && business.imageUrl.trim()) return business.imageUrl.trim();
+  const assetUrl = business.imageAsset?.url;
+  if (typeof assetUrl === "string" && assetUrl.trim()) return assetUrl.trim();
+  const publicUrl = business.imageAsset?.publicUrl;
+  if (typeof publicUrl === "string" && publicUrl.trim()) return publicUrl.trim();
+  const imagePublicUrl = (business as { image?: { publicUrl?: unknown } }).image?.publicUrl;
+  if (typeof imagePublicUrl === "string" && imagePublicUrl.trim()) return imagePublicUrl.trim();
+  return "";
+}
 
 type OpeningHoursDayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 
@@ -202,452 +211,6 @@ function getImageAssetId(value: Record<string, unknown>) {
   return "";
 }
 
-type OfferPreviewCardProps = {
-  businessName: string;
-  address?: string;
-  city?: string;
-  phone?: string;
-  aboutText?: string;
-  offerText: string;
-  priceKr: number | string;
-  originalPriceKr?: number | string;
-  claimedCount?: number;
-  totalCount?: number;
-  countdownText?: string;
-  heroImageUrl?: string;
-  imageUrl?: string;
-  ctaLabel?: string;
-};
-
-function OfferPreviewCard({
-  businessName,
-  address,
-  city,
-  phone,
-  aboutText,
-  offerText,
-  priceKr,
-  originalPriceKr,
-  claimedCount = 0,
-  totalCount = 1,
-  countdownText = "00:00:00",
-  heroImageUrl,
-  imageUrl,
-  ctaLabel = "Claima",
-}: OfferPreviewCardProps) {
-  const [heroFailed, setHeroFailed] = useState(false);
-  const [thumbFailed, setThumbFailed] = useState(false);
-  const progress =
-    totalCount > 0 ? Math.max(0, Math.min(100, (claimedCount / totalCount) * 100)) : 0;
-
-  const addressLine = [address, city].filter(Boolean).join(", ");
-  const resolvedHero = resolveImageUrl(heroImageUrl);
-  const resolvedThumb = resolveImageUrl(imageUrl);
-  const showOriginal =
-    originalPriceKr !== undefined &&
-    originalPriceKr !== null &&
-    String(originalPriceKr).trim() !== "" &&
-    Number(originalPriceKr) > 0;
-
-  return (
-    <div style={previewStyles.page}>
-      <div style={previewStyles.phoneFrame}>
-        <div style={previewStyles.hero}>
-          {resolvedHero && !heroFailed ? (
-            <img
-              alt=""
-              src={resolvedHero}
-              style={previewStyles.heroImg}
-              onError={() => setHeroFailed(true)}
-            />
-          ) : (
-            <div style={previewStyles.heroFallback} />
-          )}
-          <div style={previewStyles.heroOverlay} />
-          <div style={previewStyles.statusBar}>
-            <span>10:11</span>
-            <span style={previewStyles.statusIcons}>●●●</span>
-          </div>
-          <button type="button" style={previewStyles.heroNavBtn} aria-hidden>
-            <ChevronLeft size={18} strokeWidth={2.5} />
-          </button>
-          <button type="button" style={{ ...previewStyles.heroNavBtn, ...previewStyles.heroNavBtnRight }} aria-hidden>
-            <Heart size={16} strokeWidth={2.5} />
-          </button>
-        </div>
-
-        <div style={previewStyles.content}>
-          <div style={previewStyles.title}>{businessName}</div>
-
-          {addressLine ? (
-            <div style={previewStyles.contactLine}>
-              <span style={previewStyles.contactLabel}>Adress:</span> {addressLine}
-            </div>
-          ) : null}
-          {phone ? (
-            <div style={previewStyles.contactLine}>
-              <span style={previewStyles.contactLabel}>Telefon:</span>{" "}
-              <span style={previewStyles.phoneLink}>{phone}</span>
-            </div>
-          ) : null}
-
-          <div style={previewStyles.pillsRow}>
-            <button type="button" style={{ ...previewStyles.pill, outline: "none" }}>
-              <MapPin size={15} strokeWidth={2.25} />
-              Hitta hit
-            </button>
-            <button type="button" style={{ ...previewStyles.pill, outline: "none" }}>
-              <Globe size={15} strokeWidth={2.25} />
-              Webbplats
-            </button>
-          </div>
-
-          <div style={previewStyles.card}>
-            <div style={previewStyles.cardTop}>
-              <div style={previewStyles.thumbWrap}>
-                {resolvedThumb && !thumbFailed ? (
-                  <img
-                    alt=""
-                    src={resolvedThumb}
-                    style={previewStyles.thumbImg}
-                    onError={() => setThumbFailed(true)}
-                  />
-                ) : (
-                  <div style={previewStyles.thumbFallback} />
-                )}
-                <div style={previewStyles.countdownChip}>{countdownText}</div>
-              </div>
-
-              <div style={previewStyles.offerBody}>
-                <div style={previewStyles.offerText}>{offerText}</div>
-
-                <div style={previewStyles.priceRow}>
-                  <span style={previewStyles.price}>{priceKr} kr</span>
-                  {showOriginal ? (
-                    <span style={previewStyles.originalPrice}>{originalPriceKr} kr</span>
-                  ) : null}
-                </div>
-
-                <div style={previewStyles.meta}>
-                  Claimade: {claimedCount} / {totalCount}
-                </div>
-
-                <div style={previewStyles.progressTrack}>
-                  <div style={{ ...previewStyles.progressFill, width: `${progress}%` }} />
-                </div>
-              </div>
-            </div>
-
-            <button type="button" style={{ ...previewStyles.cta, outline: "none" }}>
-              {ctaLabel}
-            </button>
-          </div>
-
-          {aboutText?.trim() ? (
-            <div style={previewStyles.aboutCard}>
-              <div style={previewStyles.aboutTitle}>Om oss:</div>
-              <div style={previewStyles.aboutText}>{aboutText.trim()}</div>
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const previewStyles: Record<string, CSSProperties> = {
-  page: {
-    background: "transparent",
-    padding: 0,
-    fontFamily:
-      'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
-    color: "#fff",
-  },
-
-  phoneFrame: {
-    width: 390,
-    borderRadius: 32,
-    overflow: "hidden",
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "#000b2a",
-    boxShadow: "0 18px 55px rgba(0,0,0,0.55)",
-  },
-
-  hero: {
-    position: "relative",
-    height: 220,
-    background: "#061333",
-    overflow: "hidden",
-  },
-
-  heroImg: {
-    width: "100%",
-    height: "100%",
-    objectFit: "cover",
-    display: "block",
-  },
-
-  heroFallback: {
-    width: "100%",
-    height: "100%",
-    background: "linear-gradient(180deg, #0a1a3d 0%, #061333 100%)",
-  },
-
-  heroOverlay: {
-    position: "absolute",
-    inset: 0,
-    background: "linear-gradient(180deg, rgba(0,11,42,0.05) 0%, rgba(0,11,42,0.35) 100%)",
-    pointerEvents: "none",
-  },
-
-  statusBar: {
-    position: "absolute",
-    top: 10,
-    left: 0,
-    right: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 22px",
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#fff",
-    zIndex: 2,
-    pointerEvents: "none",
-  },
-
-  statusIcons: {
-    letterSpacing: 2,
-    fontSize: 10,
-    opacity: 0.85,
-  },
-
-  heroNavBtn: {
-    position: "absolute",
-    top: 44,
-    left: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 999,
-    border: "0",
-    background: "rgba(0,0,0,0.45)",
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "default",
-    zIndex: 2,
-  },
-
-  heroNavBtnRight: {
-    left: "auto",
-    right: 16,
-  },
-
-  content: {
-    padding: "18px 20px 24px",
-    background: "linear-gradient(180deg, #000b2a 0%, #061333 55%, #000b2a 100%)",
-  },
-
-  title: {
-    fontSize: 32,
-    lineHeight: "36px",
-    fontWeight: 700,
-    letterSpacing: -0.5,
-    marginBottom: 10,
-  },
-
-  contactLine: {
-    fontSize: 15,
-    lineHeight: "22px",
-    color: "rgba(255,255,255,0.92)",
-    marginBottom: 4,
-  },
-
-  contactLabel: {
-    fontWeight: 600,
-  },
-
-  phoneLink: {
-    color: "#60a5fa",
-    fontWeight: 600,
-  },
-
-  pillsRow: {
-    display: "flex",
-    gap: 12,
-    marginTop: 14,
-    marginBottom: 16,
-  },
-
-  pill: {
-    flex: 1,
-    height: 44,
-    borderRadius: 999,
-    border: "0",
-    background: "#fff",
-    color: "#111827",
-    fontWeight: 700,
-    fontSize: 15,
-    cursor: "default",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-
-  card: {
-    borderRadius: 22,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "#0a1535",
-    boxShadow: "0 12px 30px rgba(0,0,0,0.45)",
-    padding: 14,
-  },
-
-  cardTop: {
-    display: "flex",
-    gap: 12,
-    alignItems: "flex-start",
-  },
-
-  thumbWrap: {
-    position: "relative",
-    width: 108,
-    height: 108,
-    borderRadius: 18,
-    overflow: "hidden",
-    background: "rgba(255,255,255,0.10)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    flex: "0 0 auto",
-  },
-
-  thumbImg: {
-    width: "100%",
-    height: "100%",
-    objectFit: "cover",
-    display: "block",
-  },
-
-  thumbFallback: {
-    width: "100%",
-    height: "100%",
-    background:
-      "radial-gradient(120% 90% at 30% 20%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.06) 55%, rgba(255,255,255,0.03) 100%)",
-  },
-
-  countdownChip: {
-    position: "absolute",
-    left: 8,
-    right: 8,
-    bottom: 8,
-    padding: "4px 8px",
-    borderRadius: 999,
-    background: "rgba(0,0,0,0.62)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    fontSize: 11,
-    fontWeight: 700,
-    color: "#fff",
-    textAlign: "center",
-    zIndex: 2,
-  },
-
-  offerBody: {
-    flex: 1,
-    minWidth: 0,
-    paddingTop: 2,
-  },
-
-  offerText: {
-    fontSize: 16,
-    fontWeight: 600,
-    color: "rgba(255,255,255,0.88)",
-    lineHeight: "22px",
-    display: "-webkit-box",
-    WebkitLineClamp: 2,
-    WebkitBoxOrient: "vertical",
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-
-  priceRow: {
-    display: "flex",
-    alignItems: "baseline",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-
-  price: {
-    fontSize: 16,
-    fontWeight: 800,
-    letterSpacing: -0.3,
-    lineHeight: "20px",
-    color: "#fff",
-  },
-
-  originalPrice: {
-    fontSize: 16,
-    fontWeight: 600,
-    color: "rgb(147, 197, 253)",
-    textDecoration: "line-through",
-    lineHeight: "20px",
-  },
-
-  meta: {
-    marginTop: 8,
-    fontSize: 15,
-    fontWeight: 600,
-    color: "rgba(255,255,255,0.55)",
-  },
-
-  progressTrack: {
-    marginTop: 10,
-    height: 6,
-    borderRadius: 999,
-    background: "rgba(255,255,255,0.12)",
-    overflow: "hidden",
-  },
-
-  progressFill: {
-    height: "100%",
-    borderRadius: 999,
-    background: "#ff3b30",
-  },
-
-  cta: {
-    marginTop: 14,
-    height: 44,
-    width: "100%",
-    borderRadius: 999,
-    border: "0",
-    background: "#ff3b30",
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: 600,
-    cursor: "default",
-    boxShadow: "0 10px 24px rgba(255,59,48,0.18)",
-  },
-
-  aboutCard: {
-    marginTop: 16,
-    borderRadius: 22,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "#0a1535",
-    padding: "16px 18px",
-  },
-
-  aboutTitle: {
-    fontSize: 16,
-    fontWeight: 700,
-    marginBottom: 8,
-  },
-
-  aboutText: {
-    fontSize: 15,
-    lineHeight: "22px",
-    color: "rgba(255,255,255,0.78)",
-  },
-};
-
 export default function CompanyNewOffer() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -698,7 +261,7 @@ export default function CompanyNewOffer() {
           contactPhone: b.contactPhone,
           website: b.website,
           description: b.description,
-          imageUrl: b.imageUrl ?? null,
+          imageUrl: getBusinessImageUrl(b) || null,
         });
         setBusinessOpeningHours(b.openingHours ?? null);
       } catch {
@@ -918,7 +481,7 @@ export default function CompanyNewOffer() {
       return;
     }
 
-    const businessId = getBusinessId();
+    const businessId = await resolveBusinessId();
     if (!businessId) {
       toast.error("Saknar businessId. Registrera/logga in igen.");
       return;
@@ -1100,7 +663,7 @@ export default function CompanyNewOffer() {
       return;
     }
 
-    const businessId = getBusinessId();
+    const businessId = await resolveBusinessId();
     if (!businessId) {
       toast.error("Saknar businessId. Registrera/logga in igen.");
       return;
@@ -1613,9 +1176,9 @@ export default function CompanyNewOffer() {
       </Dialog>
 
       <Dialog open={previewOpen} onOpenChange={(open) => !isSubmitting && setPreviewOpen(open)}>
-        <DialogContent hideClose className="max-h-[90vh] max-w-[920px] overflow-y-auto border-border bg-card p-0">
+        <DialogContent hideClose className="max-h-[90vh] max-w-[920px] overflow-y-auto border-border bg-background p-0">
           <div className="grid gap-0 lg:grid-cols-[max-content_1fr]">
-            <div className="border-b border-border bg-background/30 px-5 py-5 lg:border-b-0 lg:border-r lg:px-6 lg:py-6">
+            <div className="border-b border-border bg-background px-5 py-5 lg:border-b-0 lg:border-r lg:px-6 lg:py-6">
               <DialogHeader className="items-start text-left">
                 <DialogTitle>Förhandsvisning i appen</DialogTitle>
               </DialogHeader>
@@ -1633,19 +1196,16 @@ export default function CompanyNewOffer() {
                   claimedCount={0}
                   totalCount={pendingPayload?.maxRedemptions ?? 1}
                   countdownText={formatPreviewCountdown(pendingPayload?.orderTimeTo)}
-                  heroImageUrl={
-                    previewBusiness?.imageUrl ??
-                    (imageFilePreviewUrl || form.imageUrl.trim() || undefined)
-                  }
-                  imageUrl={imageFilePreviewUrl ? imageFilePreviewUrl : form.imageUrl.trim() ? form.imageUrl.trim() : undefined}
+                  heroImageUrl={previewBusiness?.imageUrl ?? undefined}
+                  imageUrl={form.imageUrl.trim() ? form.imageUrl.trim() : undefined}
                   ctaLabel="Claima"
                 />
               </div>
             </div>
 
-            <div className="p-5">
+            <div className="bg-background p-5">
               <div className="space-y-3 max-w-lg">
-                <div className="rounded-2xl border border-border bg-background/40 p-5">
+                <div className="rounded-2xl border border-border bg-card p-5">
                   <div className="text-base font-semibold text-foreground">Kontroll</div>
                   <div className="mt-1 text-sm text-muted-foreground leading-relaxed">
                     Så här kommer erbjudandet att se ut för användare. Bekräfta för att {editOrderId ? "spara" : "skapa"}.
@@ -1654,7 +1214,7 @@ export default function CompanyNewOffer() {
                     Dubbelkolla titel, beskrivning, pris och datum innan du bekräftar.
                   </div>
                 </div>
-                <div className="rounded-xl border border-border bg-background/40 p-4">
+                <div className="rounded-xl border border-border bg-card p-4">
                   <div className="text-xs text-muted-foreground">Start</div>
                   <div className="text-sm font-semibold text-foreground">
                     {form.startAt ? `${form.startAt}${form.startTime ? ` ${form.startTime}` : ""}` : "-"}

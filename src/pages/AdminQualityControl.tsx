@@ -3,7 +3,7 @@ import { Check, X, Image as ImageIcon, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BusinessAppPreviewCard } from "@/components/BusinessAppPreviewCard";
+import { BusinessImageAppPreview } from "@/components/BusinessImageAppPreview";
 import { toast } from "sonner";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { listBusinessImageRequests, reviewBusinessImageRequest, getBusinessById, resolveImageUrl, type BusinessImageRequest, type Business } from "@/lib/api";
@@ -187,7 +187,7 @@ export default function AdminQualityControl() {
                 </CardHeader>
 
                 <CardContent className="p-4 sm:p-5">
-                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(380px,440px)]">
                     <div className="space-y-3">
                       <div className="space-y-2">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Skickad bild</p>
@@ -220,12 +220,17 @@ export default function AdminQualityControl() {
                     </div>
 
                     <div className="space-y-3">
-                      <BusinessAppPreviewCard
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Förhandsvisning i appen
+                      </p>
+                      <BusinessImageAppPreview
                         companyName={request.business?.name || "Företagets namn"}
                         categoryName={getBusinessCategoryName(request.business)}
                         imageUrl={request.imageUrl ? resolveImageUrl(request.imageUrl) : undefined}
-                        compact
-                        hideCategory
+                        address={request.business?.address}
+                        city={request.business?.city}
+                        phone={request.business?.contactPhone}
+                        aboutText={request.business?.description}
                       />
 
                       <div className="rounded-xl border border-border/70 bg-background/30 p-3">

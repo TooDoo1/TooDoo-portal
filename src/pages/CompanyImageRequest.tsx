@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { BusinessAppPreviewCard } from "@/components/BusinessAppPreviewCard";
+import { BusinessImageAppPreview } from "@/components/BusinessImageAppPreview";
 import { getBusinessById, resolveBusinessId, resolveImageUrl, submitBusinessImageRequest, type Business } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useRealtime } from "@/hooks/useRealtime";
@@ -131,7 +131,7 @@ export default function CompanyImageRequest() {
         </p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,440px)]">
         <Card className="border-border bg-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
@@ -240,16 +240,20 @@ export default function CompanyImageRequest() {
           </CardContent>
         </Card>
 
-        <Card className="border-border bg-card">
+        <Card className="border-border bg-card xl:sticky xl:top-6 xl:self-start">
           <CardHeader>
             <CardTitle className="text-foreground">Förhandsvisning</CardTitle>
-            <CardDescription>Så kan bilden se ut på företagets kort.</CardDescription>
+            <CardDescription>Så här kan bilden se ut i appen.</CardDescription>
           </CardHeader>
           <CardContent>
-            <BusinessAppPreviewCard
+            <BusinessImageAppPreview
               companyName={business?.name || "Ditt företag"}
               categoryName={business?.category?.name ?? business?.categoryName ?? ""}
               imageUrl={previewImageUrl || undefined}
+              address={business?.address}
+              city={business?.city}
+              phone={business?.contactPhone}
+              aboutText={business?.description}
             />
           </CardContent>
         </Card>

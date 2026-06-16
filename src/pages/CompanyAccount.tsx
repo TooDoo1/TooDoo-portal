@@ -15,13 +15,11 @@ import { TimePicker } from "@/components/TimePicker";
 import { useRealtime } from "@/hooks/useRealtime";
 import {
   getAuthEmail,
-  getBusinessId,
   changeMyPassword,
-  getUserByEmail,
   getBusinessById,
   listCategories,
+  resolveBusinessId,
   resolveImageUrl,
-  setBusinessId,
   updateBusiness,
   type Business,
   type BusinessStatus,
@@ -188,18 +186,7 @@ export default function CompanyAccount() {
   const loadBusiness = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setIsLoading(true);
     try {
-      let resolvedBusinessId = getBusinessId();
-
-      if (!resolvedBusinessId) {
-        const authEmail = getAuthEmail();
-        if (authEmail) {
-          const user = await getUserByEmail(authEmail);
-          if (user.businessId) {
-            resolvedBusinessId = user.businessId;
-            setBusinessId(user.businessId);
-          }
-        }
-      }
+      const resolvedBusinessId = await resolveBusinessId();
 
       if (!resolvedBusinessId) {
         throw new Error("Saknar businessId. Logga in igen.");
