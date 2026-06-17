@@ -45,7 +45,13 @@ export default function Dashboard() {
 
   const activeOrderCount = useMemo(() => {
     const now = Date.now();
-    return orders.filter((order) => new Date(order.validTo).getTime() > now).length;
+    return orders.filter((order) => {
+      const startTime = new Date(order.orderTimeFrom || order.validFrom || 0).getTime();
+      const endTime = new Date(order.orderTimeTo || order.validTo || 0).getTime();
+      if (Number.isFinite(endTime) && endTime > 0 && endTime <= now) return false;
+      if (Number.isFinite(startTime) && startTime > now) return false;
+      return true;
+    }).length;
   }, [orders]);
 
   const pendingBusinessCount = useMemo(() => pendingBusinessIds.length, [pendingBusinessIds]);

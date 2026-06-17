@@ -542,8 +542,9 @@ export default function CompanyNewOffer() {
         : form.couponLifetimeUnit === "hours"
           ? couponLifetimeValue * 60
           : couponLifetimeValue * 24 * 60;
-    if (!Number.isInteger(expireTimeMinutes) || expireTimeMinutes < 1 || expireTimeMinutes > 1440) {
-      toast.error("Kupong livstid måste vara mellan 1 och 1440 minuter.");
+    const maxCouponLifetimeMinutes = 7 * 24 * 60;
+    if (!Number.isInteger(expireTimeMinutes) || expireTimeMinutes < 1 || expireTimeMinutes > maxCouponLifetimeMinutes) {
+      toast.error("Kupong livstid måste vara mellan 1 minut och 7 dagar.");
       return;
     }
 

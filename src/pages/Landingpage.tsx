@@ -14,6 +14,7 @@ import {
 	Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getApiBaseUrl } from "@/lib/api";
 import { LoginArrowLabel } from "@/components/LoginArrowLabel";
 
 const slides = [
@@ -98,11 +99,14 @@ export default function LandingPage() {
 		let cancelled = false;
 
 		const run = () => {
-			fetch("http://83.248.14.115:4000/deals")
-				.then((res) => res.json())
+			fetch(`${getApiBaseUrl()}/deals`)
+				.then((res) => {
+					if (!res.ok) throw new Error(`Deals request failed (${res.status})`);
+					return res.json();
+				})
 				.then((data) => {
 					if (cancelled) return;
-					setDeals(data);
+					setDeals(Array.isArray(data) ? data : []);
 					setLoading(false);
 				})
 				.catch((err) => {

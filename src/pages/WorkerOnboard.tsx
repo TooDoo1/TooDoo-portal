@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LoginArrowLabel } from "@/components/LoginArrowLabel";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
-import { loginUser, redeemWorkerInvite, registerUser, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
+import { loginUser, redeemWorkerInvite, registerUser, clearAuthStorage, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
 import { toast } from "sonner";
 
 const INVITE_TOKEN_STORAGE_KEY = "toodoo_worker_invite_token";
@@ -113,6 +113,12 @@ export default function WorkerOnboard() {
       return;
     }
 
+    const trimmedInviteToken = inviteToken.trim();
+    if (!trimmedInviteToken) {
+      toast.error("Saknar inviteToken. Be din manager skicka en ny inbjudan.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const trimmedEmail = email.trim();
@@ -132,16 +138,17 @@ export default function WorkerOnboard() {
       setAuthToken(loginResponse.token);
       setAuthEmail(trimmedEmail);
 
+      try {
+        await redeemWorkerInvite(trimmedEmail, trimmedInviteToken);
+      } catch (redeemError) {
+        clearAuthStorage();
+        throw redeemError;
+      }
+
       if (loginResponse.user?.role) {
         setAuthRole(loginResponse.user.role);
       }
 
-      if (!inviteToken) {
-        toast.error("Saknar inviteToken. Be din manager skicka en ny inbjudan.");
-        return;
-      }
-
-      await redeemWorkerInvite(trimmedEmail, inviteToken);
       sessionStorage.removeItem(INVITE_TOKEN_STORAGE_KEY);
 
       setIsDone(true);

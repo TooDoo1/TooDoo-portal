@@ -95,7 +95,7 @@ export default function AdminQualityControl() {
       toast.success(status === "APPROVED" ? "Bild godkänd" : "Bild avvisad");
 
       // Remove from list after review
-      setRequests(requests.filter(r => r.id !== requestId));
+      setRequests((prev) => prev.filter((r) => r.id !== requestId));
       refreshAdminPendingCounts();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte granska bild.";
