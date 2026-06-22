@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Building2, ImageIcon, Mail, MapPin, Moon, Phone, Save, Tag } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Building2, ImageIcon, Mail, MapPin, Moon, Phone, Save } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/StatusBadge";
 import { BusinessAppPreviewCard } from "@/components/BusinessAppPreviewCard";
+import { CategoryBadges } from "@/components/CategoryBadges";
+import { CategoryMultiSelect } from "@/components/CategoryMultiSelect";
 import { ImageGalleryDialog } from "@/components/ImageGalleryDialog";
 import { cn } from "@/lib/utils";
 import { setMonochromeEnabled } from "@/lib/monochrome";
@@ -25,6 +27,10 @@ import {
   type BusinessStatus,
   type ImageGalleryItem,
 } from "@/lib/api";
+import {
+  formatCategoryNames,
+  getBusinessCategoryIds,
+} from "@/lib/businessCategories";
 import { toast } from "sonner";
 
 type OpeningHoursDayKey =
@@ -168,7 +174,9 @@ export default function CompanyAccount() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [businessId, setActiveBusinessId] = useState<string | null>(null);
-  const [categoryName, setCategoryName] = useState<string>("");
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [originalCategoryIds, setOriginalCategoryIds] = useState<string[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [status, setStatus] = useState<BusinessStatus | undefined>(undefined);
   const monochrome = useMonochrome();
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -201,8 +209,7 @@ export default function CompanyAccount() {
         throw new Error("Kunde inte hitta ditt företag.");
       }
 
-      const categoryById = new Map(categories.map((cat) => [cat.id, cat.name]));
-      const resolvedCategory = business.categoryName ?? categoryById.get(business.categoryId) ?? "";
+      const resolvedCategoryIds = getBusinessCategoryIds(business);
 
       const nextForm = {
         ...businessToForm(business),
@@ -211,7 +218,9 @@ export default function CompanyAccount() {
       setSelectedGalleryImageAssetId(null);
       const nextOpeningHours = toOpeningHoursState(business.openingHours);
       setActiveBusinessId(business.id);
-      setCategoryName(resolvedCategory);
+      setCategoryOptions(categories.map((cat) => ({ id: cat.id, name: cat.name })));
+      setCategoryIds(resolvedCategoryIds);
+      setOriginalCategoryIds(resolvedCategoryIds);
       setStatus(business.status);
       setForm(nextForm);
       setOriginalForm(nextForm);
@@ -277,6 +286,10 @@ export default function CompanyAccount() {
       toast.error("Beskrivning får inte vara tom.");
       return;
     }
+    if (categoryIds.length === 0) {
+      toast.error("Välj minst en kategori.");
+      return;
+    }
 
     const trimmedWebsite = form.website.trim();
     const effectiveOpeningHours: OpeningHoursState = groupWeekdays
@@ -303,6 +316,7 @@ export default function CompanyAccount() {
         city: trimmedCity,
         ...(selectedGalleryImageAssetId ? { imageAssetId: selectedGalleryImageAssetId } : {}),
         openingHours: openingHoursPayload,
+        ...(JSON.stringify(categoryIds) !== JSON.stringify(originalCategoryIds) ? { categoryIds } : {}),
       });
 
       const savedImageUrl = getBusinessImageUrl(updated) || form.imageUrl.trim() || originalForm.imageUrl || "";
@@ -322,6 +336,9 @@ export default function CompanyAccount() {
       setOriginalForm(nextForm);
       setSelectedGalleryImageAssetId(null);
       if (updated.status) setStatus(updated.status);
+      const nextCategoryIds = getBusinessCategoryIds(updated);
+      setCategoryIds(nextCategoryIds);
+      setOriginalCategoryIds(nextCategoryIds);
       toast.success("Kontoinformation uppdaterad.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte spara kontoinformation.";
@@ -335,6 +352,7 @@ export default function CompanyAccount() {
     setForm(originalForm);
     setOpeningHours(originalOpeningHours);
     setWeekdayGroup({ ...originalOpeningHours.monday });
+    setCategoryIds(originalCategoryIds);
     setSelectedGalleryImageAssetId(null);
     toast.info("Ändringar återställda.");
   };
@@ -373,10 +391,16 @@ export default function CompanyAccount() {
     }
   };
 
+  const selectedCategoryNames = useMemo(
+    () => categoryOptions.filter((option) => categoryIds.includes(option.id)).map((option) => option.name),
+    [categoryIds, categoryOptions],
+  );
+
   const isDirty =
     JSON.stringify(form) !== JSON.stringify(originalForm) ||
     JSON.stringify(openingHours) !== JSON.stringify(originalOpeningHours) ||
     (groupWeekdays && JSON.stringify(weekdayGroup) !== JSON.stringify(originalOpeningHours.monday)) ||
+    JSON.stringify(categoryIds) !== JSON.stringify(originalCategoryIds) ||
     selectedGalleryImageAssetId !== null;
 
   return (
@@ -388,12 +412,7 @@ export default function CompanyAccount() {
         </div>
         <div className="flex items-center gap-2 text-sm">
           {status && <StatusBadge status={mapStatusToBadge(status)} />}
-          {categoryName && (
-            <span className="text-xs bg-accent/15 text-accent px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
-              <Tag className="h-3 w-3" />
-              {categoryName}
-            </span>
-          )}
+          <CategoryBadges names={selectedCategoryNames} />
         </div>
       </div>
 
@@ -782,11 +801,25 @@ export default function CompanyAccount() {
 
                 <BusinessAppPreviewCard
                   companyName={form.name.trim() || originalForm.name || "Ditt företag"}
-                  categoryName={categoryName}
+                  categoryName={formatCategoryNames(selectedCategoryNames)}
                   imageUrl={form.imageUrl.trim() || undefined}
                 />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground">Kategorier</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CategoryMultiSelect
+              options={categoryOptions}
+              selectedIds={categoryIds}
+              onChange={setCategoryIds}
+              disabled={isLoading || isSaving}
+            />
           </CardContent>
         </Card>
 
@@ -962,7 +995,7 @@ export default function CompanyAccount() {
         open={galleryDialogOpen}
         onOpenChange={setGalleryDialogOpen}
         onSelect={selectGalleryImage}
-        categoryName={categoryName}
+        categoryName={selectedCategoryNames[0] ?? ""}
       />
     </div>
   );

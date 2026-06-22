@@ -7,6 +7,7 @@ import { BusinessImageAppPreview } from "@/components/BusinessImageAppPreview";
 import { toast } from "sonner";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { listBusinessImageRequests, reviewBusinessImageRequest, getBusinessById, resolveImageUrl, type BusinessImageRequest, type Business } from "@/lib/api";
+import { formatCategoryNames, getBusinessCategoryNames } from "@/lib/businessCategories";
 import { useRealtime } from "@/hooks/useRealtime";
 
 interface RequestWithBusiness extends BusinessImageRequest {
@@ -14,7 +15,8 @@ interface RequestWithBusiness extends BusinessImageRequest {
 }
 
 function getBusinessCategoryName(business?: Business) {
-  return business?.category?.name?.trim() || business?.categoryName?.trim() || business?.categoryId || "Kategori saknas";
+  const names = business ? getBusinessCategoryNames(business) : [];
+  return names.length > 0 ? formatCategoryNames(names) : "Kategori saknas";
 }
 
 function AdminImagePreview({ src, alt, className }: { src?: string | null; alt: string; className: string }) {

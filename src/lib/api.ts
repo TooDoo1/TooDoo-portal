@@ -336,7 +336,8 @@ export type CreateBusinessRequest = {
   city: string;
   imageAssetId?: string;
   openingHours?: Record<string, unknown>;
-  categoryId: string;
+  categoryId?: string;
+  categoryIds?: string[];
 };
 
 export type BusinessImageRequest = {
@@ -361,6 +362,8 @@ export type UpdateBusinessRequest = {
   city?: string;
   imageAssetId?: string;
   openingHours?: Record<string, unknown>;
+  categoryId?: string;
+  categoryIds?: string[];
 };
 
 export type BusinessStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -379,7 +382,8 @@ export type Business = {
   openingHours?: Record<string, unknown> | null;
   categoryId: string;
   categoryName?: string;
-  category?: { id?: string; name?: string | null } | null;
+  category?: { id?: string; name?: string | null; icon?: string | null } | null;
+  categories?: Array<{ id?: string; name?: string | null; icon?: string | null }>;
   status?: BusinessStatus;
   createdAt?: string;
   updatedAt?: string;

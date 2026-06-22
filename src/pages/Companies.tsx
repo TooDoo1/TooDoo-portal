@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Search, Filter, Eye, Trash2 } from "lucide-react";
+import { Search, Filter, Eye, Trash2, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
+import { CategoryBadges } from "@/components/CategoryBadges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
-import { listBusinesses, listCategories } from "@/lib/api";
+import { inviteManagerToBusiness, listBusinesses, listCategories } from "@/lib/api";
+import { hasAdminAccess } from "@/lib/adminAccess";
+import { getBusinessCategoryNames, getPrimaryCategoryName } from "@/lib/businessCategories";
 import { toast } from "sonner";
 
 type Company = {
@@ -20,6 +22,7 @@ type Company = {
   status: "active";
   joinedAt: string;
   category: string;
+  categoryNames: string[];
 };
 
 export default function Companies() {
@@ -29,6 +32,7 @@ export default function Companies() {
   const [category, setCategory] = useState("Alla");
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
   const [detailTarget, setDetailTarget] = useState<Company | null>(null);
+  const [invitingCompanyId, setInvitingCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -38,8 +42,6 @@ export default function Companies() {
           listCategories(),
         ]);
 
-        const categoryById = new Map(categoryRows.map((cat) => [cat.id, cat.name]));
-
         setCompanies(
           businessRows.map((business) => ({
             id: business.id,
@@ -47,9 +49,8 @@ export default function Companies() {
             email: business.contactEmail,
             status: "active",
             joinedAt: business.createdAt || new Date().toISOString(),
-            category: String(
-              business.categoryName ?? categoryById.get(business.categoryId) ?? "Okategoriserad",
-            ),
+            categoryNames: getBusinessCategoryNames(business),
+            category: getPrimaryCategoryName(business),
           })),
         );
         setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
@@ -64,7 +65,7 @@ export default function Companies() {
 
   const filtered = useMemo(() => companies.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = category === "Alla" || c.category === category;
+    const matchCategory = category === "Alla" || c.categoryNames.includes(category);
     return matchSearch && matchCategory;
   }), [companies, search, category]);
 
@@ -73,6 +74,36 @@ export default function Companies() {
     setCompanies((prev) => prev.filter((c) => c.id !== deleteTarget.id));
     toast.success(`${deleteTarget.name} har inaktiverats`);
     setDeleteTarget(null);
+  };
+
+  const handleInviteManager = async (company: Company) => {
+    if (!company.email.trim()) {
+      toast.error("Företaget saknar kontakt-e-post.");
+      return;
+    }
+
+    try {
+      const isAdmin = await hasAdminAccess();
+      if (!isAdmin) {
+        toast.error("Saknar admin-behörighet.");
+        return;
+      }
+
+      setInvitingCompanyId(company.id);
+      const inviteResponse = await inviteManagerToBusiness(company.email, company.id);
+
+      if (inviteResponse.emailSent) {
+        toast.success(`Inbjudan skickad till ${company.email}`);
+      } else {
+        const errorMsg = inviteResponse.emailError || "Okänt fel";
+        toast.warning(`Inbjudan skapades men kunde inte skicka e-post: ${errorMsg}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte skicka inbjudan.";
+      toast.error(message);
+    } finally {
+      setInvitingCompanyId(null);
+    }
   };
 
   return (
@@ -130,9 +161,9 @@ export default function Companies() {
                     <StatusBadge status={company.status} />
                   </div>
                 </div>
-                <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+                <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground">
                   <span>Gick med: {new Date(company.joinedAt).toLocaleDateString("sv-SE")}</span>
-                  <Link to={`/category/${encodeURIComponent(company.category)}`} className="text-xs bg-accent/15 text-accent hover:bg-accent/25 px-2.5 py-0.5 rounded-full transition-colors cursor-pointer">{company.category}</Link>
+                  <CategoryBadges names={company.categoryNames} linkToCategory />
                 </div>
                 <div className="mt-4 flex gap-2">
                   <Button
@@ -142,6 +173,16 @@ export default function Companies() {
                   >
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
                     Visa detaljer
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-border"
+                    disabled={invitingCompanyId === company.id}
+                    onClick={() => void handleInviteManager(company)}
+                    title="Skicka managerinbjudan"
+                  >
+                    <Mail className="h-3.5 w-3.5" />
                   </Button>
                   <Button
                     size="sm"
