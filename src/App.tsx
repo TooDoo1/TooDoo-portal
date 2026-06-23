@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { applyMonochrome } from "@/lib/monochrome";
 import { useMonochrome } from "@/hooks/useMonochrome";
+import { CookieConsentProvider } from "@/components/CookieConsent";
 
 const AdminLayout = lazy(() =>
   import("./components/AdminLayout").then((m) => ({ default: m.AdminLayout })),
@@ -107,6 +108,7 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <CookieConsentProvider>
           <AppearanceController />
           <Suspense fallback={<RouteLoadingFallback />}>
             <Routes>
@@ -148,6 +150,7 @@ const App = () => {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
+          </CookieConsentProvider>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getApiBaseUrl } from "@/lib/api";
 import { LoginArrowLabel } from "@/components/LoginArrowLabel";
+import { useLegalModals } from "@/components/CookieConsent";
 
 const slides = [
 	"/Icon.jpg",
@@ -72,6 +73,7 @@ function SectionHeading({
 
 export default function LandingPage() {
 	const navigate = useNavigate();
+	const { openPrivacyPolicy, openTermsOfService, openCookiePolicy, openCookieSettings } = useLegalModals();
 	const [current, setCurrent] = useState(0);
 	const [scrolled, setScrolled] = useState(false);
 	const [deals, setDeals] = useState<Deal[]>([]);
@@ -552,7 +554,19 @@ export default function LandingPage() {
 						<a href="#guide" className="transition-colors hover:text-foreground">Hur det fungerar</a>
 						<a href="#erbjudanden" className="transition-colors hover:text-foreground">Erbjudanden</a>
 						<a href="#kontakt" className="transition-colors hover:text-foreground">Kontakt</a>
-						<button onClick={() => navigate("/login")} className="transition-colors hover:text-foreground">
+						<button type="button" onClick={openPrivacyPolicy} className="transition-colors hover:text-foreground">
+							Integritet
+						</button>
+						<button type="button" onClick={openTermsOfService} className="transition-colors hover:text-foreground">
+							Villkor
+						</button>
+						<button type="button" onClick={openCookiePolicy} className="transition-colors hover:text-foreground">
+							Cookies
+						</button>
+						<button type="button" onClick={openCookieSettings} className="transition-colors hover:text-foreground">
+							Cookie-inställningar
+						</button>
+						<button type="button" onClick={() => navigate("/login")} className="transition-colors hover:text-foreground">
 							Företagsportal
 						</button>
 					</div>
