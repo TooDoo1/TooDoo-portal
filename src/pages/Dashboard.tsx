@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Building2, Clock, CheckCircle, TrendingUp, ArrowUpRight, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { listBusinesses, listCategories, listOrders, type Business, type Category, type Order } from "@/lib/api";
+import { businessMatchesCategoryName } from "@/lib/businessCategories";
 
 type CategoryCard = {
   name: string;
@@ -57,24 +58,14 @@ export default function Dashboard() {
   ];
 
   const categoryData: CategoryCard[] = useMemo(() => {
-    const categoryNameById = new Map(categories.map((cat) => [cat.id, cat.name]));
-    const categoryNameByBusinessId = new Map<string, string>();
-    for (const business of approvedBusinesses) {
-      const resolvedName = business.categoryName ?? categoryNameById.get(business.categoryId);
-      if (resolvedName) {
-        categoryNameByBusinessId.set(business.id, resolvedName);
-      }
-    }
-
     return categories.map((cat) => {
-      const businessCount = approvedBusinesses.filter((business) => {
-        const resolvedName = business.categoryName ?? categoryNameById.get(business.categoryId);
-        return resolvedName === cat.name;
-      }).length;
+      const businessCount = approvedBusinesses.filter((business) => businessMatchesCategoryName(business, cat.name)).length;
       const orderCount = orders.filter((order) => {
-        const fromOrder = typeof order.categoryName === "string" ? order.categoryName : undefined;
-        const fromBusiness = categoryNameByBusinessId.get(order.businessId);
-        return (fromOrder ?? fromBusiness) === cat.name;
+        const business = approvedBusinesses.find((entry) => entry.id === order.businessId);
+        if (business && businessMatchesCategoryName(business, cat.name)) {
+          return true;
+        }
+        return typeof order.categoryName === "string" && order.categoryName === cat.name;
       }).length;
       return { name: cat.name, businessCount, orderCount };
     });

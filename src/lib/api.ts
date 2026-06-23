@@ -336,7 +336,8 @@ export type CreateBusinessRequest = {
   city: string;
   imageAssetId?: string;
   openingHours?: Record<string, unknown>;
-  categoryId: string;
+  categoryId?: string;
+  categoryIds?: string[];
 };
 
 export type BusinessImageRequest = {
@@ -361,9 +362,18 @@ export type UpdateBusinessRequest = {
   city?: string;
   imageAssetId?: string;
   openingHours?: Record<string, unknown>;
+  categoryId?: string;
+  categoryIds?: string[];
 };
 
 export type BusinessStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export type BusinessManager = {
+  id: string;
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+};
 
 export type Business = {
   id: string;
@@ -379,7 +389,9 @@ export type Business = {
   openingHours?: Record<string, unknown> | null;
   categoryId: string;
   categoryName?: string;
-  category?: { id?: string; name?: string | null } | null;
+  category?: { id?: string; name?: string | null; icon?: string | null } | null;
+  categories?: Array<{ id?: string; name?: string | null; icon?: string | null }>;
+  manager?: BusinessManager | null;
   status?: BusinessStatus;
   createdAt?: string;
   updatedAt?: string;
@@ -996,9 +1008,9 @@ export async function reviewBusinessImageRequest(requestId: string, status: "APP
   );
 }
 
-export async function listBusinesses(status?: BusinessStatus) {
+export async function listBusinesses(status?: BusinessStatus, withAuth = false) {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";
-  return apiRequest<Business[]>(`/business${query}`, { method: "GET" });
+  return apiRequest<Business[]>(`/business${query}`, { method: "GET" }, withAuth);
 }
 
 export async function getBusinessById(id: string) {

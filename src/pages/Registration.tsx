@@ -3,11 +3,11 @@ import { Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { LoginArrowLabel } from "@/components/LoginArrowLabel";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
+import { BusinessAppPreviewCard } from "@/components/BusinessAppPreviewCard";
+import { CategoryMultiSelect } from "@/components/CategoryMultiSelect";
 import {
 	createBusiness,
 	listCategories,
@@ -23,8 +23,7 @@ import { TimePicker } from "@/components/TimePicker";
 export default function Registration() {
 	const [company, setCompany] = useState("");
 	const [companyOpen, setCompanyOpen] = useState(false);
-	const [categoryOpen, setCategoryOpen] = useState(false);
-	const [categoryId, setCategoryId] = useState("");
+	const [categoryIds, setCategoryIds] = useState<string[]>([]);
 	const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [showSuccessPopup, setShowSuccessPopup] = useState(false);
@@ -148,7 +147,7 @@ export default function Registration() {
 			try {
 				const categories = await listCategories();
 				setCategoryOptions(categories.map((c) => ({ id: c.id, name: c.name })));
-				setCategoryId((prev) => prev || categories[0]?.id || "");
+				setCategoryIds((prev) => (prev.length > 0 ? prev : categories[0]?.id ? [categories[0].id] : []));
 			} catch (error) {
 				setCategoryOptions([]);
 			}
@@ -183,8 +182,8 @@ export default function Registration() {
 			}
 		}
 
-		if (!email || !phone || !city || !address || !companyName || !longDescription || !categoryId) {
-			toast.error("Fyll i e-post, telefon, stad, adress, företag, kategori och lång beskrivning.");
+		if (!email || !phone || !city || !address || !companyName || !longDescription || categoryIds.length === 0) {
+			toast.error("Fyll i e-post, telefon, stad, adress, företag, minst en kategori och lång beskrivning.");
 			return;
 		}
 
@@ -216,7 +215,7 @@ export default function Registration() {
 				website: normalizedWebsite,
 				address,
 				city,
-				categoryId: categoryId,
+				categoryIds,
 				...(shouldSendOpeningHours ? { openingHours: openingHoursPayload } : {}),
 			});
 
@@ -295,7 +294,7 @@ export default function Registration() {
 			c.industryCategory,
 		);
 		if (matchedCategoryId) {
-			setCategoryId(matchedCategoryId);
+			setCategoryIds([matchedCategoryId]);
 		}
 	};
 
@@ -318,7 +317,15 @@ export default function Registration() {
 		});
 	}, [orgSearchResults, orgResultFilter]);
 
-	const selectedCategoryName = categoryOptions.find((c) => c.id === categoryId)?.name ?? "";
+	const previewCompanyName =
+		businessName.trim() ||
+		selectedCompanyName?.trim() ||
+		(company ? companyOptions.find((option) => option.value === company)?.label : "") ||
+		"Ditt företag";
+	const previewCategoryName = categoryOptions
+		.filter((option) => categoryIds.includes(option.id))
+		.map((option) => option.name)
+		.join(", ");
 
 	return (
 		<div className="relative min-h-screen overflow-hidden bg-background text-foreground lg:h-screen">
@@ -518,47 +525,14 @@ export default function Registration() {
 
 						<h3 className="mt-10 text-lg font-semibold text-foreground">Beskrivning och kategori:</h3>
 						<div className="mt-4 space-y-4">
-							<div className="space-y-2">
-								<label htmlFor="category" className="ml-0.5 text-sm font-semibold text-muted-foreground">Kategori:</label>
-								<Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
-									<PopoverTrigger asChild>
-										<button
-											id="category"
-											type="button"
-											role="combobox"
-											aria-expanded={categoryOpen}
-											className="h-11 w-full rounded-md border border-border bg-background px-3 text-left text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-										>
-											{categoryId ? categoryOptions.find((option) => option.id === categoryId)?.name : "Välj kategori"}
-										</button>
-									</PopoverTrigger>
-									<PopoverContent className="w-[--radix-popover-trigger-width] border-border bg-popover p-0" align="start">
-										<Command>
-											<CommandInput placeholder="Sök kategori..." />
-											<CommandList>
-												<CommandEmpty>Inga kategorier hittades.</CommandEmpty>
-												<CommandGroup>
-													{categoryOptions.map((option) => (
-														<CommandItem
-															key={option.id}
-															value={option.name}
-															onSelect={() => {
-																setCategoryId(option.id);
-																setCategoryOpen(false);
-															}}
-														>
-															<Check
-																className={cn("mr-2 h-4 w-4", categoryId === option.id ? "opacity-100" : "opacity-0")}
-															/>
-															{option.name}
-														</CommandItem>
-													))}
-												</CommandGroup>
-											</CommandList>
-										</Command>
-									</PopoverContent>
-								</Popover>
-							</div>
+							<CategoryMultiSelect
+								id="category"
+								label="Kategorier:"
+								options={categoryOptions}
+								selectedIds={categoryIds}
+								onChange={setCategoryIds}
+								disabled={isSubmitting}
+							/>
 							<div className="space-y-2">
 								<label className="ml-0.5 text-sm font-semibold text-muted-foreground">Lång beskrivning:</label>
 								<Textarea
@@ -608,9 +582,13 @@ export default function Registration() {
 								</label>
 								<div className="rounded-xl border border-border bg-background/30 p-3 text-sm text-muted-foreground">
 									TooDoo väljer automatiskt en standardbild baserat på kategorin
-									{selectedCategoryName ? ` ${selectedCategoryName}` : ""}
-									. Du kan byta bild från galleriet när företaget är godkänt och du är inloggad som manager.
+									{previewCategoryName ? ` ${previewCategoryName}` : ""}. Du kan byta bild från galleriet när företaget är godkänt och du är inloggad som manager.
 								</div>
+
+								<BusinessAppPreviewCard
+									companyName={previewCompanyName}
+									categoryName={previewCategoryName}
+								/>
 							</div>
 
 							<div className="space-y-3 pt-2">

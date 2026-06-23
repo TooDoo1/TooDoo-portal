@@ -8,7 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { listBusinesses, listCategories } from "@/lib/api";
+import { listBusinesses } from "@/lib/api";
+import { businessMatchesCategoryName } from "@/lib/businessCategories";
 import { toast } from "sonner";
 
 type Company = {
@@ -35,18 +36,10 @@ export default function CategoryPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [approvedBusinesses, categoryRows] = await Promise.all([
-          listBusinesses("APPROVED"),
-          listCategories(),
-        ]);
-
-        const categoryNameById = new Map(categoryRows.map((cat) => [cat.id, cat.name]));
+        const approvedBusinesses = await listBusinesses("APPROVED");
 
         const matches = approvedBusinesses
-          .filter((business) => {
-            const resolvedName = business.categoryName ?? categoryNameById.get(business.categoryId);
-            return resolvedName === categoryName;
-          })
+          .filter((business) => businessMatchesCategoryName(business, categoryName))
           .map<Company>((business) => ({
             id: business.id,
             name: business.name,

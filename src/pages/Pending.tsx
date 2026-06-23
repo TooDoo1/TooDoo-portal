@@ -9,8 +9,11 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
-import { getAuthEmail, getAuthRole, getUserByEmail, inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus } from "@/lib/api";
+import { hasAdminAccess } from "@/lib/adminAccess";
+import { getBusinessCategoryNames } from "@/lib/businessCategories";
+import { inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus } from "@/lib/api";
 import { useRealtime } from "@/hooks/useRealtime";
+import { CategoryBadges } from "@/components/CategoryBadges";
 import { toast } from "sonner";
 
 type ActionType = "approve" | "deny";
@@ -19,7 +22,7 @@ type Company = {
   id: string;
   name: string;
   email: string;
-  category: string;
+  categoryNames: string[];
   status: "pending" | "active" | "inactive";
   description?: string;
   appliedAt?: string;
@@ -30,25 +33,6 @@ function mapBusinessStatusToBadge(status: unknown): Company["status"] {
   if (normalized === "APPROVED") return "active";
   if (normalized === "REJECTED") return "inactive";
   return "pending";
-}
-
-async function hasAdminAccess() {
-  const storedRole = getAuthRole();
-  if (typeof storedRole === "string" && storedRole.toLowerCase() === "admin") {
-    return true;
-  }
-
-  const email = getAuthEmail();
-  if (!email) {
-    return false;
-  }
-
-  try {
-    const user = await getUserByEmail(email);
-    return typeof user.role === "string" && user.role.toLowerCase() === "admin";
-  } catch {
-    return false;
-  }
 }
 
 export default function Pending() {
@@ -70,7 +54,7 @@ export default function Pending() {
           id: business.id,
           name: business.name,
           email: business.contactEmail,
-          category: String(business.categoryName ?? "Okategoriserad"),
+          categoryNames: getBusinessCategoryNames(business),
           status: mapBusinessStatusToBadge(business.status),
           description: business.description,
           appliedAt: business.createdAt || new Date().toISOString(),
@@ -96,7 +80,7 @@ export default function Pending() {
 
   const filtered = useMemo(() => companies.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = category === "Alla" || c.category === category;
+    const matchCategory = category === "Alla" || c.categoryNames.includes(category);
     return matchSearch && matchCategory;
   }), [companies, search, category]);
 
@@ -187,9 +171,7 @@ export default function Pending() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-foreground">{company.name}</p>
                         <StatusBadge status={company.status} />
-                        <span className="text-xs bg-accent/15 text-accent px-2.5 py-0.5 rounded-full font-medium">
-                          {company.category}
-                        </span>
+                        <CategoryBadges names={company.categoryNames} />
                       </div>
                       <p className="text-sm text-muted-foreground mt-0.5">{company.email}</p>
                       <p className="text-sm text-foreground/70 mt-2 leading-relaxed">{company.description}</p>

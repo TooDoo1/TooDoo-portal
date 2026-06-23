@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Search, Filter, Eye, Trash2 } from "lucide-react";
+import { Search, Filter, Eye, Trash2, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
+import { CategoryBadges } from "@/components/CategoryBadges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
-import { listBusinesses, listCategories } from "@/lib/api";
+import { ManagerInviteDialog } from "@/components/ManagerInviteDialog";
+import { inviteManagerToBusiness, listBusinesses, listCategories } from "@/lib/api";
+import { hasAdminAccess } from "@/lib/adminAccess";
+import { getBusinessCategoryNames, getPrimaryCategoryName } from "@/lib/businessCategories";
 import { toast } from "sonner";
 
 type Company = {
@@ -20,6 +24,9 @@ type Company = {
   status: "active";
   joinedAt: string;
   category: string;
+  categoryNames: string[];
+  hasManager: boolean;
+  managerEmail?: string;
 };
 
 export default function Companies() {
@@ -29,16 +36,16 @@ export default function Companies() {
   const [category, setCategory] = useState("Alla");
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
   const [detailTarget, setDetailTarget] = useState<Company | null>(null);
+  const [inviteTarget, setInviteTarget] = useState<Company | null>(null);
+  const [invitingCompanyId, setInvitingCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
       try {
         const [businessRows, categoryRows] = await Promise.all([
-          listBusinesses("APPROVED"),
+          listBusinesses("APPROVED", true),
           listCategories(),
         ]);
-
-        const categoryById = new Map(categoryRows.map((cat) => [cat.id, cat.name]));
 
         setCompanies(
           businessRows.map((business) => ({
@@ -47,9 +54,10 @@ export default function Companies() {
             email: business.contactEmail,
             status: "active",
             joinedAt: business.createdAt || new Date().toISOString(),
-            category: String(
-              business.categoryName ?? categoryById.get(business.categoryId) ?? "Okategoriserad",
-            ),
+            categoryNames: getBusinessCategoryNames(business),
+            category: getPrimaryCategoryName(business),
+            hasManager: Boolean(business.manager),
+            managerEmail: business.manager?.email ?? undefined,
           })),
         );
         setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
@@ -64,7 +72,7 @@ export default function Companies() {
 
   const filtered = useMemo(() => companies.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = category === "Alla" || c.category === category;
+    const matchCategory = category === "Alla" || c.categoryNames.includes(category);
     return matchSearch && matchCategory;
   }), [companies, search, category]);
 
@@ -73,6 +81,54 @@ export default function Companies() {
     setCompanies((prev) => prev.filter((c) => c.id !== deleteTarget.id));
     toast.success(`${deleteTarget.name} har inaktiverats`);
     setDeleteTarget(null);
+  };
+
+  const openInviteDialog = (company: Company) => {
+    if (company.hasManager) {
+      toast.info(
+        company.managerEmail
+          ? `Företaget har redan en manager (${company.managerEmail}).`
+          : "Företaget har redan en manager.",
+      );
+      return;
+    }
+
+    setInviteTarget(company);
+  };
+
+  const handleInviteManager = async (email: string) => {
+    if (!inviteTarget) return;
+
+    if (inviteTarget.hasManager) {
+      toast.error("Företaget har redan en manager.");
+      setInviteTarget(null);
+      return;
+    }
+
+    try {
+      const isAdmin = await hasAdminAccess();
+      if (!isAdmin) {
+        toast.error("Saknar admin-behörighet.");
+        return;
+      }
+
+      setInvitingCompanyId(inviteTarget.id);
+      const inviteResponse = await inviteManagerToBusiness(email, inviteTarget.id);
+
+      if (inviteResponse.emailSent) {
+        toast.success(`Inbjudan skickad till ${email}`);
+      } else {
+        const errorMsg = inviteResponse.emailError || "Okänt fel";
+        toast.warning(`Inbjudan skapades men kunde inte skicka e-post: ${errorMsg}`);
+      }
+
+      setInviteTarget(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte skicka inbjudan.";
+      toast.error(message);
+    } finally {
+      setInvitingCompanyId(null);
+    }
   };
 
   return (
@@ -130,9 +186,9 @@ export default function Companies() {
                     <StatusBadge status={company.status} />
                   </div>
                 </div>
-                <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+                <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground">
                   <span>Gick med: {new Date(company.joinedAt).toLocaleDateString("sv-SE")}</span>
-                  <Link to={`/category/${encodeURIComponent(company.category)}`} className="text-xs bg-accent/15 text-accent hover:bg-accent/25 px-2.5 py-0.5 rounded-full transition-colors cursor-pointer">{company.category}</Link>
+                  <CategoryBadges names={company.categoryNames} linkToCategory />
                 </div>
                 <div className="mt-4 flex gap-2">
                   <Button
@@ -143,6 +199,31 @@ export default function Companies() {
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
                     Visa detaljer
                   </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-border"
+                            disabled={company.hasManager || invitingCompanyId === company.id}
+                            onClick={() => openInviteDialog(company)}
+                            title={company.hasManager ? "Företaget har redan en manager" : "Skicka managerinbjudan"}
+                          >
+                            <Mail className="h-3.5 w-3.5" />
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {company.hasManager ? (
+                        <TooltipContent>
+                          {company.managerEmail
+                            ? `Har redan manager: ${company.managerEmail}`
+                            : "Företaget har redan en manager"}
+                        </TooltipContent>
+                      ) : null}
+                    </Tooltip>
+                  </TooltipProvider>
                   <Button
                     size="sm"
                     variant="outline"
@@ -164,6 +245,15 @@ export default function Companies() {
         companyId={detailTarget?.id ?? null}
         companyName={detailTarget?.name}
         category={detailTarget?.category}
+      />
+
+      <ManagerInviteDialog
+        open={!!inviteTarget}
+        onOpenChange={(open) => !open && setInviteTarget(null)}
+        companyName={inviteTarget?.name ?? ""}
+        defaultEmail={inviteTarget?.email ?? ""}
+        isSubmitting={!!inviteTarget && invitingCompanyId === inviteTarget.id}
+        onSubmit={(email) => void handleInviteManager(email)}
       />
 
       <ConfirmDialog
