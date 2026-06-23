@@ -40,6 +40,9 @@ function formatPageTitle(pathname: string, isCompanyRoute: boolean) {
   if (pathname === "/company/invoices") return "Fakturor";
   if (pathname === "/company/workers/new") return "Kollegor";
   if (pathname === "/company/account") return "Mitt företag";
+  if (pathname === "/company/image-request") return "Bildförfrågan";
+  if (pathname === "/company/support") return "Kundsupport";
+  if (pathname === "/company/events") return "Event";
   return isCompanyRoute ? "Företag" : "Admin";
 }
 
