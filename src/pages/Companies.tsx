@@ -4,11 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { StatusBadge } from "@/components/StatusBadge";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { CategoryBadges } from "@/components/CategoryBadges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
+import { ManagerInviteDialog } from "@/components/ManagerInviteDialog";
 import { inviteManagerToBusiness, listBusinesses, listCategories } from "@/lib/api";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, getPrimaryCategoryName } from "@/lib/businessCategories";
@@ -23,6 +25,8 @@ type Company = {
   joinedAt: string;
   category: string;
   categoryNames: string[];
+  hasManager: boolean;
+  managerEmail?: string;
 };
 
 export default function Companies() {
@@ -32,13 +36,14 @@ export default function Companies() {
   const [category, setCategory] = useState("Alla");
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
   const [detailTarget, setDetailTarget] = useState<Company | null>(null);
+  const [inviteTarget, setInviteTarget] = useState<Company | null>(null);
   const [invitingCompanyId, setInvitingCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
       try {
         const [businessRows, categoryRows] = await Promise.all([
-          listBusinesses("APPROVED"),
+          listBusinesses("APPROVED", true),
           listCategories(),
         ]);
 
@@ -51,6 +56,8 @@ export default function Companies() {
             joinedAt: business.createdAt || new Date().toISOString(),
             categoryNames: getBusinessCategoryNames(business),
             category: getPrimaryCategoryName(business),
+            hasManager: Boolean(business.manager),
+            managerEmail: business.manager?.email ?? undefined,
           })),
         );
         setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
@@ -76,9 +83,25 @@ export default function Companies() {
     setDeleteTarget(null);
   };
 
-  const handleInviteManager = async (company: Company) => {
-    if (!company.email.trim()) {
-      toast.error("Företaget saknar kontakt-e-post.");
+  const openInviteDialog = (company: Company) => {
+    if (company.hasManager) {
+      toast.info(
+        company.managerEmail
+          ? `Företaget har redan en manager (${company.managerEmail}).`
+          : "Företaget har redan en manager.",
+      );
+      return;
+    }
+
+    setInviteTarget(company);
+  };
+
+  const handleInviteManager = async (email: string) => {
+    if (!inviteTarget) return;
+
+    if (inviteTarget.hasManager) {
+      toast.error("Företaget har redan en manager.");
+      setInviteTarget(null);
       return;
     }
 
@@ -89,15 +112,17 @@ export default function Companies() {
         return;
       }
 
-      setInvitingCompanyId(company.id);
-      const inviteResponse = await inviteManagerToBusiness(company.email, company.id);
+      setInvitingCompanyId(inviteTarget.id);
+      const inviteResponse = await inviteManagerToBusiness(email, inviteTarget.id);
 
       if (inviteResponse.emailSent) {
-        toast.success(`Inbjudan skickad till ${company.email}`);
+        toast.success(`Inbjudan skickad till ${email}`);
       } else {
         const errorMsg = inviteResponse.emailError || "Okänt fel";
         toast.warning(`Inbjudan skapades men kunde inte skicka e-post: ${errorMsg}`);
       }
+
+      setInviteTarget(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte skicka inbjudan.";
       toast.error(message);
@@ -174,16 +199,31 @@ export default function Companies() {
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
                     Visa detaljer
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-border"
-                    disabled={invitingCompanyId === company.id}
-                    onClick={() => void handleInviteManager(company)}
-                    title="Skicka managerinbjudan"
-                  >
-                    <Mail className="h-3.5 w-3.5" />
-                  </Button>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-border"
+                            disabled={company.hasManager || invitingCompanyId === company.id}
+                            onClick={() => openInviteDialog(company)}
+                            title={company.hasManager ? "Företaget har redan en manager" : "Skicka managerinbjudan"}
+                          >
+                            <Mail className="h-3.5 w-3.5" />
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {company.hasManager ? (
+                        <TooltipContent>
+                          {company.managerEmail
+                            ? `Har redan manager: ${company.managerEmail}`
+                            : "Företaget har redan en manager"}
+                        </TooltipContent>
+                      ) : null}
+                    </Tooltip>
+                  </TooltipProvider>
                   <Button
                     size="sm"
                     variant="outline"
@@ -205,6 +245,15 @@ export default function Companies() {
         companyId={detailTarget?.id ?? null}
         companyName={detailTarget?.name}
         category={detailTarget?.category}
+      />
+
+      <ManagerInviteDialog
+        open={!!inviteTarget}
+        onOpenChange={(open) => !open && setInviteTarget(null)}
+        companyName={inviteTarget?.name ?? ""}
+        defaultEmail={inviteTarget?.email ?? ""}
+        isSubmitting={!!inviteTarget && invitingCompanyId === inviteTarget.id}
+        onSubmit={(email) => void handleInviteManager(email)}
       />
 
       <ConfirmDialog

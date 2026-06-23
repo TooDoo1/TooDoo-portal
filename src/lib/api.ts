@@ -368,6 +368,13 @@ export type UpdateBusinessRequest = {
 
 export type BusinessStatus = "PENDING" | "APPROVED" | "REJECTED";
 
+export type BusinessManager = {
+  id: string;
+  email?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+};
+
 export type Business = {
   id: string;
   name: string;
@@ -384,6 +391,7 @@ export type Business = {
   categoryName?: string;
   category?: { id?: string; name?: string | null; icon?: string | null } | null;
   categories?: Array<{ id?: string; name?: string | null; icon?: string | null }>;
+  manager?: BusinessManager | null;
   status?: BusinessStatus;
   createdAt?: string;
   updatedAt?: string;
@@ -1000,9 +1008,9 @@ export async function reviewBusinessImageRequest(requestId: string, status: "APP
   );
 }
 
-export async function listBusinesses(status?: BusinessStatus) {
+export async function listBusinesses(status?: BusinessStatus, withAuth = false) {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";
-  return apiRequest<Business[]>(`/business${query}`, { method: "GET" });
+  return apiRequest<Business[]>(`/business${query}`, { method: "GET" }, withAuth);
 }
 
 export async function getBusinessById(id: string) {
