@@ -96,6 +96,10 @@
     scrollbar-color: hsl(var(--accent)) hsl(var(--popover));
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', sans-serif;

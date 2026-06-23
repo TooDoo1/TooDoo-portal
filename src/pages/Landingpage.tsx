@@ -9,9 +9,9 @@ import {
 	Globe,
 	ChevronLeft,
 	ChevronRight,
-	ChevronDown,
 	ArrowRight,
-	Sparkles,
+	Menu,
+	X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getApiBaseUrl } from "@/lib/api";
@@ -24,10 +24,10 @@ const slides = [
 ];
 
 const iconMap: Record<string, JSX.Element> = {
-	map: <MapPin className="h-7 w-7" />,
-	business: <Building2 className="h-7 w-7" />,
-	zap: <Zap className="h-7 w-7" />,
-	globe: <Globe className="h-7 w-7" />,
+	map: <MapPin className="h-6 w-6" />,
+	business: <Building2 className="h-6 w-6" />,
+	zap: <Zap className="h-6 w-6" />,
+	globe: <Globe className="h-6 w-6" />,
 };
 
 const steps = [
@@ -37,10 +37,11 @@ const steps = [
 	{ number: "04", title: "Njut", desc: "Visa upp ditt erbjudande på plats och njut av upplevelsen till rabatterat pris!" },
 ];
 
-const navItems = [
-	{ label: "Om oss", items: ["Om oss", "Vår idé"] },
-	{ label: "Företag", items: ["För företag", "Registrera företag"] },
-	{ label: "Exklusiva deals", items: ["Alla deals", "Populära deals"] },
+const navLinks = [
+	{ label: "Hur det fungerar", href: "#guide" },
+	{ label: "Appen", href: "#appen" },
+	{ label: "Erbjudanden", href: "#erbjudanden" },
+	{ label: "Kontakt", href: "#kontakt" },
 ];
 
 type Deal = {
@@ -49,6 +50,26 @@ type Deal = {
 	description?: string;
 };
 
+function SectionHeading({
+	eyebrow,
+	title,
+	subtitle,
+}: {
+	eyebrow: string;
+	title: string;
+	subtitle?: string;
+}) {
+	return (
+		<div className="mx-auto max-w-2xl text-center">
+			<p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-primary">{eyebrow}</p>
+			<h2 className="text-3xl font-extrabold uppercase tracking-tight sm:text-4xl">{title}</h2>
+			{subtitle ? (
+				<p className="mx-auto mt-4 max-w-xl text-base text-muted-foreground">{subtitle}</p>
+			) : null}
+		</div>
+	);
+}
+
 export default function LandingPage() {
 	const navigate = useNavigate();
 	const [current, setCurrent] = useState(0);
@@ -56,9 +77,8 @@ export default function LandingPage() {
 	const [deals, setDeals] = useState<Deal[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [step, setStep] = useState(0);
-	const [openNav, setOpenNav] = useState<string | null>(null);
+	const [mobileOpen, setMobileOpen] = useState(false);
 	const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-	const navTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const startSlider = () => {
 		timerRef.current = setInterval(() => {
@@ -147,22 +167,15 @@ export default function LandingPage() {
 		img.src = next;
 	}, [current]);
 
-	const handleNavEnter = (label: string) => {
-		if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
-		setOpenNav(label);
-	};
-
-	const handleNavLeave = () => {
-		navTimeoutRef.current = setTimeout(() => setOpenNav(null), 120);
-	};
-
 	return (
 		<div className="min-h-screen bg-background text-foreground">
 			{/* NAV */}
 			<nav
 				className={cn(
 					"fixed inset-x-0 top-0 z-50 transition-colors duration-300",
-					scrolled ? "border-b border-border bg-background/85 backdrop-blur" : "border-b border-transparent",
+					scrolled || mobileOpen
+						? "border-b border-border bg-background/85 backdrop-blur"
+						: "border-b border-transparent",
 				)}
 			>
 				<div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
@@ -178,38 +191,14 @@ export default function LandingPage() {
 					</button>
 
 					<div className="hidden items-center gap-1 lg:flex">
-						{navItems.map((nav) => (
-							<div
-								key={nav.label}
-								className="relative"
-								onMouseEnter={() => handleNavEnter(nav.label)}
-								onMouseLeave={handleNavLeave}
+						{navLinks.map((link) => (
+							<a
+								key={link.href}
+								href={link.href}
+								className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
 							>
-								<button className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
-									{nav.label}
-									<ChevronDown
-										size={14}
-										className={cn("opacity-60 transition-transform duration-200", openNav === nav.label && "rotate-180")}
-									/>
-								</button>
-								<div
-									className={cn(
-										"absolute left-1/2 top-full z-40 mt-2 min-w-[180px] -translate-x-1/2 rounded-xl border border-border bg-popover p-1.5 shadow-xl transition-all duration-200",
-										openNav === nav.label
-											? "pointer-events-auto translate-y-0 opacity-100"
-											: "pointer-events-none -translate-y-1 opacity-0",
-									)}
-								>
-									{nav.items.map((item) => (
-										<div
-											key={item}
-											className="cursor-pointer rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-										>
-											{item}
-										</div>
-									))}
-								</div>
-							</div>
+								{link.label}
+							</a>
 						))}
 					</div>
 
@@ -226,12 +215,51 @@ export default function LandingPage() {
 						>
 							Logga in
 						</button>
+						<button
+							onClick={() => setMobileOpen((prev) => !prev)}
+							className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-foreground transition-colors hover:bg-secondary lg:hidden"
+							aria-label={mobileOpen ? "Stäng meny" : "Öppna meny"}
+							aria-expanded={mobileOpen}
+						>
+							{mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+						</button>
+					</div>
+				</div>
+
+				{/* MOBILE MENU */}
+				<div
+					className={cn(
+						"overflow-hidden border-t border-border/60 lg:hidden",
+						mobileOpen ? "max-h-80" : "max-h-0 border-t-0",
+						"transition-[max-height] duration-300 ease-in-out",
+					)}
+				>
+					<div className="mx-auto flex max-w-6xl flex-col gap-1 px-6 py-3">
+						{navLinks.map((link) => (
+							<a
+								key={link.href}
+								href={link.href}
+								onClick={() => setMobileOpen(false)}
+								className="rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+							>
+								{link.label}
+							</a>
+						))}
+						<button
+							onClick={() => {
+								setMobileOpen(false);
+								navigate("/registration");
+							}}
+							className="mt-1 inline-flex h-11 items-center justify-center rounded-lg border border-border text-sm font-semibold transition-colors hover:bg-secondary sm:hidden"
+						>
+							Registrera ditt företag
+						</button>
 					</div>
 				</div>
 			</nav>
 
 			{/* HERO */}
-			<section className="relative overflow-hidden pt-20 pb-16 lg:pt-24 lg:pb-20">
+			<section className="relative overflow-hidden pt-28 pb-20 lg:pt-32 lg:pb-24">
 				<div
 					aria-hidden
 					className="pointer-events-none absolute -top-32 left-1/2 -z-10 h-[640px] w-[1100px] -translate-x-1/2 rounded-full bg-gradient-to-br from-primary/20 via-accent/15 to-transparent blur-3xl"
@@ -243,7 +271,10 @@ export default function LandingPage() {
 
 				<div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-[0.95fr_1.2fr] lg:items-center">
 					<div className="flex flex-col gap-6">
-						
+						<span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-xs font-medium text-muted-foreground">
+							<span className="h-1.5 w-1.5 rounded-full bg-success" />
+							Nya deals varje dag
+						</span>
 
 						<h1 className="text-4xl font-extrabold uppercase leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
 							Hitta de bästa
@@ -262,98 +293,81 @@ export default function LandingPage() {
 							>
 								<LoginArrowLabel>Kom igång</LoginArrowLabel>
 							</button>
-							<button className="inline-flex h-12 items-center justify-center rounded-lg border border-border bg-card px-7 text-sm font-semibold transition-colors hover:bg-secondary">
+							<a
+								href="#appen"
+								className="inline-flex h-12 items-center justify-center rounded-lg border border-border bg-card px-7 text-sm font-semibold transition-colors hover:bg-secondary"
+							>
 								Ladda ner appen
-							</button>
-						</div>
-
-						<div className="mt-6 flex items-center gap-6 text-xs text-muted-foreground">
-							<div>
-								<div className="text-xl font-extrabold text-foreground">500+</div>
-								<div>Lokala företag</div>
-							</div>
-							<div className="h-10 w-px bg-border" />
-							<div>
-								<div className="text-xl font-extrabold text-foreground">10k+</div>
-								<div>Aktiva användare</div>
-							</div>
-							<div className="h-10 w-px bg-border" />
-							<div>
-								<div className="text-xl font-extrabold text-foreground">1k+</div>
-								<div>Deals i veckan</div>
-							</div>
+							</a>
 						</div>
 					</div>
 
 					<div className="relative mx-auto w-full lg:mx-0 lg:-mr-16 xl:-mr-24">
 						<div className="relative aspect-[4/5] min-h-[420px] w-full overflow-hidden rounded-3xl border border-border bg-card shadow-2xl shadow-primary/10 sm:min-h-[480px] lg:min-h-[560px] lg:max-h-[72vh] lg:rounded-l-none lg:rounded-r-[2rem] lg:border-l-0">
-						{slides.map((slide, i) => (
-							<div
-								key={slide}
-								className={cn(
-									"absolute inset-0 bg-cover bg-center transition-opacity duration-700",
-									i === current ? "opacity-100" : "opacity-0",
-								)}
-								style={{ backgroundImage: `url(${slide})` }}
-							/>
-						))}
-						<div
-							aria-hidden
-							className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-background via-background/75 via-[22%] to-transparent"
-						/>
-						<div
-							aria-hidden
-							className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-background/50 via-transparent to-transparent"
-						/>
-
-						<button
-							onClick={prevSlide}
-							className="absolute left-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-background/40 text-foreground backdrop-blur transition-colors hover:bg-background/60"
-							aria-label="Föregående"
-						>
-							<ChevronLeft className="h-5 w-5" />
-						</button>
-						<button
-							onClick={nextSlide}
-							className="absolute right-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-background/40 text-foreground backdrop-blur transition-colors hover:bg-background/60"
-							aria-label="Nästa"
-						>
-							<ChevronRight className="h-5 w-5" />
-						</button>
-
-						<div className="absolute inset-x-0 bottom-5 z-10 flex justify-center gap-2">
-							{slides.map((_, i) => (
-								<button
-									key={i}
-									onClick={() => {
-										stopSlider();
-										setCurrent(i);
-										startSlider();
-									}}
-									aria-label={`Bild ${i + 1}`}
+							{slides.map((slide, i) => (
+								<div
+									key={slide}
 									className={cn(
-										"h-2 rounded-full transition-all duration-300",
-										i === current ? "w-8 bg-primary" : "w-2 bg-white/50 hover:bg-white/70",
+										"absolute inset-0 bg-cover bg-center transition-opacity duration-700",
+										i === current ? "opacity-100" : "opacity-0",
 									)}
+									style={{ backgroundImage: `url(${slide})` }}
 								/>
 							))}
-						</div>
+							<div
+								aria-hidden
+								className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-r from-background via-background/75 via-[22%] to-transparent"
+							/>
+							<div
+								aria-hidden
+								className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-background/50 via-transparent to-transparent"
+							/>
+
+							<button
+								onClick={prevSlide}
+								className="absolute left-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-background/40 text-foreground backdrop-blur transition-colors hover:bg-background/60"
+								aria-label="Föregående"
+							>
+								<ChevronLeft className="h-5 w-5" />
+							</button>
+							<button
+								onClick={nextSlide}
+								className="absolute right-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-background/40 text-foreground backdrop-blur transition-colors hover:bg-background/60"
+								aria-label="Nästa"
+							>
+								<ChevronRight className="h-5 w-5" />
+							</button>
+
+							<div className="absolute inset-x-0 bottom-5 z-10 flex justify-center gap-2">
+								{slides.map((_, i) => (
+									<button
+										key={i}
+										onClick={() => {
+											stopSlider();
+											setCurrent(i);
+											startSlider();
+										}}
+										aria-label={`Bild ${i + 1}`}
+										className={cn(
+											"h-2 rounded-full transition-all duration-300",
+											i === current ? "w-8 bg-primary" : "w-2 bg-white/50 hover:bg-white/70",
+										)}
+									/>
+								))}
+							</div>
 						</div>
 					</div>
 				</div>
 			</section>
 
 			{/* APP */}
-			<section className="border-y border-border bg-card/40 py-20">
-				<div className="mx-auto max-w-3xl px-6 text-center">
-					<p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-primary">Appen</p>
-					<h2 className="text-3xl font-extrabold uppercase tracking-tight sm:text-4xl">
-						Allt du behöver — i fickan
-					</h2>
-					<p className="mx-auto mt-4 max-w-xl text-base text-muted-foreground">
-						TooDoo-appen ger dig tillgång till exklusiva erbjudanden från lokala företag, direkt i din smartphone.
-						Claima deals, utforska event och spara pengar — var du än är.
-					</p>
+			<section id="appen" className="scroll-mt-20 border-y border-border bg-card/40 py-24">
+				<div className="mx-auto max-w-6xl px-6">
+					<SectionHeading
+						eyebrow="Appen"
+						title="Allt du behöver — i fickan"
+						subtitle="TooDoo-appen ger dig tillgång till exklusiva erbjudanden från lokala företag, direkt i din smartphone. Claima deals, utforska event och spara pengar — var du än är."
+					/>
 					<div className="mt-8 flex flex-wrap justify-center gap-3">
 						<button className="group inline-flex items-center gap-3 rounded-xl border border-border bg-background px-5 py-3 transition-all hover:-translate-y-0.5 hover:border-border/80 hover:bg-secondary">
 							<img
@@ -382,12 +396,11 @@ export default function LandingPage() {
 			</section>
 
 			{/* STEPS */}
-			<section className="py-20">
-				<div className="mx-auto max-w-3xl px-6 text-center">
-					<p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-primary">Guide</p>
-					<h2 className="text-3xl font-extrabold uppercase tracking-tight sm:text-4xl">Så här fungerar det</h2>
+			<section id="guide" className="scroll-mt-20 py-24">
+				<div className="mx-auto max-w-3xl px-6">
+					<SectionHeading eyebrow="Guide" title="Så här fungerar det" />
 
-					<div className="relative mt-10 overflow-hidden rounded-3xl border border-border bg-card p-8 shadow-xl shadow-black/20 sm:p-12">
+					<div className="relative mt-10 overflow-hidden rounded-3xl border border-border bg-card p-8 text-center shadow-xl shadow-black/20 sm:p-12">
 						<div className="mb-8 flex justify-center gap-2">
 							{steps.map((_, i) => (
 								<button
@@ -430,14 +443,11 @@ export default function LandingPage() {
 			</section>
 
 			{/* DEALS */}
-			<section className="border-y border-border bg-card/40 py-20">
+			<section id="erbjudanden" className="scroll-mt-20 border-y border-border bg-card/40 py-24">
 				<div className="mx-auto max-w-6xl px-6">
-					<div className="mb-10 text-center">
-						<p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-primary">Erbjudanden</p>
-						<h2 className="text-3xl font-extrabold uppercase tracking-tight sm:text-4xl">Utvalda deals</h2>
-					</div>
+					<SectionHeading eyebrow="Erbjudanden" title="Utvalda deals" />
 
-					<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+					<div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
 						{loading ? (
 							<>
 								{[0, 1, 2].map((i) => (
@@ -454,7 +464,7 @@ export default function LandingPage() {
 									className="group cursor-pointer rounded-2xl border border-border bg-background p-7 transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/10"
 								>
 									<div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-										{iconMap[deal.icon ?? ""] ?? <Zap className="h-7 w-7" />}
+										{iconMap[deal.icon ?? ""] ?? <Zap className="h-6 w-6" />}
 									</div>
 									<h3 className="mt-4 text-lg font-bold">{deal.title}</h3>
 									<p className="mt-2 text-sm text-muted-foreground">{deal.description}</p>
@@ -464,7 +474,7 @@ export default function LandingPage() {
 							<>
 								<div className="group cursor-pointer rounded-2xl border border-border bg-background p-7 transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/10">
 									<div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-										<Globe className="h-7 w-7" />
+										<Globe className="h-6 w-6" />
 									</div>
 									<h3 className="mt-4 text-lg font-bold">Hitta upplevelser nära dig</h3>
 									<p className="mt-2 text-sm text-muted-foreground">Utforska lokala aktiviteter och event.</p>
@@ -474,7 +484,7 @@ export default function LandingPage() {
 										Företag
 									</div>
 									<div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-										<Building2 className="h-7 w-7" />
+										<Building2 className="h-6 w-6" />
 									</div>
 									<h3 className="mt-4 text-lg font-bold">Är du ett företag?</h3>
 									<p className="mt-2 text-sm text-muted-foreground">
@@ -489,7 +499,7 @@ export default function LandingPage() {
 								</div>
 								<div className="group cursor-pointer rounded-2xl border border-border bg-background p-7 transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl hover:shadow-primary/10">
 									<div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-										<Zap className="h-7 w-7" />
+										<Zap className="h-6 w-6" />
 									</div>
 									<h3 className="mt-4 text-lg font-bold">Exklusiva deals</h3>
 									<p className="mt-2 text-sm text-muted-foreground">Tidsbegränsade erbjudanden varje dag.</p>
@@ -501,13 +511,13 @@ export default function LandingPage() {
 			</section>
 
 			{/* CONTACT */}
-			<section className="py-20">
-				<div className="mx-auto max-w-3xl px-6 text-center">
-					<p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-primary">Kontakt</p>
-					<h2 className="text-3xl font-extrabold uppercase tracking-tight sm:text-4xl">Hör av dig</h2>
-					<p className="mx-auto mt-4 max-w-xl text-base text-muted-foreground">
-						Vi älskar att höra från er — oavsett om ni har frågor, idéer eller bara vill säga hej.
-					</p>
+			<section id="kontakt" className="scroll-mt-20 py-24">
+				<div className="mx-auto max-w-3xl px-6">
+					<SectionHeading
+						eyebrow="Kontakt"
+						title="Hör av dig"
+						subtitle="Vi älskar att höra från er — oavsett om ni har frågor, idéer eller bara vill säga hej."
+					/>
 
 					<div className="mt-10 grid gap-4 sm:grid-cols-3">
 						{[
@@ -539,11 +549,12 @@ export default function LandingPage() {
 						</span>
 					</div>
 					<div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
-						{["Om oss", "Kontakt", "Företagsportal"].map((label) => (
-							<span key={label} className="cursor-pointer transition-colors hover:text-foreground">
-								{label}
-							</span>
-						))}
+						<a href="#guide" className="transition-colors hover:text-foreground">Hur det fungerar</a>
+						<a href="#erbjudanden" className="transition-colors hover:text-foreground">Erbjudanden</a>
+						<a href="#kontakt" className="transition-colors hover:text-foreground">Kontakt</a>
+						<button onClick={() => navigate("/login")} className="transition-colors hover:text-foreground">
+							Företagsportal
+						</button>
 					</div>
 					<p className="text-xs text-muted-foreground">© 2026 TooDoo. Alla rättigheter förbehållna.</p>
 				</div>
