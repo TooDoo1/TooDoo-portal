@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronDown, ChevronUp, PlusCircle } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -214,6 +214,8 @@ function getImageAssetId(value: Record<string, unknown>) {
 export default function CompanyNewOffer() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { businessId: adminBusinessId } = useParams<{ businessId?: string }>();
+  const offersBackPath = adminBusinessId ? `/companies/${adminBusinessId}/edit` : "/company/offers";
   const [startOpen, setStartOpen] = useState(false);
   const [expiresOpen, setExpiresOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -250,7 +252,7 @@ export default function CompanyNewOffer() {
     let cancelled = false;
     const loadBusiness = async () => {
       try {
-        const id = await resolveBusinessId();
+        const id = adminBusinessId ?? await resolveBusinessId();
         if (!id) return;
         const b = await getBusinessById(id);
         if (cancelled) return;
@@ -275,7 +277,7 @@ export default function CompanyNewOffer() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [adminBusinessId]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -349,7 +351,7 @@ export default function CompanyNewOffer() {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Kunde inte läsa erbjudandet.";
         toast.error(message);
-        navigate("/company/offers");
+        navigate(offersBackPath);
       } finally {
         setIsLoadingOffer(false);
       }
@@ -645,11 +647,14 @@ export default function CompanyNewOffer() {
         await updateOrder(editOrderId, pendingPayload);
         toast.success("Erbjudande uppdaterat.");
       } else {
-        await createOrder(pendingPayload);
+        await createOrder({
+          ...pendingPayload,
+          ...(adminBusinessId ? { businessId: adminBusinessId } : {}),
+        });
         toast.success("Erbjudande skapat.");
       }
       setPreviewOpen(false);
-      navigate("/company/offers");
+      navigate(offersBackPath);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte skapa erbjudandet.";
       toast.error(message);
@@ -707,7 +712,7 @@ export default function CompanyNewOffer() {
         imageAssetId: selectedGalleryImageAssetId ?? undefined,
       });
       toast.success("Preset skapat.");
-      navigate("/company/offers");
+      navigate(offersBackPath);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte skapa preset.";
       toast.error(message);
@@ -748,7 +753,7 @@ export default function CompanyNewOffer() {
         </div>
         <button
           type="button"
-          onClick={() => navigate("/company/offers")}
+          onClick={() => navigate(offersBackPath)}
           className="group no-hover-motion relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent"
           aria-label="Tillbaka till erbjudanden"
         >
@@ -1093,7 +1098,7 @@ export default function CompanyNewOffer() {
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => navigate("/company/offers")}>
+              <Button type="button" variant="outline" onClick={() => navigate(offersBackPath)}>
                 Avbryt
               </Button>
               {!editOrderId ? (
