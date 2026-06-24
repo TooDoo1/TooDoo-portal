@@ -21,7 +21,6 @@ import {
   getBusinessById,
   listCategories,
   resolveBusinessId,
-  resolveImageUrl,
   updateBusiness,
   type Business,
   type BusinessStatus,
