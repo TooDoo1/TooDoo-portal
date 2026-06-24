@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronDown, ChevronUp, PlusCircle } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -216,6 +216,11 @@ export default function CompanyNewOffer() {
   const location = useLocation();
   const { businessId: adminBusinessId } = useParams<{ businessId?: string }>();
   const offersBackPath = adminBusinessId ? `/companies/${adminBusinessId}/edit` : "/company/offers";
+
+  const resolveActiveBusinessId = useCallback(async () => {
+    if (adminBusinessId) return adminBusinessId;
+    return resolveBusinessId();
+  }, [adminBusinessId]);
   const [startOpen, setStartOpen] = useState(false);
   const [expiresOpen, setExpiresOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -483,7 +488,7 @@ export default function CompanyNewOffer() {
       return;
     }
 
-    const businessId = await resolveBusinessId();
+    const businessId = await resolveActiveBusinessId();
     if (!businessId) {
       toast.error("Saknar businessId. Registrera/logga in igen.");
       return;
@@ -668,7 +673,7 @@ export default function CompanyNewOffer() {
       return;
     }
 
-    const businessId = await resolveBusinessId();
+    const businessId = await resolveActiveBusinessId();
     if (!businessId) {
       toast.error("Saknar businessId. Registrera/logga in igen.");
       return;
@@ -1263,6 +1268,7 @@ export default function CompanyNewOffer() {
         open={galleryDialogOpen}
         onOpenChange={setGalleryDialogOpen}
         onSelect={selectGalleryImage}
+        businessId={adminBusinessId}
       />
     </div>
   );

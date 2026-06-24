@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { listImages, resolveImageUrl, type ImageGalleryItem } from "@/lib/api";
+import { listBusinessImages, listImages, resolveImageUrl, type ImageGalleryItem } from "@/lib/api";
 import { toast } from "sonner";
 import { Search, Loader } from "lucide-react";
 import { useRealtime } from "@/hooks/useRealtime";
@@ -12,6 +12,7 @@ interface ImageGalleryDialogProps {
   onOpenChange: (open: boolean) => void;
   onSelect: (image: ImageGalleryItem) => void;
   categoryName?: string;
+  businessId?: string;
 }
 
 type GalleryEntry = {
@@ -26,6 +27,7 @@ export function ImageGalleryDialog({
   onOpenChange,
   onSelect,
   categoryName,
+  businessId,
 }: ImageGalleryDialogProps) {
   const [businessImages, setBusinessImages] = useState<ImageGalleryItem[]>([]);
   const [defaultImages, setDefaultImages] = useState<ImageGalleryItem[]>([]);
@@ -37,7 +39,9 @@ export function ImageGalleryDialog({
   const loadImages = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
     try {
-      const result = await listImages();
+      const result = businessId
+        ? await listBusinessImages(businessId)
+        : await listImages();
       setBusinessImages(result.businessImages ?? []);
       setDefaultImages(result.defaultImages ?? []);
     } catch (error) {
@@ -50,7 +54,7 @@ export function ImageGalleryDialog({
     } finally {
       if (!options?.silent) setLoading(false);
     }
-  }, []);
+  }, [businessId]);
 
   useEffect(() => {
     if (!open) return;
