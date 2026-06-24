@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, CalendarDays, PlusCircle } from "lucide-react";
 import { format, parseISO, startOfDay } from "date-fns";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -111,6 +111,8 @@ function toTimePart(value?: string) {
 export default function CompanyNewEvent() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { businessId: adminBusinessId } = useParams<{ businessId?: string }>();
+  const eventsBackPath = adminBusinessId ? `/companies/${adminBusinessId}/edit` : "/company/events";
   const [form, setForm] = useState<EventForm>(() => {
     const now = new Date();
     return {
@@ -157,7 +159,7 @@ export default function CompanyNewEvent() {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Kunde inte läsa eventet.";
         toast.error(message);
-        navigate("/company/events");
+        navigate(eventsBackPath);
       } finally {
         setIsLoadingEvent(false);
       }
@@ -259,10 +261,13 @@ export default function CompanyNewEvent() {
         await updateBusinessEvent(editEventId, payload);
         toast.success("Event uppdaterat.");
       } else {
-        await createBusinessEvent(payload);
+        await createBusinessEvent({
+          ...payload,
+          ...(adminBusinessId ? { businessId: adminBusinessId } : {}),
+        });
         toast.success("Event skapat.");
       }
-      navigate("/company/events");
+      navigate(eventsBackPath);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte spara eventet.";
       toast.error(message);
@@ -284,7 +289,7 @@ export default function CompanyNewEvent() {
         </div>
         <button
           type="button"
-          onClick={() => navigate("/company/events")}
+          onClick={() => navigate(eventsBackPath)}
           className="group no-hover-motion relative inline-flex h-10 items-center overflow-hidden rounded-xl border border-border bg-card px-3 pr-5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent"
           aria-label="Tillbaka till event"
         >
@@ -488,7 +493,7 @@ export default function CompanyNewEvent() {
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => navigate("/company/events")} disabled={isSubmitting}>
+                <Button type="button" variant="outline" onClick={() => navigate(eventsBackPath)} disabled={isSubmitting}>
                   Avbryt
                 </Button>
                 <Button type="submit" disabled={isSubmitting} className="gap-2 bg-accent text-accent-foreground hover:bg-accent/90">

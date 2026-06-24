@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Filter, Eye, Trash2, Mail } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Search, Filter, Eye, Trash2, Mail, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +12,7 @@ import { CategoryBadges } from "@/components/CategoryBadges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { ManagerInviteDialog } from "@/components/ManagerInviteDialog";
-import { inviteManagerToBusiness, listBusinesses, listCategories } from "@/lib/api";
+import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness } from "@/lib/api";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, getPrimaryCategoryName } from "@/lib/businessCategories";
 import { toast } from "sonner";
@@ -30,6 +31,7 @@ type Company = {
 };
 
 export default function Companies() {
+  const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [categories, setCategories] = useState<string[]>(["Alla"]);
   const [search, setSearch] = useState("");
@@ -76,11 +78,26 @@ export default function Companies() {
     return matchSearch && matchCategory;
   }), [companies, search, category]);
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return;
-    setCompanies((prev) => prev.filter((c) => c.id !== deleteTarget.id));
-    toast.success(`${deleteTarget.name} har inaktiverats`);
-    setDeleteTarget(null);
+
+    try {
+      const isAdmin = await hasAdminAccess();
+      if (!isAdmin) {
+        toast.error("Saknar admin-behörighet.");
+        setDeleteTarget(null);
+        return;
+      }
+
+      await deleteBusiness(deleteTarget.id);
+      setCompanies((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      toast.success(`${deleteTarget.name} har tagits bort`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte ta bort företaget.";
+      toast.error(message);
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   const openInviteDialog = (company: Company) => {
@@ -199,6 +216,15 @@ export default function Companies() {
                     <Eye className="mr-1.5 h-3.5 w-3.5" />
                     Visa detaljer
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-border"
+                    onClick={() => navigate(`/companies/${company.id}/edit`)}
+                    title="Redigera företag"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -259,9 +285,9 @@ export default function Companies() {
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title="Inaktivera företag"
-        description={`Är du säker på att du vill inaktivera ${deleteTarget?.name}?`}
-        confirmLabel="Inaktivera"
+        title="Ta bort företag"
+        description={`Är du säker på att du vill ta bort ${deleteTarget?.name}? Detta går inte att ångra.`}
+        confirmLabel="Ta bort"
         onConfirm={handleDelete}
         variant="destructive"
       />

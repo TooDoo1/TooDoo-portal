@@ -587,6 +587,7 @@ export type CreateBusinessEventRequest = {
   endsAt: string;
   locationName?: string;
   imageAssetId?: string;
+  businessId?: string;
 };
 
 export type UpdateBusinessEventRequest = Partial<CreateBusinessEventRequest> & {
@@ -606,6 +607,7 @@ export type CreateOrderRequest = {
   validTo: string;
   maxRedemptions?: number;
   perPersonRedemptions?: number;
+  businessId?: string;
 };
 
 export type UpdateOrderRequest = {
@@ -935,6 +937,49 @@ export async function listImages() {
   );
 }
 
+export async function listBusinessImages(businessId: string) {
+  return apiRequest<ImageGalleryResponse>(
+    `/business/${encodeURIComponent(businessId)}/images`,
+    { method: "GET" },
+    true,
+  );
+}
+
+export async function addBusinessImage(
+  businessId: string,
+  body: { imageSourceType: ImageSourceType; imageUrl?: string; imageFile?: File },
+) {
+  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
+  if (!wantsUpload) {
+    return apiRequest<ImageGalleryItem>(
+      `/business/${encodeURIComponent(businessId)}/images`,
+      {
+        method: "POST",
+        body: JSON.stringify({ imageSourceType: body.imageSourceType, imageUrl: body.imageUrl }),
+      },
+      true,
+    );
+  }
+
+  const form = new FormData();
+  appendFormValue(form, "imageSourceType", "UPLOADED");
+  appendFormValue(form, "image", body.imageFile);
+  return apiRequestFormData<ImageGalleryItem>(
+    `/business/${encodeURIComponent(businessId)}/images`,
+    form,
+    true,
+    "POST",
+  );
+}
+
+export async function deleteBusinessImage(businessId: string, imageAssetId: string) {
+  return apiRequest<Record<string, unknown>>(
+    `/business/${encodeURIComponent(businessId)}/images/${encodeURIComponent(imageAssetId)}`,
+    { method: "DELETE" },
+    true,
+  );
+}
+
 export type ChangeMyPasswordRequest = {
   currentPassword: string;
   newPassword: string;
@@ -1035,6 +1080,14 @@ export async function updateBusiness(id: string, body: UpdateBusinessRequest) {
       method: "PUT",
       body: JSON.stringify(body),
     },
+    true,
+  );
+}
+
+export async function deleteBusiness(id: string) {
+  return apiRequest<Record<string, unknown>>(
+    `/business/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
     true,
   );
 }
