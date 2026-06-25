@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { addDays, format, getDay, parseISO, startOfDay } from "date-fns";
 import { toast } from "sonner";
-import { createOrder, createOrderPreset, getBusinessById, getOrderById, listOrderPresets, resolveBusinessId, resolveImageUrl, updateOrder, type Business, type ImageGalleryItem, type OrderPreset } from "@/lib/api";
+import { createOrder, createOrderPreset, getBusinessById, getOrderById, listOrderPresets, resolveBusinessId, updateOrder, type Business, type ImageGalleryItem, type OrderPreset } from "@/lib/api";
 import { TimePicker } from "@/components/TimePicker";
 import { ImageGalleryDialog } from "@/components/ImageGalleryDialog";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
@@ -415,9 +415,8 @@ export default function CompanyNewOffer() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const selectGalleryImage = (image: ImageGalleryItem) => {
-    const rawUrl = image.publicUrl || image.originalUrl || "";
-    onChange("imageUrl", rawUrl ? resolveImageUrl(rawUrl) : "");
+  const selectGalleryImage = (image: ImageGalleryItem, resolvedUrl: string) => {
+    onChange("imageUrl", resolvedUrl);
     setSelectedGalleryImageAssetId(image.id);
   };
 

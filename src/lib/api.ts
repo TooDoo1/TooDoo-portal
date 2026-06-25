@@ -924,6 +924,11 @@ export type ImageGalleryItem = {
   updatedAt?: string;
 };
 
+export function getGalleryImageResolvedUrl(image: ImageGalleryItem): string {
+  const rawUrl = image.publicUrl || image.originalUrl || "";
+  return rawUrl ? resolveImageUrl(rawUrl) : "";
+}
+
 export type ImageGalleryResponse = {
   businessImages: ImageGalleryItem[];
   defaultImages: ImageGalleryItem[];

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { listBusinessImages, listImages, resolveImageUrl, type ImageGalleryItem } from "@/lib/api";
+import { getGalleryImageResolvedUrl, listBusinessImages, listImages, type ImageGalleryItem } from "@/lib/api";
 import { toast } from "sonner";
 import { Search, Loader } from "lucide-react";
 import { useRealtime } from "@/hooks/useRealtime";
@@ -10,7 +10,7 @@ import { useRealtime } from "@/hooks/useRealtime";
 interface ImageGalleryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (image: ImageGalleryItem) => void;
+  onSelect: (image: ImageGalleryItem, resolvedUrl: string) => void;
   categoryName?: string;
   businessId?: string;
 }
@@ -71,7 +71,7 @@ export function ImageGalleryDialog({
     .map((img) => {
       const rawUrl = img.publicUrl || img.originalUrl || "";
       if (!rawUrl) return null;
-      const url = resolveImageUrl(rawUrl);
+      const url = getGalleryImageResolvedUrl(img);
       return {
         key: `uploaded:${img.id}`,
         url,
@@ -87,7 +87,7 @@ export function ImageGalleryDialog({
       if (!rawUrl) return null;
       return {
         key: `default:${img.id}`,
-        url: resolveImageUrl(rawUrl),
+        url: getGalleryImageResolvedUrl(img),
         source: "default" as const,
         image: img,
       };
@@ -114,7 +114,7 @@ export function ImageGalleryDialog({
 
   const handleSelect = () => {
     if (selectedImage) {
-      onSelect(selectedImage);
+      onSelect(selectedImage, getGalleryImageResolvedUrl(selectedImage));
       setSelectedImage(null);
       onOpenChange(false);
     }
