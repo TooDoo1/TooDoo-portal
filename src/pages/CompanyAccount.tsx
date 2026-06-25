@@ -184,9 +184,8 @@ export default function CompanyAccount() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const selectGalleryImage = (image: ImageGalleryItem) => {
-    const rawUrl = image.publicUrl || image.originalUrl || "";
-    updateField("imageUrl", rawUrl ? resolveImageUrl(rawUrl) : "");
+  const selectGalleryImage = (image: ImageGalleryItem, resolvedUrl: string) => {
+    updateField("imageUrl", resolvedUrl);
     setSelectedGalleryImageAssetId(image.id);
   };
 

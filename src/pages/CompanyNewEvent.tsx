@@ -13,7 +13,6 @@ import { TimePicker } from "@/components/TimePicker";
 import {
   createBusinessEvent,
   getBusinessEventById,
-  resolveImageUrl,
   updateBusinessEvent,
   type BusinessEvent,
   type CreateBusinessEventRequest,
@@ -176,9 +175,8 @@ export default function CompanyNewEvent() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const selectGalleryImage = (image: ImageGalleryItem) => {
-    const rawUrl = image.publicUrl || image.originalUrl || "";
-    onChange("imageUrl", rawUrl ? resolveImageUrl(rawUrl) : "");
+  const selectGalleryImage = (image: ImageGalleryItem, resolvedUrl: string) => {
+    onChange("imageUrl", resolvedUrl);
     setSelectedGalleryImageAssetId(image.id);
   };
 

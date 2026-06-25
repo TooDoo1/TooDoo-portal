@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronDown, ChevronUp, PlusCircle } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { addDays, format, getDay, parseISO, startOfDay } from "date-fns";
 import { toast } from "sonner";
-import { createOrder, createOrderPreset, getBusinessById, getOrderById, listOrderPresets, resolveBusinessId, resolveImageUrl, updateOrder, type Business, type ImageGalleryItem, type OrderPreset } from "@/lib/api";
+import { createOrder, createOrderPreset, getBusinessById, getOrderById, listOrderPresets, resolveBusinessId, updateOrder, type Business, type ImageGalleryItem, type OrderPreset } from "@/lib/api";
 import { TimePicker } from "@/components/TimePicker";
 import { ImageGalleryDialog } from "@/components/ImageGalleryDialog";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
@@ -216,6 +216,11 @@ export default function CompanyNewOffer() {
   const location = useLocation();
   const { businessId: adminBusinessId } = useParams<{ businessId?: string }>();
   const offersBackPath = adminBusinessId ? `/companies/${adminBusinessId}/edit` : "/company/offers";
+
+  const resolveActiveBusinessId = useCallback(async () => {
+    if (adminBusinessId) return adminBusinessId;
+    return resolveBusinessId();
+  }, [adminBusinessId]);
   const [startOpen, setStartOpen] = useState(false);
   const [expiresOpen, setExpiresOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -410,9 +415,8 @@ export default function CompanyNewOffer() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const selectGalleryImage = (image: ImageGalleryItem) => {
-    const rawUrl = image.publicUrl || image.originalUrl || "";
-    onChange("imageUrl", rawUrl ? resolveImageUrl(rawUrl) : "");
+  const selectGalleryImage = (image: ImageGalleryItem, resolvedUrl: string) => {
+    onChange("imageUrl", resolvedUrl);
     setSelectedGalleryImageAssetId(image.id);
   };
 
@@ -483,7 +487,7 @@ export default function CompanyNewOffer() {
       return;
     }
 
-    const businessId = await resolveBusinessId();
+    const businessId = await resolveActiveBusinessId();
     if (!businessId) {
       toast.error("Saknar businessId. Registrera/logga in igen.");
       return;
@@ -669,7 +673,7 @@ export default function CompanyNewOffer() {
       return;
     }
 
-    const businessId = await resolveBusinessId();
+    const businessId = await resolveActiveBusinessId();
     if (!businessId) {
       toast.error("Saknar businessId. Registrera/logga in igen.");
       return;
@@ -1264,6 +1268,7 @@ export default function CompanyNewOffer() {
         open={galleryDialogOpen}
         onOpenChange={setGalleryDialogOpen}
         onSelect={selectGalleryImage}
+        businessId={adminBusinessId}
       />
     </div>
   );
