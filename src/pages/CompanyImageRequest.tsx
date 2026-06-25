@@ -31,6 +31,33 @@ function normalizeExternalUrl(value: string) {
   return parsed.toString();
 }
 
+function resolvePreviewUrl(raw: string, mode: RequestMode): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+
+  if (trimmed.startsWith("blob:") || trimmed.startsWith("data:")) {
+    return trimmed;
+  }
+
+  if (mode === "upload") {
+    return trimmed;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("/")) {
+    return resolveImageUrl(trimmed);
+  }
+
+  try {
+    return normalizeExternalUrl(trimmed);
+  } catch {
+    return resolveImageUrl(trimmed);
+  }
+}
+
 export default function CompanyImageRequest() {
   const [mode, setMode] = useState<RequestMode>("upload");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -80,7 +107,7 @@ export default function CompanyImageRequest() {
 
   const previewUrl = mode === "upload" ? filePreviewUrl : imageUrl.trim();
   const currentBusinessImageUrl = business ? resolveImageUrl(getBusinessImageUrl(business)) : "";
-  const previewImageUrl = previewUrl ? resolveImageUrl(previewUrl) : currentBusinessImageUrl;
+  const previewImageUrl = previewUrl ? resolvePreviewUrl(previewUrl, mode) : currentBusinessImageUrl;
 
   const resetForm = () => {
     setImageFile(null);

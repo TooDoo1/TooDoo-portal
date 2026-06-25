@@ -3,7 +3,6 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import {
   clearAuthStorage,
   getAuthEmail,
-  getAuthRole,
   getAuthToken,
   getUserByEmail,
   setAuthRole,
@@ -45,25 +44,28 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   const token = getAuthToken();
 
   const tokenInvalid = useMemo(() => !token || isJwtExpired(token), [token]);
+  const needsRoleCheck = Boolean(allowedRoles && allowedRoles.length > 0);
 
-  const [checkedRole, setCheckedRole] = useState<string | null>(() => getAuthRole());
-  const [verifying, setVerifying] = useState<boolean>(() => {
-    if (tokenInvalid) return false;
-    if (!allowedRoles || allowedRoles.length === 0) return false;
-    return !getAuthRole();
-  });
+  const [checkedRole, setCheckedRole] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(() => !tokenInvalid && needsRoleCheck);
 
   useEffect(() => {
     if (tokenInvalid) {
       clearAuthStorage();
+      setCheckedRole(null);
+      setVerifying(false);
       return;
     }
 
-    if (checkedRole) {
+    if (!needsRoleCheck) {
+      setVerifying(false);
       return;
     }
 
     let cancelled = false;
+    setCheckedRole(null);
+    setVerifying(true);
+
     const resolveRole = async () => {
       const fromJwt = token ? decodeJwtRole(token) : null;
       if (fromJwt) {
@@ -77,6 +79,7 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
       const email = getAuthEmail();
       if (!email) {
         if (cancelled) return;
+        setCheckedRole(null);
         setVerifying(false);
         return;
       }
@@ -87,9 +90,11 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
         if (typeof user.role === "string") {
           setAuthRole(user.role);
           setCheckedRole(user.role);
+        } else {
+          setCheckedRole(null);
         }
       } catch {
-        /* fall through; role stays null */
+        if (!cancelled) setCheckedRole(null);
       } finally {
         if (!cancelled) setVerifying(false);
       }
@@ -100,7 +105,7 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
     return () => {
       cancelled = true;
     };
-  }, [token, tokenInvalid, checkedRole]);
+  }, [token, tokenInvalid, needsRoleCheck]);
 
   if (tokenInvalid) {
     return <Navigate to="/login" state={{ from: location }} replace />;
@@ -118,9 +123,9 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
     );
   }
 
-  if (allowedRoles && allowedRoles.length > 0) {
+  if (needsRoleCheck) {
     const normalizedRole = (checkedRole ?? "").toUpperCase();
-    const allowed = allowedRoles.some((role) => role.toUpperCase() === normalizedRole);
+    const allowed = allowedRoles!.some((role) => role.toUpperCase() === normalizedRole);
     if (!allowed) {
       return <Navigate to="/login" state={{ from: location, reason: "forbidden" }} replace />;
     }
