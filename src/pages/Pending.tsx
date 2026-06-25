@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { hasAdminAccess } from "@/lib/adminAccess";
-import { getBusinessCategoryNames } from "@/lib/businessCategories";
+import { getBusinessCategoryNames, matchesCategoryName } from "@/lib/businessCategories";
 import { inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus } from "@/lib/api";
 import { useRealtime } from "@/hooks/useRealtime";
 import { CategoryBadges } from "@/components/CategoryBadges";
@@ -80,7 +80,7 @@ export default function Pending() {
 
   const filtered = useMemo(() => companies.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = category === "Alla" || c.categoryNames.includes(category);
+    const matchCategory = category === "Alla" || matchesCategoryName(c.categoryNames, category);
     return matchSearch && matchCategory;
   }), [companies, search, category]);
 

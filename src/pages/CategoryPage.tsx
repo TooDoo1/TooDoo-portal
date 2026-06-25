@@ -9,7 +9,6 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { listBusinesses } from "@/lib/api";
-import { businessMatchesCategoryName } from "@/lib/businessCategories";
 import { toast } from "sonner";
 
 type Company = {
@@ -36,18 +35,16 @@ export default function CategoryPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const approvedBusinesses = await listBusinesses("APPROVED");
+        const approvedBusinesses = await listBusinesses("APPROVED", false, categoryName);
 
-        const matches = approvedBusinesses
-          .filter((business) => businessMatchesCategoryName(business, categoryName))
-          .map<Company>((business) => ({
-            id: business.id,
-            name: business.name,
-            email: business.contactEmail,
-            category: categoryName,
-            status: "active",
-            joinedAt: business.createdAt || new Date().toISOString(),
-          }));
+        const matches = approvedBusinesses.map<Company>((business) => ({
+          id: business.id,
+          name: business.name,
+          email: business.contactEmail,
+          category: categoryName,
+          status: "active",
+          joinedAt: business.createdAt || new Date().toISOString(),
+        }));
 
         setActive(matches);
       } catch {

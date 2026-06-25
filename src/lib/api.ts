@@ -389,6 +389,7 @@ export type Business = {
   openingHours?: Record<string, unknown> | null;
   categoryId: string;
   categoryName?: string;
+  categoryNames?: string[];
   category?: { id?: string; name?: string | null; icon?: string | null } | null;
   categories?: Array<{ id?: string; name?: string | null; icon?: string | null }>;
   manager?: BusinessManager | null;
@@ -1058,8 +1059,15 @@ export async function reviewBusinessImageRequest(requestId: string, status: "APP
   );
 }
 
-export async function listBusinesses(status?: BusinessStatus, withAuth = false) {
-  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+export async function listBusinesses(
+  status?: BusinessStatus,
+  withAuth = false,
+  categoryName?: string,
+) {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (categoryName?.trim()) params.set("categoryName", categoryName.trim());
+  const query = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<Business[]>(`/business${query}`, { method: "GET" }, withAuth);
 }
 

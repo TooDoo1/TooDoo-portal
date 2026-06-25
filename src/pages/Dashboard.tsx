@@ -62,10 +62,7 @@ export default function Dashboard() {
       const businessCount = approvedBusinesses.filter((business) => businessMatchesCategoryName(business, cat.name)).length;
       const orderCount = orders.filter((order) => {
         const business = approvedBusinesses.find((entry) => entry.id === order.businessId);
-        if (business && businessMatchesCategoryName(business, cat.name)) {
-          return true;
-        }
-        return typeof order.categoryName === "string" && order.categoryName === cat.name;
+        return business ? businessMatchesCategoryName(business, cat.name) : false;
       }).length;
       return { name: cat.name, businessCount, orderCount };
     });

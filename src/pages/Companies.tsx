@@ -14,7 +14,7 @@ import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { ManagerInviteDialog } from "@/components/ManagerInviteDialog";
 import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness } from "@/lib/api";
 import { hasAdminAccess } from "@/lib/adminAccess";
-import { getBusinessCategoryNames, getPrimaryCategoryName } from "@/lib/businessCategories";
+import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
 import { toast } from "sonner";
 
 type Company = {
@@ -74,7 +74,7 @@ export default function Companies() {
 
   const filtered = useMemo(() => companies.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = category === "Alla" || c.categoryNames.includes(category);
+    const matchCategory = category === "Alla" || matchesCategoryName(c.categoryNames, category);
     return matchSearch && matchCategory;
   }), [companies, search, category]);
 
