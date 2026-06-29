@@ -929,23 +929,24 @@ export default function LandingPage() {
 					<Reveal>
 						<SectionHeading
 							eyebrow="Kontakt"
-							title="Hör av dig"
-							subtitle="Vi älskar att höra från er — oavsett om ni har frågor, idéer eller bara vill säga hej."
+							title="Kontakta oss"
+							subtitle="Har du frågor om appen, erbjudanden eller företagskonto? Hör av dig."
 						/>
 					</Reveal>
 
 					<div className="mt-12 grid gap-4 sm:grid-cols-3">
 						{[
-							{ icon: <Mail className="h-5 w-5" />, label: "info@toodoo.se" },
-							{ icon: <MapPin className="h-5 w-5" />, label: "Helsingborg" },
-							{ icon: <Smartphone className="h-5 w-5" />, label: "@toodoo.se" },
+							{ icon: <Mail className="h-5 w-5" />, title: "E-post", label: "info@toodoo.se" },
+							{ icon: <MapPin className="h-5 w-5" />, title: "Kontor", label: "Helsingborg, Sverige" },
+							{ icon: <Smartphone className="h-5 w-5" />, title: "Sociala medier", label: "@toodoo.se" },
 						].map((item, i) => (
 							<Reveal key={i} delay={i * 90}>
-								<div className="group cursor-pointer rounded-2xl border border-border bg-background p-5 transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10">
+								<div className="group rounded-2xl border border-border bg-background p-5 transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10">
 									<div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
 										{item.icon}
 									</div>
-									<p className="text-sm font-medium">{item.label}</p>
+									<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{item.title}</p>
+									<p className="mt-1 text-sm font-medium">{item.label}</p>
 								</div>
 							</Reveal>
 						))}
