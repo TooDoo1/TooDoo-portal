@@ -155,6 +155,98 @@ const phoneScreens = [
 	},
 ];
 
+function PhoneScreenPanel({ screen, active }: { screen: (typeof phoneScreens)[number]; active: boolean }) {
+	return (
+		<div
+			className={cn(
+				"absolute inset-0 flex flex-col transition-opacity duration-700",
+				active ? "opacity-100" : "opacity-0",
+			)}
+			aria-hidden={!active}
+		>
+			<div className="relative h-[34%] min-h-[8.5rem] w-full shrink-0 overflow-hidden">
+				<img src={screen.image} alt={screen.name} loading="lazy" className="h-full w-full object-cover" />
+				<div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/30" />
+				<span className="absolute left-4 top-9 flex h-8 w-8 items-center justify-center rounded-full bg-background/50 text-white backdrop-blur">
+					<ChevronLeft className="h-4 w-4" />
+				</span>
+				<span className="absolute right-4 top-9 flex h-8 w-8 items-center justify-center rounded-full bg-background/50 text-white backdrop-blur">
+					<Heart className="h-4 w-4" />
+				</span>
+			</div>
+
+			<div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-3.5 pt-2.5">
+				<div className="shrink-0">
+					<h3 className="text-[15px] font-extrabold leading-tight">{screen.name}</h3>
+					<p className="mt-2 text-[10px] font-medium leading-relaxed text-foreground/90">
+						Adress: {screen.address}
+					</p>
+					<p className="mt-1 pb-5 text-[10px] font-medium leading-relaxed text-foreground/90">
+						Telefon: <span className="text-accent underline">{screen.phone}</span>
+					</p>
+				</div>
+
+				<div className="grid shrink-0 grid-cols-2 gap-2.5">
+					<div className="flex items-center justify-center gap-1.5 rounded-full bg-white py-2.5 text-[10px] font-bold text-background">
+						<MapPin className="h-3 w-3" /> Hitta hit
+					</div>
+					<div className="flex items-center justify-center gap-1.5 rounded-full bg-white py-2.5 text-[10px] font-bold text-background">
+						<Globe className="h-3 w-3" /> Webbplats
+					</div>
+				</div>
+
+				<div className="shrink-0 flex items-center justify-between rounded-xl border border-border bg-card px-3 py-3">
+					<div className="flex items-center gap-2">
+						<span className="h-2 w-2 rounded-full bg-success" />
+						<div className="leading-snug">
+							<p className="text-[10px] font-bold">Öppet</p>
+							<p className="mt-0.5 text-[9px] text-muted-foreground">{screen.hours}</p>
+						</div>
+					</div>
+					<ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+				</div>
+
+				<div className="shrink-0 rounded-xl border border-border bg-card p-3">
+					<div className="flex gap-3">
+						<div className="relative h-[4.25rem] w-[4.25rem] shrink-0 overflow-hidden rounded-lg">
+							<img src={screen.image} alt="" aria-hidden className="h-full w-full object-cover" />
+							<span className="absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-background/70 text-white">
+								<Share2 className="h-2 w-2" />
+							</span>
+							<span className="absolute inset-x-0 bottom-0 bg-background/80 py-0.5 text-center text-[7px] font-semibold text-white">
+								462:44:24
+							</span>
+						</div>
+						<div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
+							<p className="text-[10px] font-semibold leading-snug text-muted-foreground">{screen.deal}</p>
+							<p className="text-[10px]">
+								<span className="font-extrabold text-muted-foreground">{screen.price}</span>{" "}
+								<span className="text-accent line-through">{screen.oldPrice}</span>
+							</p>
+							<p className="text-[9px] text-muted-foreground">
+								Claimade: {screen.claimed} / {screen.total}
+							</p>
+							<div className="h-1 w-full overflow-hidden rounded-full bg-secondary">
+								<span
+									className="block h-full rounded-full bg-primary"
+									style={{ width: `${Math.round((screen.claimed / screen.total) * 100)}%` }}
+								/>
+							</div>
+						</div>
+					</div>
+					<button
+						aria-hidden
+						tabIndex={-1}
+						className="mt-3 w-full rounded-full bg-primary py-2.5 text-[10px] font-bold text-primary-foreground"
+					>
+						Logga in för att claima!
+					</button>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 type Deal = {
 	icon?: string;
 	title?: string;
@@ -206,24 +298,29 @@ function Reveal({
 }
 
 function MarqueeRow({ reverse }: { reverse?: boolean }) {
-	const Row = (
-		<div className="flex shrink-0 items-center gap-3 pr-3">
-			{marqueeItems.map((item) => (
-				<span key={item} className="flex items-center gap-3">
-					<span className="whitespace-nowrap rounded-full border border-border bg-card/50 px-5 py-2 text-sm font-semibold text-muted-foreground">
-						{item}
-					</span>
-					<Sparkles className="h-3.5 w-3.5 shrink-0 text-primary/60" />
-				</span>
-			))}
-		</div>
-	);
+	const copies = 4;
 
 	return (
-		<div className="flex overflow-hidden">
-			<div className={cn("flex w-max pause-on-hover", reverse ? "animate-marquee-reverse" : "animate-marquee")}>
-				{Row}
-				{Row}
+		<div className="overflow-hidden">
+			<div
+				className={cn(
+					"flex w-max pause-on-hover",
+					reverse ? "animate-marquee-reverse" : "animate-marquee",
+				)}
+				style={reverse ? { marginLeft: "-4rem" } : undefined}
+			>
+				{Array.from({ length: copies }).map((_, copyIndex) => (
+					<div key={copyIndex} className="flex shrink-0 items-center gap-3 pr-3">
+						{marqueeItems.map((item) => (
+							<span key={`${copyIndex}-${item}`} className="flex items-center gap-3">
+								<span className="whitespace-nowrap rounded-full border border-border bg-card/50 px-5 py-2 text-sm font-semibold text-muted-foreground">
+									{item}
+								</span>
+								<Sparkles className="h-3.5 w-3.5 shrink-0 text-primary/60" />
+							</span>
+						))}
+					</div>
+				))}
 			</div>
 		</div>
 	);
@@ -548,104 +645,8 @@ export default function LandingPage() {
 									</span>
 								</div>
 
-								{/* stacked cross-fading screens */}
 								{phoneScreens.map((screen, i) => (
-									<div
-										key={screen.name}
-										className={cn(
-											"absolute inset-0 flex flex-col transition-opacity duration-700",
-											i === activeScreen ? "opacity-100" : "opacity-0",
-										)}
-										aria-hidden={i !== activeScreen}
-									>
-										{/* header image */}
-										<div className="relative h-40 w-full shrink-0 overflow-hidden">
-											<img
-												src={screen.image}
-												alt={screen.name}
-												loading={i === 0 ? "eager" : "lazy"}
-												className="h-full w-full object-cover"
-											/>
-											<div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/40" />
-											<span className="absolute left-4 top-9 flex h-8 w-8 items-center justify-center rounded-full bg-background/50 text-white backdrop-blur">
-												<ChevronLeft className="h-4 w-4" />
-											</span>
-											<span className="absolute right-4 top-9 flex h-8 w-8 items-center justify-center rounded-full bg-background/50 text-white backdrop-blur">
-												<Heart className="h-4 w-4" />
-											</span>
-										</div>
-
-										{/* body */}
-										<div className="flex-1 space-y-3 overflow-hidden px-4 pb-4">
-											<div className="-mt-1">
-												<h3 className="text-lg font-extrabold leading-tight">{screen.name}</h3>
-												<p className="mt-1 text-[11px] font-medium text-foreground/90">
-													Adress: {screen.address}
-												</p>
-												<p className="text-[11px] font-medium text-foreground/90">
-													Telefon: <span className="text-accent underline">{screen.phone}</span>
-												</p>
-											</div>
-
-											<div className="grid grid-cols-2 gap-2">
-												<div className="flex items-center justify-center gap-1.5 rounded-full bg-white py-2 text-[11px] font-bold text-background">
-													<MapPin className="h-3.5 w-3.5" /> Hitta hit
-												</div>
-												<div className="flex items-center justify-center gap-1.5 rounded-full bg-white py-2 text-[11px] font-bold text-background">
-													<Globe className="h-3.5 w-3.5" /> Webbplats
-												</div>
-											</div>
-
-											<div className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2.5">
-												<div className="flex items-center gap-2">
-													<span className="h-2 w-2 rounded-full bg-success" />
-													<div className="leading-tight">
-														<p className="text-[11px] font-bold">Öppet</p>
-														<p className="text-[10px] text-muted-foreground">{screen.hours}</p>
-													</div>
-												</div>
-												<ChevronDown className="h-4 w-4 text-muted-foreground" />
-											</div>
-
-											<div className="rounded-xl border border-border bg-card p-2.5">
-												<div className="flex gap-2.5">
-													<div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg">
-														<img src={screen.image} alt="" aria-hidden className="h-full w-full object-cover" />
-														<span className="absolute left-1/2 top-1.5 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-background/70 text-white">
-															<Share2 className="h-2.5 w-2.5" />
-														</span>
-														<span className="absolute inset-x-0 bottom-0 bg-background/70 py-0.5 text-center text-[8px] font-semibold text-white">
-															146:44:52
-														</span>
-													</div>
-													<div className="min-w-0 flex-1">
-														<p className="text-[11px] font-bold leading-tight">{screen.deal}</p>
-														<p className="mt-0.5 text-[11px]">
-															<span className="font-extrabold">{screen.price}</span>{" "}
-															<span className="text-muted-foreground line-through">{screen.oldPrice}</span>
-														</p>
-														<p className="mt-0.5 text-[10px] text-muted-foreground">
-															Claimade: {screen.claimed} / {screen.total}
-														</p>
-														<div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-															<span
-																className="block h-full rounded-full bg-primary transition-all duration-700"
-																style={{ width: `${Math.round((screen.claimed / screen.total) * 100)}%` }}
-															/>
-														</div>
-													</div>
-												</div>
-											</div>
-
-											<button
-												aria-hidden
-												tabIndex={-1}
-												className="w-full rounded-full bg-primary py-2.5 text-xs font-bold text-primary-foreground"
-											>
-												Claima erbjudande
-											</button>
-										</div>
-									</div>
+									<PhoneScreenPanel key={screen.name} screen={screen} active={i === activeScreen} />
 								))}
 							</div>
 						</div>
@@ -690,13 +691,13 @@ export default function LandingPage() {
 			</section>
 
 			{/* MARQUEE */}
-			<section aria-hidden className="relative border-y border-border bg-card/30 py-6">
+			<section aria-hidden className="relative overflow-hidden border-y border-border bg-card/30 py-6">
 				<div className="flex flex-col gap-3">
 					<MarqueeRow />
 					<MarqueeRow reverse />
 				</div>
-				<div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background to-transparent" />
-				<div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-background to-transparent" />
+				<div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-32 bg-gradient-to-r from-background via-background/80 to-transparent" />
+				<div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-32 bg-gradient-to-l from-background via-background/80 to-transparent" />
 			</section>
 
 			{/* FEATURES */}
@@ -788,8 +789,22 @@ export default function LandingPage() {
 											>
 												{s.number}
 											</div>
-											<h3 className="mt-5 text-base font-bold">{s.title}</h3>
-											<p className="mt-2 max-w-xs text-sm text-muted-foreground">{s.desc}</p>
+											<h3
+												className={cn(
+													"mt-5 text-base font-bold transition-colors duration-500",
+													active ? "text-foreground" : "text-muted-foreground",
+												)}
+											>
+												{s.title}
+											</h3>
+											<p
+												className={cn(
+													"mt-2 max-w-xs text-sm transition-colors duration-500",
+													active ? "text-foreground/80" : "text-muted-foreground",
+												)}
+											>
+												{s.desc}
+											</p>
 										</button>
 									</Reveal>
 								);
