@@ -73,6 +73,142 @@ const audiences = [
 	},
 ];
 
+const heroHighlightMinWidth: Record<(typeof audiences)[number]["id"], string> = {
+	user: "min-w-[10.5rem] sm:min-w-[12rem]",
+	company: "min-w-[7.5rem] sm:min-w-[9rem]",
+};
+
+function HeroRotatingCopy({
+	audience,
+	wordIndex,
+	onCta,
+}: {
+	audience: number;
+	wordIndex: number;
+	onCta: (to: string) => void;
+}) {
+	return (
+		<>
+			<div className="relative h-8 w-full">
+				{audiences.map((a, i) => (
+					<span
+						key={a.id}
+						aria-hidden={i !== audience}
+						className={cn(
+							"inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur transition-opacity duration-500",
+							i === audience
+								? "relative opacity-100"
+								: "pointer-events-none absolute left-0 top-0 opacity-0",
+						)}
+					>
+						<span className="relative flex h-2 w-2">
+							<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success/70" />
+							<span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+						</span>
+						{a.badge}
+					</span>
+				))}
+			</div>
+
+			<h1 className="relative min-h-[8.75rem] w-full text-balance text-[clamp(2.5rem,6.4vw,4.5rem)] font-extrabold leading-[1.02] tracking-tight sm:min-h-[7.5rem] lg:min-h-[6.25rem]">
+				{audiences.map((a, i) => (
+					<span
+						key={a.id}
+						aria-hidden={i !== audience}
+						className={cn(
+							"block w-full transition-opacity duration-500",
+							i === audience
+								? "relative opacity-100"
+								: "pointer-events-none absolute inset-0 opacity-0",
+						)}
+					>
+						{a.prefix}{" "}
+						<span
+							key={i === audience ? `word-${wordIndex}` : `word-${a.id}`}
+							className={cn(
+								"inline-block bg-gradient-to-r from-primary to-accent bg-clip-text pb-[0.12em] leading-[1.15] text-transparent",
+								heroHighlightMinWidth[a.id],
+								i === audience && "animate-word-in",
+							)}
+						>
+							{i === audience ? a.words[wordIndex] : a.words[0]}
+						</span>
+						<br />
+						{a.suffix}
+					</span>
+				))}
+			</h1>
+
+			<div className="relative min-h-[7.25rem] w-full max-w-lg sm:min-h-[5.5rem]">
+				{audiences.map((a, i) => (
+					<p
+						key={a.id}
+						aria-hidden={i !== audience}
+						className={cn(
+							"text-pretty text-base text-muted-foreground transition-opacity duration-500 sm:text-lg",
+							i === audience
+								? "opacity-100"
+								: "pointer-events-none absolute inset-0 opacity-0",
+						)}
+					>
+						{a.subtitle}
+					</p>
+				))}
+			</div>
+
+			<div className="flex flex-wrap items-center gap-3">
+				<div className="relative h-12 min-w-[12.5rem]">
+					{audiences.map((a, i) => (
+						<button
+							key={a.id}
+							type="button"
+							aria-hidden={i !== audience}
+							tabIndex={i === audience ? 0 : -1}
+							onClick={() => onCta(a.cta.to)}
+							className={cn(
+								"group no-hover-motion relative inline-flex h-12 items-center justify-center overflow-hidden rounded-xl bg-accent pl-7 pr-10 text-sm font-semibold text-accent-foreground shadow-lg shadow-accent/20 transition-opacity duration-500 hover:bg-accent/90",
+								i === audience
+									? "opacity-100"
+									: "pointer-events-none absolute left-0 top-0 opacity-0",
+							)}
+						>
+							<LoginArrowLabel>{a.cta.label}</LoginArrowLabel>
+						</button>
+					))}
+				</div>
+				<a
+					href="#guide"
+					className="inline-flex h-12 items-center justify-center rounded-xl border border-border bg-card px-7 text-sm font-semibold transition-colors hover:bg-secondary"
+				>
+					Se hur det fungerar
+				</a>
+			</div>
+
+			<div className="relative min-h-[4.75rem] w-full sm:min-h-[2.75rem]">
+				{audiences.map((a, i) => (
+					<ul
+						key={a.id}
+						aria-hidden={i !== audience}
+						className={cn(
+							"flex flex-wrap items-center gap-x-6 gap-y-2 pt-2 transition-opacity duration-500",
+							i === audience
+								? "opacity-100"
+								: "pointer-events-none absolute inset-0 opacity-0",
+						)}
+					>
+						{a.trust.map((item) => (
+							<li key={item.label} className="flex items-center gap-2 text-sm text-muted-foreground">
+								<span className="text-success">{item.icon}</span>
+								{item.label}
+							</li>
+						))}
+					</ul>
+				))}
+			</div>
+		</>
+	);
+}
+
 const marqueeItems = [
 	"Restauranger",
 	"Caféer",
@@ -366,7 +502,6 @@ export default function LandingPage() {
 	const [activeScreen, setActiveScreen] = useState(0);
 	const [activeStep, setActiveStep] = useState(0);
 	const audienceRef = useRef(0);
-	const aud = audiences[audience];
 
 	useEffect(() => {
 		const onScroll = () => setScrolled(window.scrollY > 24);
@@ -552,72 +687,17 @@ export default function LandingPage() {
 				<div className="mx-auto grid max-w-6xl items-center gap-14 px-6 lg:grid-cols-[1.05fr_0.95fr]">
 					{/* copy */}
 					<div className="flex flex-col items-start gap-6 animate-fade-up">
-						<span
-							key={`badge-${aud.id}`}
-							className="animate-pitch-in inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur"
-						>
-							<span className="relative flex h-2 w-2">
-								<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success/70" />
-								<span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-							</span>
-							{aud.badge}
-						</span>
-
-						<h1 className="text-balance text-[clamp(2.5rem,6.4vw,4.5rem)] font-extrabold leading-[1.02] tracking-tight">
-							<span key={`head-${aud.id}`} className="animate-pitch-in inline-block [animation-delay:80ms]">
-								{aud.prefix}{" "}
-								<span
-									key={`word-${aud.id}-${wordIndex}`}
-									className="animate-word-in inline-block bg-gradient-to-r from-primary to-accent bg-clip-text pb-[0.12em] leading-[1.15] text-transparent"
-								>
-									{aud.words[wordIndex]}
-								</span>
-								<br />
-								{aud.suffix}
-							</span>
-						</h1>
-
-						<p
-							key={`sub-${aud.id}`}
-							className="animate-pitch-in max-w-lg text-pretty text-base text-muted-foreground [animation-delay:160ms] sm:text-lg"
-						>
-							{aud.subtitle}
-						</p>
-
-						<div className="flex flex-wrap items-center gap-3">
-							<button
-								key={`cta-${aud.id}`}
-								onClick={() => {
-									const to = aud.cta.to;
-									if (to.startsWith("#")) {
-										document.querySelector(to)?.scrollIntoView({ behavior: "smooth" });
-									} else {
-										navigate(to);
-									}
-								}}
-								className="group no-hover-motion animate-pitch-in relative inline-flex h-12 items-center justify-center overflow-hidden rounded-xl bg-accent pl-7 pr-10 text-sm font-semibold text-accent-foreground shadow-lg shadow-accent/20 transition-colors [animation-delay:240ms] hover:bg-accent/90"
-							>
-								<LoginArrowLabel>{aud.cta.label}</LoginArrowLabel>
-							</button>
-							<a
-								href="#guide"
-								className="inline-flex h-12 items-center justify-center rounded-xl border border-border bg-card px-7 text-sm font-semibold transition-colors hover:bg-secondary"
-							>
-								Se hur det fungerar
-							</a>
-						</div>
-
-						<ul
-							key={`trust-${aud.id}`}
-							className="animate-pitch-in flex flex-wrap items-center gap-x-6 gap-y-2 pt-2 [animation-delay:320ms]"
-						>
-							{aud.trust.map((item) => (
-								<li key={item.label} className="flex items-center gap-2 text-sm text-muted-foreground">
-									<span className="text-success">{item.icon}</span>
-									{item.label}
-								</li>
-							))}
-						</ul>
+						<HeroRotatingCopy
+							audience={audience}
+							wordIndex={wordIndex}
+							onCta={(to) => {
+								if (to.startsWith("#")) {
+									document.querySelector(to)?.scrollIntoView({ behavior: "smooth" });
+								} else {
+									navigate(to);
+								}
+							}}
+						/>
 					</div>
 
 					{/* phone mockup (auto-cycling businesses) */}
