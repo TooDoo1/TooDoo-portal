@@ -73,6 +73,141 @@ const audiences = [
 	},
 ];
 
+const heroHighlightMinWidth: Record<(typeof audiences)[number]["id"], string> = {
+	user: "min-w-[12rem] sm:min-w-[13rem]",
+	company: "min-w-[8rem] sm:min-w-[9.5rem]",
+};
+
+const longestHighlightWord = (words: readonly string[]) =>
+	words.reduce((longest, word) => (word.length > longest.length ? word : longest), words[0]);
+
+function HeroRotatingCopy({
+	audience,
+	wordIndex,
+	onCta,
+}: {
+	audience: number;
+	wordIndex: number;
+	onCta: (to: string) => void;
+}) {
+	const layerClass = (active: boolean) =>
+		cn(
+			"col-start-1 row-start-1 w-full transition-opacity duration-500",
+			active ? "z-10 opacity-100" : "pointer-events-none opacity-0",
+		);
+
+	return (
+		<div className="flex w-full flex-col gap-6">
+			<div className="grid w-full">
+				{audiences.map((a, i) => (
+					<span
+						key={a.id}
+						aria-hidden={i !== audience}
+						className={cn(
+							layerClass(i === audience),
+							"inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur",
+						)}
+					>
+						<span className="relative flex h-2 w-2">
+							<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success/70" />
+							<span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+						</span>
+						{a.badge}
+					</span>
+				))}
+			</div>
+
+			<h1 className="grid w-full text-balance text-[clamp(2.5rem,6.4vw,4.5rem)] font-extrabold leading-[1.02] tracking-tight">
+				{audiences.map((a, i) => (
+					<span key={a.id} aria-hidden={i !== audience} className={cn(layerClass(i === audience), "block")}>
+						{a.prefix}{" "}
+						<span className={cn("inline-grid align-bottom", heroHighlightMinWidth[a.id])}>
+							<span
+								aria-hidden
+								className="invisible col-start-1 row-start-1 inline-block bg-gradient-to-r from-primary to-accent bg-clip-text pb-[0.12em] leading-[1.15] text-transparent"
+							>
+								{longestHighlightWord(a.words)}
+							</span>
+							<span
+								key={i === audience ? `word-${wordIndex}` : `word-${a.id}`}
+								className={cn(
+									"col-start-1 row-start-1 inline-block bg-gradient-to-r from-primary to-accent bg-clip-text pb-[0.12em] leading-[1.15] text-transparent",
+									i === audience && "animate-word-in",
+								)}
+							>
+								{i === audience ? a.words[wordIndex] : longestHighlightWord(a.words)}
+							</span>
+						</span>
+						<br />
+						{a.suffix}
+					</span>
+				))}
+			</h1>
+
+			<div className="grid w-full max-w-lg">
+				{audiences.map((a, i) => (
+					<p
+						key={a.id}
+						aria-hidden={i !== audience}
+						className={cn(
+							layerClass(i === audience),
+							"text-pretty text-base text-muted-foreground sm:text-lg",
+						)}
+					>
+						{a.subtitle}
+					</p>
+				))}
+			</div>
+
+			<div className="grid w-full">
+				{audiences.map((a, i) => (
+					<div
+						key={a.id}
+						aria-hidden={i !== audience}
+						className={cn(layerClass(i === audience), "flex flex-wrap items-center gap-3")}
+					>
+						<button
+							type="button"
+							tabIndex={i === audience ? 0 : -1}
+							onClick={() => onCta(a.cta.to)}
+							className="group no-hover-motion relative inline-flex h-12 items-center justify-center overflow-hidden rounded-xl bg-accent pl-7 pr-10 text-sm font-semibold text-accent-foreground shadow-lg shadow-accent/20 transition-colors hover:bg-accent/90"
+						>
+							<LoginArrowLabel>{a.cta.label}</LoginArrowLabel>
+						</button>
+						<a
+							href="#guide"
+							tabIndex={i === audience ? 0 : -1}
+							className="inline-flex h-12 items-center justify-center rounded-xl border border-border bg-card px-7 text-sm font-semibold transition-colors hover:bg-secondary"
+						>
+							Se hur det fungerar
+						</a>
+					</div>
+				))}
+			</div>
+
+			<div className="grid w-full">
+				{audiences.map((a, i) => (
+					<ul
+						key={a.id}
+						aria-hidden={i !== audience}
+						className={cn(
+							layerClass(i === audience),
+							"flex flex-wrap items-center gap-x-6 gap-y-2 pt-2",
+						)}
+					>
+						{a.trust.map((item) => (
+							<li key={item.label} className="flex items-center gap-2 text-sm text-muted-foreground">
+								<span className="text-success">{item.icon}</span>
+								{item.label}
+							</li>
+						))}
+					</ul>
+				))}
+			</div>
+		</div>
+	);
+}
+
 const marqueeItems = [
 	"Restauranger",
 	"Caféer",
@@ -155,6 +290,98 @@ const phoneScreens = [
 	},
 ];
 
+function PhoneScreenPanel({ screen, active }: { screen: (typeof phoneScreens)[number]; active: boolean }) {
+	return (
+		<div
+			className={cn(
+				"absolute inset-0 flex flex-col transition-opacity duration-700",
+				active ? "opacity-100" : "opacity-0",
+			)}
+			aria-hidden={!active}
+		>
+			<div className="relative h-[34%] min-h-[8.5rem] w-full shrink-0 overflow-hidden">
+				<img src={screen.image} alt={screen.name} loading="lazy" className="h-full w-full object-cover" />
+				<div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/30" />
+				<span className="absolute left-4 top-9 flex h-8 w-8 items-center justify-center rounded-full bg-background/50 text-white backdrop-blur">
+					<ChevronLeft className="h-4 w-4" />
+				</span>
+				<span className="absolute right-4 top-9 flex h-8 w-8 items-center justify-center rounded-full bg-background/50 text-white backdrop-blur">
+					<Heart className="h-4 w-4" />
+				</span>
+			</div>
+
+			<div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-3.5 pt-2.5">
+				<div className="shrink-0">
+					<h3 className="text-[15px] font-extrabold leading-tight">{screen.name}</h3>
+					<p className="mt-2 text-[10px] font-medium leading-relaxed text-foreground/90">
+						Adress: {screen.address}
+					</p>
+					<p className="mt-1 pb-5 text-[10px] font-medium leading-relaxed text-foreground/90">
+						Telefon: <span className="text-accent underline">{screen.phone}</span>
+					</p>
+				</div>
+
+				<div className="grid shrink-0 grid-cols-2 gap-2.5">
+					<div className="flex items-center justify-center gap-1.5 rounded-full bg-white py-2.5 text-[10px] font-bold text-background">
+						<MapPin className="h-3 w-3" /> Hitta hit
+					</div>
+					<div className="flex items-center justify-center gap-1.5 rounded-full bg-white py-2.5 text-[10px] font-bold text-background">
+						<Globe className="h-3 w-3" /> Webbplats
+					</div>
+				</div>
+
+				<div className="shrink-0 flex items-center justify-between rounded-xl border border-border bg-card px-3 py-3">
+					<div className="flex items-center gap-2">
+						<span className="h-2 w-2 rounded-full bg-success" />
+						<div className="leading-snug">
+							<p className="text-[10px] font-bold">Öppet</p>
+							<p className="mt-0.5 text-[9px] text-muted-foreground">{screen.hours}</p>
+						</div>
+					</div>
+					<ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+				</div>
+
+				<div className="shrink-0 rounded-xl border border-border bg-card p-3">
+					<div className="flex gap-3">
+						<div className="relative h-[4.25rem] w-[4.25rem] shrink-0 overflow-hidden rounded-lg">
+							<img src={screen.image} alt="" aria-hidden className="h-full w-full object-cover" />
+							<span className="absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-background/70 text-white">
+								<Share2 className="h-2 w-2" />
+							</span>
+							<span className="absolute inset-x-0 bottom-0 bg-background/80 py-0.5 text-center text-[7px] font-semibold text-white">
+								462:44:24
+							</span>
+						</div>
+						<div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
+							<p className="text-[10px] font-semibold leading-snug text-muted-foreground">{screen.deal}</p>
+							<p className="text-[10px]">
+								<span className="font-extrabold text-muted-foreground">{screen.price}</span>{" "}
+								<span className="text-accent line-through">{screen.oldPrice}</span>
+							</p>
+							<p className="text-[9px] text-muted-foreground">
+								Claimade: {screen.claimed} / {screen.total}
+							</p>
+							<div className="h-1 w-full overflow-hidden rounded-full bg-secondary">
+								<span
+									className="block h-full rounded-full bg-primary"
+									style={{ width: `${Math.round((screen.claimed / screen.total) * 100)}%` }}
+								/>
+							</div>
+						</div>
+					</div>
+					<button
+						aria-hidden
+						tabIndex={-1}
+						className="mt-3 w-full rounded-full bg-primary py-2.5 text-[10px] font-bold text-primary-foreground"
+					>
+						Logga in för att claima!
+					</button>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 type Deal = {
 	icon?: string;
 	title?: string;
@@ -206,24 +433,29 @@ function Reveal({
 }
 
 function MarqueeRow({ reverse }: { reverse?: boolean }) {
-	const Row = (
-		<div className="flex shrink-0 items-center gap-3 pr-3">
-			{marqueeItems.map((item) => (
-				<span key={item} className="flex items-center gap-3">
-					<span className="whitespace-nowrap rounded-full border border-border bg-card/50 px-5 py-2 text-sm font-semibold text-muted-foreground">
-						{item}
-					</span>
-					<Sparkles className="h-3.5 w-3.5 shrink-0 text-primary/60" />
-				</span>
-			))}
-		</div>
-	);
+	const copies = 4;
 
 	return (
-		<div className="flex overflow-hidden">
-			<div className={cn("flex w-max pause-on-hover", reverse ? "animate-marquee-reverse" : "animate-marquee")}>
-				{Row}
-				{Row}
+		<div className="overflow-hidden">
+			<div
+				className={cn(
+					"flex w-max pause-on-hover",
+					reverse ? "animate-marquee-reverse" : "animate-marquee",
+				)}
+				style={reverse ? { marginLeft: "-4rem" } : undefined}
+			>
+				{Array.from({ length: copies }).map((_, copyIndex) => (
+					<div key={copyIndex} className="flex shrink-0 items-center gap-3 pr-3">
+						{marqueeItems.map((item) => (
+							<span key={`${copyIndex}-${item}`} className="flex items-center gap-3">
+								<span className="whitespace-nowrap rounded-full border border-border bg-card/50 px-5 py-2 text-sm font-semibold text-muted-foreground">
+									{item}
+								</span>
+								<Sparkles className="h-3.5 w-3.5 shrink-0 text-primary/60" />
+							</span>
+						))}
+					</div>
+				))}
 			</div>
 		</div>
 	);
@@ -269,7 +501,6 @@ export default function LandingPage() {
 	const [activeScreen, setActiveScreen] = useState(0);
 	const [activeStep, setActiveStep] = useState(0);
 	const audienceRef = useRef(0);
-	const aud = audiences[audience];
 
 	useEffect(() => {
 		const onScroll = () => setScrolled(window.scrollY > 24);
@@ -452,75 +683,20 @@ export default function LandingPage() {
 					<div className="animate-blob absolute bottom-0 left-1/2 h-[400px] w-[400px] rounded-full bg-primary/10 blur-3xl [animation-delay:6s]" />
 				</div>
 
-				<div className="mx-auto grid max-w-6xl items-center gap-14 px-6 lg:grid-cols-[1.05fr_0.95fr]">
+				<div className="mx-auto grid max-w-6xl items-start gap-14 px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
 					{/* copy */}
-					<div className="flex flex-col items-start gap-6 animate-fade-up">
-						<span
-							key={`badge-${aud.id}`}
-							className="animate-pitch-in inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur"
-						>
-							<span className="relative flex h-2 w-2">
-								<span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success/70" />
-								<span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-							</span>
-							{aud.badge}
-						</span>
-
-						<h1 className="text-balance text-[clamp(2.5rem,6.4vw,4.5rem)] font-extrabold leading-[1.02] tracking-tight">
-							<span key={`head-${aud.id}`} className="animate-pitch-in inline-block [animation-delay:80ms]">
-								{aud.prefix}{" "}
-								<span
-									key={`word-${aud.id}-${wordIndex}`}
-									className="animate-word-in inline-block bg-gradient-to-r from-primary to-accent bg-clip-text pb-[0.12em] leading-[1.15] text-transparent"
-								>
-									{aud.words[wordIndex]}
-								</span>
-								<br />
-								{aud.suffix}
-							</span>
-						</h1>
-
-						<p
-							key={`sub-${aud.id}`}
-							className="animate-pitch-in max-w-lg text-pretty text-base text-muted-foreground [animation-delay:160ms] sm:text-lg"
-						>
-							{aud.subtitle}
-						</p>
-
-						<div className="flex flex-wrap items-center gap-3">
-							<button
-								key={`cta-${aud.id}`}
-								onClick={() => {
-									const to = aud.cta.to;
-									if (to.startsWith("#")) {
-										document.querySelector(to)?.scrollIntoView({ behavior: "smooth" });
-									} else {
-										navigate(to);
-									}
-								}}
-								className="group no-hover-motion animate-pitch-in relative inline-flex h-12 items-center justify-center overflow-hidden rounded-xl bg-accent pl-7 pr-10 text-sm font-semibold text-accent-foreground shadow-lg shadow-accent/20 transition-colors [animation-delay:240ms] hover:bg-accent/90"
-							>
-								<LoginArrowLabel>{aud.cta.label}</LoginArrowLabel>
-							</button>
-							<a
-								href="#guide"
-								className="inline-flex h-12 items-center justify-center rounded-xl border border-border bg-card px-7 text-sm font-semibold transition-colors hover:bg-secondary"
-							>
-								Se hur det fungerar
-							</a>
-						</div>
-
-						<ul
-							key={`trust-${aud.id}`}
-							className="animate-pitch-in flex flex-wrap items-center gap-x-6 gap-y-2 pt-2 [animation-delay:320ms]"
-						>
-							{aud.trust.map((item) => (
-								<li key={item.label} className="flex items-center gap-2 text-sm text-muted-foreground">
-									<span className="text-success">{item.icon}</span>
-									{item.label}
-								</li>
-							))}
-						</ul>
+					<div className="w-full animate-fade-up">
+						<HeroRotatingCopy
+							audience={audience}
+							wordIndex={wordIndex}
+							onCta={(to) => {
+								if (to.startsWith("#")) {
+									document.querySelector(to)?.scrollIntoView({ behavior: "smooth" });
+								} else {
+									navigate(to);
+								}
+							}}
+						/>
 					</div>
 
 					{/* phone mockup (auto-cycling businesses) */}
@@ -548,104 +724,8 @@ export default function LandingPage() {
 									</span>
 								</div>
 
-								{/* stacked cross-fading screens */}
 								{phoneScreens.map((screen, i) => (
-									<div
-										key={screen.name}
-										className={cn(
-											"absolute inset-0 flex flex-col transition-opacity duration-700",
-											i === activeScreen ? "opacity-100" : "opacity-0",
-										)}
-										aria-hidden={i !== activeScreen}
-									>
-										{/* header image */}
-										<div className="relative h-40 w-full shrink-0 overflow-hidden">
-											<img
-												src={screen.image}
-												alt={screen.name}
-												loading={i === 0 ? "eager" : "lazy"}
-												className="h-full w-full object-cover"
-											/>
-											<div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/40" />
-											<span className="absolute left-4 top-9 flex h-8 w-8 items-center justify-center rounded-full bg-background/50 text-white backdrop-blur">
-												<ChevronLeft className="h-4 w-4" />
-											</span>
-											<span className="absolute right-4 top-9 flex h-8 w-8 items-center justify-center rounded-full bg-background/50 text-white backdrop-blur">
-												<Heart className="h-4 w-4" />
-											</span>
-										</div>
-
-										{/* body */}
-										<div className="flex-1 space-y-3 overflow-hidden px-4 pb-4">
-											<div className="-mt-1">
-												<h3 className="text-lg font-extrabold leading-tight">{screen.name}</h3>
-												<p className="mt-1 text-[11px] font-medium text-foreground/90">
-													Adress: {screen.address}
-												</p>
-												<p className="text-[11px] font-medium text-foreground/90">
-													Telefon: <span className="text-accent underline">{screen.phone}</span>
-												</p>
-											</div>
-
-											<div className="grid grid-cols-2 gap-2">
-												<div className="flex items-center justify-center gap-1.5 rounded-full bg-white py-2 text-[11px] font-bold text-background">
-													<MapPin className="h-3.5 w-3.5" /> Hitta hit
-												</div>
-												<div className="flex items-center justify-center gap-1.5 rounded-full bg-white py-2 text-[11px] font-bold text-background">
-													<Globe className="h-3.5 w-3.5" /> Webbplats
-												</div>
-											</div>
-
-											<div className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2.5">
-												<div className="flex items-center gap-2">
-													<span className="h-2 w-2 rounded-full bg-success" />
-													<div className="leading-tight">
-														<p className="text-[11px] font-bold">Öppet</p>
-														<p className="text-[10px] text-muted-foreground">{screen.hours}</p>
-													</div>
-												</div>
-												<ChevronDown className="h-4 w-4 text-muted-foreground" />
-											</div>
-
-											<div className="rounded-xl border border-border bg-card p-2.5">
-												<div className="flex gap-2.5">
-													<div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg">
-														<img src={screen.image} alt="" aria-hidden className="h-full w-full object-cover" />
-														<span className="absolute left-1/2 top-1.5 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full bg-background/70 text-white">
-															<Share2 className="h-2.5 w-2.5" />
-														</span>
-														<span className="absolute inset-x-0 bottom-0 bg-background/70 py-0.5 text-center text-[8px] font-semibold text-white">
-															146:44:52
-														</span>
-													</div>
-													<div className="min-w-0 flex-1">
-														<p className="text-[11px] font-bold leading-tight">{screen.deal}</p>
-														<p className="mt-0.5 text-[11px]">
-															<span className="font-extrabold">{screen.price}</span>{" "}
-															<span className="text-muted-foreground line-through">{screen.oldPrice}</span>
-														</p>
-														<p className="mt-0.5 text-[10px] text-muted-foreground">
-															Claimade: {screen.claimed} / {screen.total}
-														</p>
-														<div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-															<span
-																className="block h-full rounded-full bg-primary transition-all duration-700"
-																style={{ width: `${Math.round((screen.claimed / screen.total) * 100)}%` }}
-															/>
-														</div>
-													</div>
-												</div>
-											</div>
-
-											<button
-												aria-hidden
-												tabIndex={-1}
-												className="w-full rounded-full bg-primary py-2.5 text-xs font-bold text-primary-foreground"
-											>
-												Claima erbjudande
-											</button>
-										</div>
-									</div>
+									<PhoneScreenPanel key={screen.name} screen={screen} active={i === activeScreen} />
 								))}
 							</div>
 						</div>
@@ -690,13 +770,13 @@ export default function LandingPage() {
 			</section>
 
 			{/* MARQUEE */}
-			<section aria-hidden className="relative border-y border-border bg-card/30 py-6">
+			<section aria-hidden className="relative overflow-hidden border-y border-border bg-card/30 py-6">
 				<div className="flex flex-col gap-3">
 					<MarqueeRow />
 					<MarqueeRow reverse />
 				</div>
-				<div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background to-transparent" />
-				<div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-background to-transparent" />
+				<div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-32 bg-gradient-to-r from-background via-background/80 to-transparent" />
+				<div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-32 bg-gradient-to-l from-background via-background/80 to-transparent" />
 			</section>
 
 			{/* FEATURES */}
@@ -788,8 +868,22 @@ export default function LandingPage() {
 											>
 												{s.number}
 											</div>
-											<h3 className="mt-5 text-base font-bold">{s.title}</h3>
-											<p className="mt-2 max-w-xs text-sm text-muted-foreground">{s.desc}</p>
+											<h3
+												className={cn(
+													"mt-5 text-base font-bold transition-colors duration-500",
+													active ? "text-foreground" : "text-muted-foreground",
+												)}
+											>
+												{s.title}
+											</h3>
+											<p
+												className={cn(
+													"mt-2 max-w-xs text-sm transition-colors duration-500",
+													active ? "text-foreground/80" : "text-muted-foreground",
+												)}
+											>
+												{s.desc}
+											</p>
 										</button>
 									</Reveal>
 								);
@@ -914,23 +1008,24 @@ export default function LandingPage() {
 					<Reveal>
 						<SectionHeading
 							eyebrow="Kontakt"
-							title="Hör av dig"
-							subtitle="Vi älskar att höra från er — oavsett om ni har frågor, idéer eller bara vill säga hej."
+							title="Kontakta oss"
+							subtitle="Har du frågor om appen, erbjudanden eller företagskonto? Hör av dig."
 						/>
 					</Reveal>
 
 					<div className="mt-12 grid gap-4 sm:grid-cols-3">
 						{[
-							{ icon: <Mail className="h-5 w-5" />, label: "info@toodoo.se" },
-							{ icon: <MapPin className="h-5 w-5" />, label: "Helsingborg" },
-							{ icon: <Smartphone className="h-5 w-5" />, label: "@toodoo.se" },
+							{ icon: <Mail className="h-5 w-5" />, title: "E-post", label: "info@toodoo.se" },
+							{ icon: <MapPin className="h-5 w-5" />, title: "Kontor", label: "Helsingborg, Sverige" },
+							{ icon: <Smartphone className="h-5 w-5" />, title: "Sociala medier", label: "@toodoo.se" },
 						].map((item, i) => (
 							<Reveal key={i} delay={i * 90}>
-								<div className="group cursor-pointer rounded-2xl border border-border bg-background p-5 transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10">
+								<div className="group rounded-2xl border border-border bg-background p-5 transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10">
 									<div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
 										{item.icon}
 									</div>
-									<p className="text-sm font-medium">{item.label}</p>
+									<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{item.title}</p>
+									<p className="mt-1 text-sm font-medium">{item.label}</p>
 								</div>
 							</Reveal>
 						))}
