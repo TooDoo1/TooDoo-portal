@@ -74,9 +74,12 @@ const audiences = [
 ];
 
 const heroHighlightMinWidth: Record<(typeof audiences)[number]["id"], string> = {
-	user: "min-w-[10.5rem] sm:min-w-[12rem]",
-	company: "min-w-[7.5rem] sm:min-w-[9rem]",
+	user: "min-w-[12rem] sm:min-w-[13rem]",
+	company: "min-w-[8rem] sm:min-w-[9.5rem]",
 };
+
+const longestHighlightWord = (words: readonly string[]) =>
+	words.reduce((longest, word) => (word.length > longest.length ? word : longest), words[0]);
 
 function HeroRotatingCopy({
 	audience,
@@ -87,18 +90,22 @@ function HeroRotatingCopy({
 	wordIndex: number;
 	onCta: (to: string) => void;
 }) {
+	const layerClass = (active: boolean) =>
+		cn(
+			"col-start-1 row-start-1 w-full transition-opacity duration-500",
+			active ? "z-10 opacity-100" : "pointer-events-none opacity-0",
+		);
+
 	return (
-		<>
-			<div className="relative h-8 w-full">
+		<div className="flex w-full flex-col gap-6">
+			<div className="grid w-full">
 				{audiences.map((a, i) => (
 					<span
 						key={a.id}
 						aria-hidden={i !== audience}
 						className={cn(
-							"inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur transition-opacity duration-500",
-							i === audience
-								? "relative opacity-100"
-								: "pointer-events-none absolute left-0 top-0 opacity-0",
+							layerClass(i === audience),
+							"inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur",
 						)}
 					>
 						<span className="relative flex h-2 w-2">
@@ -110,28 +117,26 @@ function HeroRotatingCopy({
 				))}
 			</div>
 
-			<h1 className="relative min-h-[8.75rem] w-full text-balance text-[clamp(2.5rem,6.4vw,4.5rem)] font-extrabold leading-[1.02] tracking-tight sm:min-h-[7.5rem] lg:min-h-[6.25rem]">
+			<h1 className="grid w-full text-balance text-[clamp(2.5rem,6.4vw,4.5rem)] font-extrabold leading-[1.02] tracking-tight">
 				{audiences.map((a, i) => (
-					<span
-						key={a.id}
-						aria-hidden={i !== audience}
-						className={cn(
-							"block w-full transition-opacity duration-500",
-							i === audience
-								? "relative opacity-100"
-								: "pointer-events-none absolute inset-0 opacity-0",
-						)}
-					>
+					<span key={a.id} aria-hidden={i !== audience} className={cn(layerClass(i === audience), "block")}>
 						{a.prefix}{" "}
-						<span
-							key={i === audience ? `word-${wordIndex}` : `word-${a.id}`}
-							className={cn(
-								"inline-block bg-gradient-to-r from-primary to-accent bg-clip-text pb-[0.12em] leading-[1.15] text-transparent",
-								heroHighlightMinWidth[a.id],
-								i === audience && "animate-word-in",
-							)}
-						>
-							{i === audience ? a.words[wordIndex] : a.words[0]}
+						<span className={cn("inline-grid align-bottom", heroHighlightMinWidth[a.id])}>
+							<span
+								aria-hidden
+								className="invisible col-start-1 row-start-1 inline-block bg-gradient-to-r from-primary to-accent bg-clip-text pb-[0.12em] leading-[1.15] text-transparent"
+							>
+								{longestHighlightWord(a.words)}
+							</span>
+							<span
+								key={i === audience ? `word-${wordIndex}` : `word-${a.id}`}
+								className={cn(
+									"col-start-1 row-start-1 inline-block bg-gradient-to-r from-primary to-accent bg-clip-text pb-[0.12em] leading-[1.15] text-transparent",
+									i === audience && "animate-word-in",
+								)}
+							>
+								{i === audience ? a.words[wordIndex] : longestHighlightWord(a.words)}
+							</span>
 						</span>
 						<br />
 						{a.suffix}
@@ -139,16 +144,14 @@ function HeroRotatingCopy({
 				))}
 			</h1>
 
-			<div className="relative min-h-[7.25rem] w-full max-w-lg sm:min-h-[5.5rem]">
+			<div className="grid w-full max-w-lg">
 				{audiences.map((a, i) => (
 					<p
 						key={a.id}
 						aria-hidden={i !== audience}
 						className={cn(
-							"text-pretty text-base text-muted-foreground transition-opacity duration-500 sm:text-lg",
-							i === audience
-								? "opacity-100"
-								: "pointer-events-none absolute inset-0 opacity-0",
+							layerClass(i === audience),
+							"text-pretty text-base text-muted-foreground sm:text-lg",
 						)}
 					>
 						{a.subtitle}
@@ -156,44 +159,40 @@ function HeroRotatingCopy({
 				))}
 			</div>
 
-			<div className="flex flex-wrap items-center gap-3">
-				<div className="relative h-12 min-w-[12.5rem]">
-					{audiences.map((a, i) => (
+			<div className="grid w-full">
+				{audiences.map((a, i) => (
+					<div
+						key={a.id}
+						aria-hidden={i !== audience}
+						className={cn(layerClass(i === audience), "flex flex-wrap items-center gap-3")}
+					>
 						<button
-							key={a.id}
 							type="button"
-							aria-hidden={i !== audience}
 							tabIndex={i === audience ? 0 : -1}
 							onClick={() => onCta(a.cta.to)}
-							className={cn(
-								"group no-hover-motion relative inline-flex h-12 items-center justify-center overflow-hidden rounded-xl bg-accent pl-7 pr-10 text-sm font-semibold text-accent-foreground shadow-lg shadow-accent/20 transition-opacity duration-500 hover:bg-accent/90",
-								i === audience
-									? "opacity-100"
-									: "pointer-events-none absolute left-0 top-0 opacity-0",
-							)}
+							className="group no-hover-motion relative inline-flex h-12 items-center justify-center overflow-hidden rounded-xl bg-accent pl-7 pr-10 text-sm font-semibold text-accent-foreground shadow-lg shadow-accent/20 transition-colors hover:bg-accent/90"
 						>
 							<LoginArrowLabel>{a.cta.label}</LoginArrowLabel>
 						</button>
-					))}
-				</div>
-				<a
-					href="#guide"
-					className="inline-flex h-12 items-center justify-center rounded-xl border border-border bg-card px-7 text-sm font-semibold transition-colors hover:bg-secondary"
-				>
-					Se hur det fungerar
-				</a>
+						<a
+							href="#guide"
+							tabIndex={i === audience ? 0 : -1}
+							className="inline-flex h-12 items-center justify-center rounded-xl border border-border bg-card px-7 text-sm font-semibold transition-colors hover:bg-secondary"
+						>
+							Se hur det fungerar
+						</a>
+					</div>
+				))}
 			</div>
 
-			<div className="relative min-h-[4.75rem] w-full sm:min-h-[2.75rem]">
+			<div className="grid w-full">
 				{audiences.map((a, i) => (
 					<ul
 						key={a.id}
 						aria-hidden={i !== audience}
 						className={cn(
-							"flex flex-wrap items-center gap-x-6 gap-y-2 pt-2 transition-opacity duration-500",
-							i === audience
-								? "opacity-100"
-								: "pointer-events-none absolute inset-0 opacity-0",
+							layerClass(i === audience),
+							"flex flex-wrap items-center gap-x-6 gap-y-2 pt-2",
 						)}
 					>
 						{a.trust.map((item) => (
@@ -205,7 +204,7 @@ function HeroRotatingCopy({
 					</ul>
 				))}
 			</div>
-		</>
+		</div>
 	);
 }
 
@@ -684,9 +683,9 @@ export default function LandingPage() {
 					<div className="animate-blob absolute bottom-0 left-1/2 h-[400px] w-[400px] rounded-full bg-primary/10 blur-3xl [animation-delay:6s]" />
 				</div>
 
-				<div className="mx-auto grid max-w-6xl items-center gap-14 px-6 lg:grid-cols-[1.05fr_0.95fr]">
+				<div className="mx-auto grid max-w-6xl items-start gap-14 px-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
 					{/* copy */}
-					<div className="flex flex-col items-start gap-6 animate-fade-up">
+					<div className="w-full animate-fade-up">
 						<HeroRotatingCopy
 							audience={audience}
 							wordIndex={wordIndex}
