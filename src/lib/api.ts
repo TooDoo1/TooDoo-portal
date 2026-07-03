@@ -1,6 +1,12 @@
-const API_BASE_URL = 
-  (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
-  "https://toodoo-backend-production-10ee.up.railway.app";
+const rawApiBaseUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+
+if (!rawApiBaseUrl) {
+  throw new Error(
+    "VITE_API_URL is not set. Define it in your environment (e.g. a .env file) before running or building the portal.",
+  );
+}
+
+const API_BASE_URL: string = rawApiBaseUrl;
 
 export function getApiBaseUrl() {
   return API_BASE_URL;
