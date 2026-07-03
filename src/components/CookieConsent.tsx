@@ -1,7 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Cookie } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cookiePolicySections, privacyPolicySections, termsOfServiceSections } from "@/content/legal";
+import {
+  cookiePolicySections,
+  privacyPolicySections,
+  termsOfServicePdfUrl,
+  termsOfServiceSections,
+} from "@/content/legal";
 import { getCookieConsent, hasCookieConsent, setCookieConsent, type CookieConsentChoice } from "@/lib/cookieConsent";
 import { cn } from "@/lib/utils";
 import { LegalDocumentDialog } from "@/components/LegalDocumentDialog";
@@ -68,6 +73,7 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
         title="Användarvillkor"
         description=""
         sections={termsOfServiceSections}
+        pdfUrl={termsOfServicePdfUrl}
       />
 
       <LegalDocumentDialog

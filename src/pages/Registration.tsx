@@ -18,6 +18,7 @@ import {
 import { pickCategoryBySni } from "@/lib/sniCategoryMap";
 import { toast } from "sonner";
 import { TimePicker } from "@/components/TimePicker";
+import { TermsAcceptance } from "@/components/TermsAcceptance";
 
 
 export default function Registration() {
@@ -26,6 +27,7 @@ export default function Registration() {
 	const [categoryIds, setCategoryIds] = useState<string[]>([]);
 	const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [acceptedTerms, setAcceptedTerms] = useState(false);
 	const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 	const [orgNumber, setOrgNumber] = useState("");
 	const [orgSearchLoading, setOrgSearchLoading] = useState(false);
@@ -184,6 +186,11 @@ export default function Registration() {
 
 		if (!email || !phone || !city || !address || !companyName || !longDescription || categoryIds.length === 0) {
 			toast.error("Fyll i e-post, telefon, stad, adress, företag, minst en kategori och lång beskrivning.");
+			return;
+		}
+
+		if (!acceptedTerms) {
+			toast.error("Du måste godkänna användarvillkoren för att registrera företaget.");
 			return;
 		}
 
@@ -870,7 +877,19 @@ export default function Registration() {
 
 						<h3 className="mt-10 text-lg font-semibold text-foreground">Slutför registrering:</h3>
 
-						<button type="button" disabled={isSubmitting} onClick={handleRegister} className="group no-hover-motion relative mt-4 mb-10 inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
+						<TermsAcceptance
+							id="company-terms-acceptance"
+							checked={acceptedTerms}
+							onCheckedChange={setAcceptedTerms}
+							className="mt-4"
+						/>
+
+						<button
+							type="button"
+							disabled={isSubmitting || !acceptedTerms}
+							onClick={handleRegister}
+							className="group no-hover-motion relative mt-4 mb-10 inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+						>
 							<LoginArrowLabel>{isSubmitting ? "Registrerar" : "Registrera företag"}</LoginArrowLabel>
 						</button>
 						</>
