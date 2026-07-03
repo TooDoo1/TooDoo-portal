@@ -81,6 +81,38 @@ const heroHighlightMinWidth: Record<(typeof audiences)[number]["id"], string> = 
 const longestHighlightWord = (words: readonly string[]) =>
 	words.reduce((longest, word) => (word.length > longest.length ? word : longest), words[0]);
 
+function StoreDownloadButtons({ className }: { className?: string }) {
+	const buttonClass =
+		"group inline-flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 transition-all hover:-translate-y-0.5 hover:border-border/80 hover:bg-secondary sm:flex-none sm:gap-3 sm:px-5 sm:py-3";
+
+	return (
+		<div className={cn("flex gap-2 sm:flex-wrap sm:gap-3", className)}>
+			<button type="button" className={buttonClass}>
+				<img
+					src="/Google_Play_2022_icon.svg"
+					alt=""
+					aria-hidden
+					className="h-[22px] w-[22px] shrink-0 object-contain"
+				/>
+				<div className="min-w-0 text-left leading-none">
+					<div className="text-[9px] uppercase tracking-wider text-muted-foreground sm:text-[10px]">Hämta på</div>
+					<div className="mt-1 truncate text-xs font-bold sm:text-sm">Google Play</div>
+				</div>
+			</button>
+
+			<button type="button" className={buttonClass}>
+				<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden className="shrink-0 text-foreground">
+					<path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98l-.09.06c-.22.14-2.15 1.26-2.13 3.76.03 2.99 2.63 3.99 2.66 4l-.08.26zM13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+				</svg>
+				<div className="min-w-0 text-left leading-none">
+					<div className="text-[9px] uppercase tracking-wider text-muted-foreground sm:text-[10px]">Ladda ner på</div>
+					<div className="mt-1 truncate text-xs font-bold sm:text-sm">App Store</div>
+				</div>
+			</button>
+		</div>
+	);
+}
+
 function HeroRotatingCopy({
 	audience,
 	wordIndex,
@@ -184,6 +216,8 @@ function HeroRotatingCopy({
 					</div>
 				))}
 			</div>
+
+			<StoreDownloadButtons />
 
 			<div className="grid w-full">
 				{audiences.map((a, i) => (
@@ -821,30 +855,7 @@ export default function LandingPage() {
 					</div>
 
 					<Reveal delay={120}>
-						<div className="mt-10 flex flex-wrap justify-center gap-3">
-							<button className="group inline-flex items-center gap-3 rounded-xl border border-border bg-card px-5 py-3 transition-all hover:-translate-y-0.5 hover:border-border/80 hover:bg-secondary">
-								<img
-									src="/Google_Play_2022_icon.svg"
-									alt=""
-									aria-hidden
-									className="h-[22px] w-[22px] shrink-0 object-contain"
-								/>
-								<div className="text-left leading-none">
-									<div className="text-[10px] uppercase tracking-wider text-muted-foreground">Hämta på</div>
-									<div className="mt-1 text-sm font-bold">Google Play</div>
-								</div>
-							</button>
-
-							<button className="group inline-flex items-center gap-3 rounded-xl border border-border bg-card px-5 py-3 transition-all hover:-translate-y-0.5 hover:border-border/80 hover:bg-secondary">
-								<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden className="text-foreground">
-									<path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98l-.09.06c-.22.14-2.15 1.26-2.13 3.76.03 2.99 2.63 3.99 2.66 4l-.08.26zM13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-								</svg>
-								<div className="text-left leading-none">
-									<div className="text-[10px] uppercase tracking-wider text-muted-foreground">Ladda ner på</div>
-									<div className="mt-1 text-sm font-bold">App Store</div>
-								</div>
-							</button>
-						</div>
+						<StoreDownloadButtons className="mt-10 justify-center" />
 					</Reveal>
 				</div>
 			</section>
