@@ -331,7 +331,7 @@ export default function Registration() {
 		<div className="relative min-h-screen overflow-hidden bg-background text-foreground lg:h-screen">
 			<div className="fixed left-4 top-4 z-50 flex items-center gap-3">
 				<div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl">
-					<img src="/Icon.jpg" alt="Registration icon" className="h-10 w-10 object-cover" />
+					<img src="/icon-96.webp" alt="Registration icon" width={40} height={40} className="h-10 w-10 object-cover" />
 				</div>
 
 				<button

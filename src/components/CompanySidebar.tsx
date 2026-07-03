@@ -141,7 +141,7 @@ export function CompanySidebar() {
                 : "h-9 w-9 ring-1 ring-primary/40"
             }`}
           >
-            <img src="/Icon.jpg" alt="TooDoo" className="h-full w-full object-cover" />
+            <img src="/icon-96.webp" alt="TooDoo" width={40} height={40} className="h-full w-full object-cover" />
           </div>
           {!collapsed && (
             <div className="min-w-0 flex-1">

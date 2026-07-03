@@ -110,7 +110,7 @@ export default function LoggIn() {
 	return (
 		<div className="relative min-h-screen overflow-hidden bg-background text-foreground lg:h-screen">
 			<button onClick={() => navigate("/")} className="fixed left-4 top-4 z-30 flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl cursor-pointer hover:scale-110 transition">
-				<img src="/Icon.jpg" alt="Landingpage" className="h-10 w-10 object-cover" />
+				<img src="/icon-96.webp" alt="Landingpage" width={40} height={40} className="h-10 w-10 object-cover" />
 			</button>
 
 			<div className="relative z-10 flex min-h-screen w-full flex-col lg:h-full lg:min-h-0 lg:flex-row">

@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { applyMonochrome } from "@/lib/monochrome";
 import { useMonochrome } from "@/hooks/useMonochrome";
 import { CookieConsentProvider } from "@/components/CookieConsent";
+import LandingPage from "./pages/Landingpage";
 
 const AdminLayout = lazy(() =>
   import("./components/AdminLayout").then((m) => ({ default: m.AdminLayout })),
@@ -16,7 +17,6 @@ const ProtectedRoute = lazy(() =>
 );
 
 const Index = lazy(() => import("./pages/Index"));
-const LandingPage = lazy(() => import("./pages/Landingpage"));
 const Companies = lazy(() => import("./pages/Companies"));
 const AdminCompanyEdit = lazy(() => import("./pages/AdminCompanyEdit"));
 const Pending = lazy(() => import("./pages/Pending"));
