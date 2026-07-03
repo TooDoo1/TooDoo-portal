@@ -6,6 +6,7 @@ import { LoginArrowLabel } from "@/components/LoginArrowLabel";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
 import { getUserByEmail, loginPortal, redeemManagerInvite, registerManager, setAuthEmail, setAuthRole, setAuthToken, setBusinessId } from "@/lib/api";
 import { toast } from "sonner";
+import { TermsAcceptance } from "@/components/TermsAcceptance";
 
 const INVITE_TOKEN_STORAGE_KEY = "toodoo_manager_invite_token";
 
@@ -35,6 +36,7 @@ export default function ManagerRegistration() {
   const [password, setPassword] = useState("");
   const [passwordRepeat, setPasswordRepeat] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [inviteToken, setInviteToken] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
@@ -73,6 +75,11 @@ export default function ManagerRegistration() {
 
     if (password !== passwordRepeat) {
       toast.error("Lösenorden matchar inte.");
+      return;
+    }
+
+    if (!acceptedTerms) {
+      toast.error("Du måste godkänna användarvillkoren för att skapa managerkontot.");
       return;
     }
 
@@ -200,7 +207,7 @@ export default function ManagerRegistration() {
 
       <div className="fixed left-4 top-4 z-50 flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl">
-          <img src="/Icon.jpg" alt="Registration icon" className="h-10 w-10 object-cover" />
+          <img src="/icon-96.webp" alt="Registration icon" width={40} height={40} className="h-10 w-10 object-cover" />
         </div>
 
         <button
@@ -275,10 +282,16 @@ export default function ManagerRegistration() {
                 </div>
               </div>
 
+              <TermsAcceptance
+                id="manager-terms-acceptance"
+                checked={acceptedTerms}
+                onCheckedChange={setAcceptedTerms}
+              />
+
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90"
+                disabled={isSubmitting || !acceptedTerms}
+                className="group no-hover-motion relative inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <LoginArrowLabel>{isSubmitting ? "Registrerar" : "Registrera dig"}</LoginArrowLabel>
               </button>

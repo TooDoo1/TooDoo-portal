@@ -257,7 +257,7 @@ const phoneScreens = [
 		address: "Drottninggatan 12, Helsingborg",
 		phone: "+46 70 100 10 01",
 		hours: "Idag 09:00 – 17:00",
-		image: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=800&q=70",
+		image: "/mockups/bistro.webp",
 		deal: "50% rabatt på bakverk",
 		price: "15 kr",
 		oldPrice: "30 kr",
@@ -269,7 +269,7 @@ const phoneScreens = [
 		address: "Stortorget 3, Helsingborg",
 		phone: "+46 70 300 30 03",
 		hours: "Idag 08:00 – 18:00",
-		image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=800&q=70",
+		image: "/mockups/cafe.webp",
 		deal: "Köp 1 få 1 fika",
 		price: "45 kr",
 		oldPrice: "90 kr",
@@ -281,7 +281,7 @@ const phoneScreens = [
 		address: "Kungsgatan 8, Helsingborg",
 		phone: "+46 70 200 20 02",
 		hours: "Idag 10:00 – 20:00",
-		image: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800&q=70",
+		image: "/mockups/spa.webp",
 		deal: "Massage 60 min",
 		price: "499 kr",
 		oldPrice: "799 kr",
@@ -300,7 +300,14 @@ function PhoneScreenPanel({ screen, active }: { screen: (typeof phoneScreens)[nu
 			aria-hidden={!active}
 		>
 			<div className="relative h-[34%] min-h-[8.5rem] w-full shrink-0 overflow-hidden">
-				<img src={screen.image} alt={screen.name} loading="lazy" className="h-full w-full object-cover" />
+				<img
+					src={screen.image}
+					alt={screen.name}
+					width={400}
+					height={300}
+					decoding="async"
+					className="h-full w-full object-cover"
+				/>
 				<div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background/30" />
 				<span className="absolute left-4 top-9 flex h-8 w-8 items-center justify-center rounded-full bg-background/50 text-white backdrop-blur">
 					<ChevronLeft className="h-4 w-4" />
@@ -344,7 +351,16 @@ function PhoneScreenPanel({ screen, active }: { screen: (typeof phoneScreens)[nu
 				<div className="shrink-0 rounded-xl border border-border bg-card p-3">
 					<div className="flex gap-3">
 						<div className="relative h-[4.25rem] w-[4.25rem] shrink-0 overflow-hidden rounded-lg">
-							<img src={screen.image} alt="" aria-hidden className="h-full w-full object-cover" />
+							<img
+								src={screen.image}
+								alt=""
+								aria-hidden
+								width={68}
+								height={68}
+								loading="lazy"
+								decoding="async"
+								className="h-full w-full object-cover"
+							/>
 							<span className="absolute left-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-background/70 text-white">
 								<Share2 className="h-2 w-2" />
 							</span>
@@ -599,7 +615,7 @@ export default function LandingPage() {
 						className="flex items-center gap-3 transition-opacity hover:opacity-90"
 						aria-label="TooDoo hem"
 					>
-						<img src="/Icon.jpg" alt="TooDoo" className="h-9 w-9 rounded-xl object-cover ring-1 ring-border" />
+						<img src="/icon-96.webp" alt="TooDoo" width={36} height={36} className="h-9 w-9 rounded-xl object-cover ring-1 ring-border" />
 						<span className="text-xl font-extrabold tracking-tight">
 							Too<span className="text-primary">Doo</span>
 						</span>
@@ -1039,7 +1055,7 @@ export default function LandingPage() {
 					<div className="flex flex-col gap-10 lg:flex-row lg:justify-between">
 						<div className="max-w-xs">
 							<div className="flex items-center gap-3">
-								<img src="/Icon.jpg" alt="TooDoo" className="h-9 w-9 rounded-xl object-cover ring-1 ring-border" />
+								<img src="/icon-96.webp" alt="TooDoo" width={36} height={36} className="h-9 w-9 rounded-xl object-cover ring-1 ring-border" />
 								<span className="text-lg font-extrabold tracking-tight">
 									Too<span className="text-primary">Doo</span>
 								</span>

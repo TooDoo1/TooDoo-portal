@@ -18,6 +18,7 @@ import {
 import { pickCategoryBySni } from "@/lib/sniCategoryMap";
 import { toast } from "sonner";
 import { TimePicker } from "@/components/TimePicker";
+import { TermsAcceptance } from "@/components/TermsAcceptance";
 
 
 export default function Registration() {
@@ -26,6 +27,7 @@ export default function Registration() {
 	const [categoryIds, setCategoryIds] = useState<string[]>([]);
 	const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [acceptedTerms, setAcceptedTerms] = useState(false);
 	const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 	const [orgNumber, setOrgNumber] = useState("");
 	const [orgSearchLoading, setOrgSearchLoading] = useState(false);
@@ -187,6 +189,11 @@ export default function Registration() {
 			return;
 		}
 
+		if (!acceptedTerms) {
+			toast.error("Du måste godkänna användarvillkoren för att registrera företaget.");
+			return;
+		}
+
 		setIsSubmitting(true);
 		try {
 			const effectiveOpeningHours = groupWeekdays
@@ -331,7 +338,7 @@ export default function Registration() {
 		<div className="relative min-h-screen overflow-hidden bg-background text-foreground lg:h-screen">
 			<div className="fixed left-4 top-4 z-50 flex items-center gap-3">
 				<div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl">
-					<img src="/Icon.jpg" alt="Registration icon" className="h-10 w-10 object-cover" />
+					<img src="/icon-96.webp" alt="Registration icon" width={40} height={40} className="h-10 w-10 object-cover" />
 				</div>
 
 				<button
@@ -870,7 +877,19 @@ export default function Registration() {
 
 						<h3 className="mt-10 text-lg font-semibold text-foreground">Slutför registrering:</h3>
 
-						<button type="button" disabled={isSubmitting} onClick={handleRegister} className="group no-hover-motion relative mt-4 mb-10 inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90">
+						<TermsAcceptance
+							id="company-terms-acceptance"
+							checked={acceptedTerms}
+							onCheckedChange={setAcceptedTerms}
+							className="mt-4"
+						/>
+
+						<button
+							type="button"
+							disabled={isSubmitting || !acceptedTerms}
+							onClick={handleRegister}
+							className="group no-hover-motion relative mt-4 mb-10 inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+						>
 							<LoginArrowLabel>{isSubmitting ? "Registrerar" : "Registrera företag"}</LoginArrowLabel>
 						</button>
 						</>
