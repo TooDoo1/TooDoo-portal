@@ -15,8 +15,8 @@ type LegalDocumentDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description: string;
-  sections: readonly Section[];
+  description?: string;
+  sections?: readonly Section[];
   pdfUrl?: string;
 };
 
@@ -24,8 +24,8 @@ export function LegalDocumentDialog({
   open,
   onOpenChange,
   title,
-  description,
-  sections,
+  description = "",
+  sections = [],
   pdfUrl,
 }: LegalDocumentDialogProps) {
   return (

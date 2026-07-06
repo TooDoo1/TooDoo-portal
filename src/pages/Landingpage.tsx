@@ -541,7 +541,7 @@ function SectionHeading({
 
 export default function LandingPage() {
 	const navigate = useNavigate();
-	const { openPrivacyPolicy, openTermsOfService, openCookiePolicy, openCookieSettings } = useLegalModals();
+	const { openPrivacyPolicy, openUserTerms, openCompanyTerms, openCookiePolicy, openCookieSettings } = useLegalModals();
 	const [scrolled, setScrolled] = useState(false);
 	const [deals, setDeals] = useState<Deal[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -1110,8 +1110,13 @@ export default function LandingPage() {
 										</button>
 									</li>
 									<li>
-										<button type="button" onClick={openTermsOfService} className="transition-colors hover:text-foreground">
-											Villkor
+										<button type="button" onClick={openUserTerms} className="transition-colors hover:text-foreground">
+											Användarvillkor
+										</button>
+									</li>
+									<li>
+										<button type="button" onClick={openCompanyTerms} className="transition-colors hover:text-foreground">
+											Företagsvillkor
 										</button>
 									</li>
 									<li>

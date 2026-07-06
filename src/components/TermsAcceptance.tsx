@@ -2,15 +2,24 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useLegalModals } from "@/components/CookieConsent";
 import { cn } from "@/lib/utils";
 
+type TermsVariant = "user" | "company";
+
 type TermsAcceptanceProps = {
   id: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
+  variant: TermsVariant;
   className?: string;
 };
 
-export function TermsAcceptance({ id, checked, onCheckedChange, className }: TermsAcceptanceProps) {
-  const { openTermsOfService } = useLegalModals();
+const termsCopy: Record<TermsVariant, { label: string; open: "openUserTerms" | "openCompanyTerms" }> = {
+  user: { label: "användarvillkoren", open: "openUserTerms" },
+  company: { label: "företagsvillkoren", open: "openCompanyTerms" },
+};
+
+export function TermsAcceptance({ id, checked, onCheckedChange, variant, className }: TermsAcceptanceProps) {
+  const legalModals = useLegalModals();
+  const { label, open } = termsCopy[variant];
 
   return (
     <div className={cn("flex items-start gap-3", className)}>
@@ -24,10 +33,10 @@ export function TermsAcceptance({ id, checked, onCheckedChange, className }: Ter
         Jag har läst och godkänner{" "}
         <button
           type="button"
-          onClick={openTermsOfService}
+          onClick={legalModals[open]}
           className="font-medium text-accent underline-offset-2 hover:underline"
         >
-          användarvillkoren
+          {label}
         </button>
         .
       </label>

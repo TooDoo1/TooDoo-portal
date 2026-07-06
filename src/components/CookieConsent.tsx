@@ -2,10 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Cookie } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  cookiePolicySections,
-  privacyPolicySections,
-  termsOfServicePdfUrl,
-  termsOfServiceSections,
+  companyTermsPdfUrl,
+  cookiePolicyPdfUrl,
+  privacyPolicyPdfUrl,
+  userTermsPdfUrl,
 } from "@/content/legal";
 import { getCookieConsent, hasCookieConsent, setCookieConsent, type CookieConsentChoice } from "@/lib/cookieConsent";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,8 @@ import { LegalDocumentDialog } from "@/components/LegalDocumentDialog";
 
 type LegalModalsContextValue = {
   openPrivacyPolicy: () => void;
-  openTermsOfService: () => void;
+  openUserTerms: () => void;
+  openCompanyTerms: () => void;
   openCookiePolicy: () => void;
   openCookieSettings: () => void;
 };
@@ -31,7 +32,8 @@ export function useLegalModals() {
 export function CookieConsentProvider({ children }: { children: React.ReactNode }) {
   const [bannerVisible, setBannerVisible] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
-  const [termsOpen, setTermsOpen] = useState(false);
+  const [userTermsOpen, setUserTermsOpen] = useState(false);
+  const [companyTermsOpen, setCompanyTermsOpen] = useState(false);
   const [cookiesOpen, setCookiesOpen] = useState(false);
 
   useEffect(() => {
@@ -44,13 +46,14 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
   }, []);
 
   const openPrivacyPolicy = useCallback(() => setPrivacyOpen(true), []);
-  const openTermsOfService = useCallback(() => setTermsOpen(true), []);
+  const openUserTerms = useCallback(() => setUserTermsOpen(true), []);
+  const openCompanyTerms = useCallback(() => setCompanyTermsOpen(true), []);
   const openCookiePolicy = useCallback(() => setCookiesOpen(true), []);
   const openCookieSettings = useCallback(() => setBannerVisible(true), []);
 
   const contextValue = useMemo(
-    () => ({ openPrivacyPolicy, openTermsOfService, openCookiePolicy, openCookieSettings }),
-    [openPrivacyPolicy, openTermsOfService, openCookiePolicy, openCookieSettings],
+    () => ({ openPrivacyPolicy, openUserTerms, openCompanyTerms, openCookiePolicy, openCookieSettings }),
+    [openPrivacyPolicy, openUserTerms, openCompanyTerms, openCookiePolicy, openCookieSettings],
   );
 
   const existingChoice = getCookieConsent()?.choice;
@@ -63,25 +66,28 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
         open={privacyOpen}
         onOpenChange={setPrivacyOpen}
         title="Integritetspolicy"
-        description=""
-        sections={privacyPolicySections}
+        pdfUrl={privacyPolicyPdfUrl}
       />
 
       <LegalDocumentDialog
-        open={termsOpen}
-        onOpenChange={setTermsOpen}
+        open={userTermsOpen}
+        onOpenChange={setUserTermsOpen}
         title="Användarvillkor"
-        description=""
-        sections={termsOfServiceSections}
-        pdfUrl={termsOfServicePdfUrl}
+        pdfUrl={userTermsPdfUrl}
+      />
+
+      <LegalDocumentDialog
+        open={companyTermsOpen}
+        onOpenChange={setCompanyTermsOpen}
+        title="Företagsvillkor"
+        pdfUrl={companyTermsPdfUrl}
       />
 
       <LegalDocumentDialog
         open={cookiesOpen}
         onOpenChange={setCookiesOpen}
         title="Cookiepolicy"
-        description=""
-        sections={cookiePolicySections}
+        pdfUrl={cookiePolicyPdfUrl}
       />
 
       {bannerVisible ? (
@@ -101,31 +107,24 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
               </div>
               <div className="min-w-0">
                 <h2 id="cookie-consent-title" className="text-sm font-semibold text-foreground">
-                  Cookies och integritet
+                  Cookies
                 </h2>
                 <p id="cookie-consent-description" className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  Vi använder cookies och liknande tekniker för att webbportalen ska fungera. Läs vår{" "}
                   <button
                     type="button"
                     onClick={openCookiePolicy}
                     className="font-medium text-accent underline-offset-2 hover:underline"
                   >
-                    Cookiepolicy
-                  </button>
-                  ,{" "}
+                    cookiepolicy
+                  </button>{" "}
+                  och{" "}
                   <button
                     type="button"
                     onClick={openPrivacyPolicy}
                     className="font-medium text-accent underline-offset-2 hover:underline"
                   >
                     integritetspolicy
-                  </button>{" "}
-                  och{" "}
-                  <button
-                    type="button"
-                    onClick={openTermsOfService}
-                    className="font-medium text-accent underline-offset-2 hover:underline"
-                  >
-                    användarvillkor
                   </button>
                   .
                 </p>
