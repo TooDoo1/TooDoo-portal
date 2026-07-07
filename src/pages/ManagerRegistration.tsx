@@ -79,7 +79,7 @@ export default function ManagerRegistration() {
     }
 
     if (!acceptedTerms) {
-      toast.error("Du måste godkänna företagsvillkoren för att skapa managerkontot.");
+      toast.error("Du måste godkänna användarvillkoren för företag för att skapa managerkontot.");
       return;
     }
 

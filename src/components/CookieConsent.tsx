@@ -2,9 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { Cookie } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  companyPrivacyPolicyPdfUrl,
   companyTermsPdfUrl,
   cookiePolicyPdfUrl,
-  privacyPolicyPdfUrl,
+  userPrivacyPolicyPdfUrl,
   userTermsPdfUrl,
 } from "@/content/legal";
 import { getCookieConsent, hasCookieConsent, setCookieConsent, type CookieConsentChoice } from "@/lib/cookieConsent";
@@ -12,7 +13,8 @@ import { cn } from "@/lib/utils";
 import { LegalDocumentDialog } from "@/components/LegalDocumentDialog";
 
 type LegalModalsContextValue = {
-  openPrivacyPolicy: () => void;
+  openUserPrivacyPolicy: () => void;
+  openCompanyPrivacyPolicy: () => void;
   openUserTerms: () => void;
   openCompanyTerms: () => void;
   openCookiePolicy: () => void;
@@ -31,7 +33,8 @@ export function useLegalModals() {
 
 export function CookieConsentProvider({ children }: { children: React.ReactNode }) {
   const [bannerVisible, setBannerVisible] = useState(false);
-  const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [userPrivacyOpen, setUserPrivacyOpen] = useState(false);
+  const [companyPrivacyOpen, setCompanyPrivacyOpen] = useState(false);
   const [userTermsOpen, setUserTermsOpen] = useState(false);
   const [companyTermsOpen, setCompanyTermsOpen] = useState(false);
   const [cookiesOpen, setCookiesOpen] = useState(false);
@@ -45,15 +48,23 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
     setBannerVisible(false);
   }, []);
 
-  const openPrivacyPolicy = useCallback(() => setPrivacyOpen(true), []);
+  const openUserPrivacyPolicy = useCallback(() => setUserPrivacyOpen(true), []);
+  const openCompanyPrivacyPolicy = useCallback(() => setCompanyPrivacyOpen(true), []);
   const openUserTerms = useCallback(() => setUserTermsOpen(true), []);
   const openCompanyTerms = useCallback(() => setCompanyTermsOpen(true), []);
   const openCookiePolicy = useCallback(() => setCookiesOpen(true), []);
   const openCookieSettings = useCallback(() => setBannerVisible(true), []);
 
   const contextValue = useMemo(
-    () => ({ openPrivacyPolicy, openUserTerms, openCompanyTerms, openCookiePolicy, openCookieSettings }),
-    [openPrivacyPolicy, openUserTerms, openCompanyTerms, openCookiePolicy, openCookieSettings],
+    () => ({
+      openUserPrivacyPolicy,
+      openCompanyPrivacyPolicy,
+      openUserTerms,
+      openCompanyTerms,
+      openCookiePolicy,
+      openCookieSettings,
+    }),
+    [openUserPrivacyPolicy, openCompanyPrivacyPolicy, openUserTerms, openCompanyTerms, openCookiePolicy, openCookieSettings],
   );
 
   const existingChoice = getCookieConsent()?.choice;
@@ -63,30 +74,37 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
       {children}
 
       <LegalDocumentDialog
-        open={privacyOpen}
-        onOpenChange={setPrivacyOpen}
-        title="Integritetspolicy"
-        pdfUrl={privacyPolicyPdfUrl}
+        open={userPrivacyOpen}
+        onOpenChange={setUserPrivacyOpen}
+        title="Integritetspolicy — privatpersoner"
+        pdfUrl={userPrivacyPolicyPdfUrl}
+      />
+
+      <LegalDocumentDialog
+        open={companyPrivacyOpen}
+        onOpenChange={setCompanyPrivacyOpen}
+        title="Integritetspolicy — företag"
+        pdfUrl={companyPrivacyPolicyPdfUrl}
       />
 
       <LegalDocumentDialog
         open={userTermsOpen}
         onOpenChange={setUserTermsOpen}
-        title="Användarvillkor"
+        title="Användarvillkor — privatpersoner"
         pdfUrl={userTermsPdfUrl}
       />
 
       <LegalDocumentDialog
         open={companyTermsOpen}
         onOpenChange={setCompanyTermsOpen}
-        title="Företagsvillkor"
+        title="Användarvillkor — företag"
         pdfUrl={companyTermsPdfUrl}
       />
 
       <LegalDocumentDialog
         open={cookiesOpen}
         onOpenChange={setCookiesOpen}
-        title="Cookiepolicy"
+        title="Cookiepolicy — företagsportal"
         pdfUrl={cookiePolicyPdfUrl}
       />
 
@@ -121,7 +139,7 @@ export function CookieConsentProvider({ children }: { children: React.ReactNode 
                   och{" "}
                   <button
                     type="button"
-                    onClick={openPrivacyPolicy}
+                    onClick={openCompanyPrivacyPolicy}
                     className="font-medium text-accent underline-offset-2 hover:underline"
                   >
                     integritetspolicy

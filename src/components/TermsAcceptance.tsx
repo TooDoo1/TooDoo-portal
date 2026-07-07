@@ -13,8 +13,8 @@ type TermsAcceptanceProps = {
 };
 
 const termsCopy: Record<TermsVariant, { label: string; open: "openUserTerms" | "openCompanyTerms" }> = {
-  user: { label: "användarvillkoren", open: "openUserTerms" },
-  company: { label: "företagsvillkoren", open: "openCompanyTerms" },
+  user: { label: "användarvillkoren för privatpersoner", open: "openUserTerms" },
+  company: { label: "användarvillkoren för företag", open: "openCompanyTerms" },
 };
 
 export function TermsAcceptance({ id, checked, onCheckedChange, variant, className }: TermsAcceptanceProps) {

@@ -541,7 +541,7 @@ function SectionHeading({
 
 export default function LandingPage() {
 	const navigate = useNavigate();
-	const { openPrivacyPolicy, openUserTerms, openCompanyTerms, openCookiePolicy, openCookieSettings } = useLegalModals();
+	const { openUserPrivacyPolicy, openCompanyPrivacyPolicy, openUserTerms, openCompanyTerms, openCookiePolicy, openCookieSettings } = useLegalModals();
 	const [scrolled, setScrolled] = useState(false);
 	const [deals, setDeals] = useState<Deal[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -1105,18 +1105,23 @@ export default function LandingPage() {
 								<p className="text-xs font-semibold uppercase tracking-wider text-foreground">Juridik</p>
 								<ul className="mt-3 space-y-2 text-sm text-muted-foreground">
 									<li>
-										<button type="button" onClick={openPrivacyPolicy} className="transition-colors hover:text-foreground">
-											Integritet
+										<button type="button" onClick={openUserPrivacyPolicy} className="transition-colors hover:text-foreground">
+											Integritet — privatpersoner
+										</button>
+									</li>
+									<li>
+										<button type="button" onClick={openCompanyPrivacyPolicy} className="transition-colors hover:text-foreground">
+											Integritet — företag
 										</button>
 									</li>
 									<li>
 										<button type="button" onClick={openUserTerms} className="transition-colors hover:text-foreground">
-											Användarvillkor
+											Användarvillkor — privatpersoner
 										</button>
 									</li>
 									<li>
 										<button type="button" onClick={openCompanyTerms} className="transition-colors hover:text-foreground">
-											Företagsvillkor
+											Användarvillkor — företag
 										</button>
 									</li>
 									<li>

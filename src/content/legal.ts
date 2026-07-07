@@ -1,11 +1,13 @@
-/** Served from public/docs/ — version 1, effective 2026-07-06. */
+/** Served from public/docs/TooDoo_Launch_Legal_Pack_v1/ — Launch Legal Pack v1. */
 
-export const privacyPolicyPdfUrl = "/docs/toodoo-integritetspolicy-sverige-v1.pdf";
+const legalPackBase = "/docs/TooDoo_Launch_Legal_Pack_v1";
 
-export const cookiePolicyPdfUrl = "/docs/toodoo-cookiepolicy-sverige-v1.pdf";
+export const userTermsPdfUrl = `${legalPackBase}/01_Anvandarvillkor_Privatpersoner.pdf`;
 
-export const cookieInventoryPdfUrl = "/docs/toodoo-cookieinventering-portal-v1.pdf";
+export const companyTermsPdfUrl = `${legalPackBase}/02_Anvandarvillkor_Foretag.pdf`;
 
-export const userTermsPdfUrl = "/docs/toodoo-anvandarvillkor-sverige-v1.pdf";
+export const userPrivacyPolicyPdfUrl = `${legalPackBase}/03_Integritetspolicy_Privatpersoner.pdf`;
 
-export const companyTermsPdfUrl = "/docs/toodoo-foretagsvillkor-sverige-v1.pdf";
+export const companyPrivacyPolicyPdfUrl = `${legalPackBase}/04_Integritetspolicy_Foretag.pdf`;
+
+export const cookiePolicyPdfUrl = `${legalPackBase}/06_Cookiepolicy_Foretagsportal.pdf`;

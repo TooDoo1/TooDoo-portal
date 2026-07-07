@@ -190,7 +190,7 @@ export default function Registration() {
 		}
 
 		if (!acceptedTerms) {
-			toast.error("Du måste godkänna företagsvillkoren för att registrera företaget.");
+			toast.error("Du måste godkänna användarvillkoren för företag för att registrera företaget.");
 			return;
 		}
 
