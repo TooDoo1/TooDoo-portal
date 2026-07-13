@@ -1,8 +1,13 @@
-export const privacyPolicySections: Array<{ title: string; body: string }> = [];
+/** Served from public/docs/TooDoo_Launch_Legal_Pack_v1/ — Launch Legal Pack v1. */
 
-export const termsOfServiceSections: Array<{ title: string; body: string }> = [];
+const legalPackBase = "/docs/TooDoo_Launch_Legal_Pack_v1";
 
-/** Served from public/docs/ — Juridiska villkor (Sverige), version 1. */
-export const termsOfServicePdfUrl = "/docs/toodoo-juridiska-villkor-sverige-v1.pdf";
+export const userTermsPdfUrl = `${legalPackBase}/01_Anvandarvillkor_Privatpersoner.pdf`;
 
-export const cookiePolicySections: Array<{ title: string; body: string }> = [];
+export const companyTermsPdfUrl = `${legalPackBase}/02_Anvandarvillkor_Foretag.pdf`;
+
+export const userPrivacyPolicyPdfUrl = `${legalPackBase}/03_Integritetspolicy_Privatpersoner.pdf`;
+
+export const companyPrivacyPolicyPdfUrl = `${legalPackBase}/04_Integritetspolicy_Foretag.pdf`;
+
+export const cookiePolicyPdfUrl = `${legalPackBase}/06_Cookiepolicy_Foretagsportal.pdf`;
