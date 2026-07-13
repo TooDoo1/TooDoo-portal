@@ -12,9 +12,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
+import { BusinessImportBadges } from "@/components/BusinessImportBadges";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getBusinessById, listOrders, resolveImageUrl, type Business, type Order } from "@/lib/api";
+import { buildGoogleMapsUrl, formatImportGoogleScore } from "@/lib/businessImport";
 
 const dayLabels: Record<string, string> = {
   monday: "Måndag",
@@ -204,7 +206,7 @@ export function CompanyDetailsDialog({
       setOffersError(null);
       try {
         const [businessData, orderRows] = await Promise.all([
-          getBusinessById(companyId),
+          getBusinessById(companyId, true),
           listOrders(undefined, companyId).catch((err) => {
             if (!cancelled) {
               setOffersError(err instanceof Error ? err.message : "Kunde inte ladda erbjudanden.");
@@ -244,6 +246,8 @@ export function CompanyDetailsDialog({
   const categoryName = business ? getCategoryName(business, category) : category;
   const openingHoursLines = business ? formatOpeningHours(business.openingHours) : null;
   const imageUrl = business ? resolveImageUrl(getBusinessImageUrl(business)) : null;
+  const mapsUrl = business ? buildGoogleMapsUrl(business) : null;
+  const googleScore = business ? formatImportGoogleScore(business.importMetadata) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -284,9 +288,26 @@ export function CompanyDetailsDialog({
               )}
               <div className="min-w-0 flex-1">
                 <p className="font-bold text-lg text-foreground">{displayName}</p>
-                {business && <StatusBadge status={mapStatus(business.status)} />}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {business && <StatusBadge status={mapStatus(business.status)} />}
+                  {business ? <BusinessImportBadges business={business} /> : null}
+                </div>
               </div>
             </div>
+
+            {business?.source === "IMPORTED" ? (
+              <div className="rounded-xl border border-border bg-background/40 p-4 text-sm">
+                <p className="font-semibold text-foreground">Importinformation</p>
+                <div className="mt-3 grid gap-2 text-muted-foreground">
+                  {business.cfarNr ? <p>CFAR: <span className="text-foreground">{business.cfarNr}</span></p> : null}
+                  {business.orgNr ? <p>Org.nr: <span className="text-foreground">{business.orgNr}</span></p> : null}
+                  {googleScore ? <p>Google-matchning: <span className="text-foreground">{googleScore}</span></p> : null}
+                  {business.importMetadata?.google?.enrichedAt ? (
+                    <p>Enrichat: <span className="text-foreground">{new Date(business.importMetadata.google.enrichedAt).toLocaleString("sv-SE")}</span></p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
 
             <Separator className="bg-border/50" />
 
@@ -322,7 +343,14 @@ export function CompanyDetailsDialog({
 
                 {(business?.address || business?.city) && (
                   <DetailRow icon={MapPin} label="Adress">
-                    {[business.address, business.city].filter(Boolean).join(", ")}
+                    <div className="space-y-1">
+                      <p>{[business.address, business.city].filter(Boolean).join(", ")}</p>
+                      {mapsUrl ? (
+                        <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                          Öppna i Google Maps
+                        </a>
+                      ) : null}
+                    </div>
                   </DetailRow>
                 )}
 

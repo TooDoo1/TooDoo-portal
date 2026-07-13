@@ -9,6 +9,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ImportedBusinessBanner } from "@/components/ImportedBusinessBanner";
 import { getBusinessDailySummary, resolveBusinessId, type BusinessDailySummary } from "@/lib/api";
 import { useRealtime } from "@/hooks/useRealtime";
 
@@ -120,6 +121,7 @@ export default function CompanyDashboard() {
 
   return (
     <div className="space-y-8">
+      <ImportedBusinessBanner />
       <div>
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground mt-1">Dagens sammanfattning över erbjudanden och kuponger</p>
