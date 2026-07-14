@@ -11,8 +11,11 @@ import { CategoryMultiSelect } from "@/components/CategoryMultiSelect";
 import {
 	createBusiness,
 	listCategories,
+	lookupClaimableImport,
 	searchScbWorkplacesByOrgNumber,
 	setBusinessId,
+	submitBusinessClaimRequest,
+	type ClaimableImport,
 	type ScbCompanySearchHit,
 } from "@/lib/api";
 import { pickCategoryBySni } from "@/lib/sniCategoryMap";
@@ -36,7 +39,10 @@ export default function Registration() {
 	const [selectedCompanyName, setSelectedCompanyName] = useState<string | null>(null);
 	const [businessName, setBusinessName] = useState("");
 	const [selectedCfarNr, setSelectedCfarNr] = useState<string | null>(null);
+	const [claimableImport, setClaimableImport] = useState<ClaimableImport | null>(null);
+	const [importDescription, setImportDescription] = useState("");
 	const [manualEntry, setManualEntry] = useState(false);
+	const [showClaimSubmittedPopup, setShowClaimSubmittedPopup] = useState(false);
 	const showRestOfForm = Boolean(selectedCfarNr) || manualEntry;
 	const [prefill, setPrefill] = useState({ email: "", phone: "", city: "", address: "" });
 	const navigate = useNavigate();
@@ -158,7 +164,93 @@ export default function Registration() {
 		void loadCategories();
 	}, []);
 
+	const handleClaim = async () => {
+		if (!claimableImport || claimableImport.pendingClaimRequest) return;
+
+		const email = (document.getElementById("email") as HTMLInputElement | null)?.value.trim() ?? "";
+		const phone = (document.getElementById("phonenumber") as HTMLInputElement | null)?.value.trim() ?? "";
+		const website = (document.getElementById("website") as HTMLInputElement | null)?.value.trim() ?? "";
+		const city = (document.getElementById("companyCity") as HTMLInputElement | null)?.value.trim() ?? "";
+		const address = (document.getElementById("companyAddress") as HTMLInputElement | null)?.value.trim() ?? "";
+		const companyName = businessName.trim();
+		const longDescription = importDescription.trim() || longDescRef.current?.value.trim() || claimableImport.description;
+
+		let normalizedWebsite: string | null | undefined;
+		if (website) {
+			try {
+				const websiteWithProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(website)
+					? website
+					: `https://${website}`;
+				const parsedWebsite = new URL(websiteWithProtocol);
+				if (parsedWebsite.protocol !== "http:" && parsedWebsite.protocol !== "https:") {
+					throw new Error("Invalid protocol");
+				}
+				normalizedWebsite = parsedWebsite.toString();
+			} catch {
+				toast.error("Hemsida måste vara en giltig URL, till exempel https://example.com.");
+				return;
+			}
+		}
+
+		if (!email || !phone || !city || !address || !companyName || !longDescription) {
+			toast.error("Fyll i e-post, telefon, stad, adress, företag och beskrivning.");
+			return;
+		}
+
+		if (!acceptedTerms) {
+			toast.error("Du måste godkänna användarvillkoren för företag.");
+			return;
+		}
+
+		const effectiveOpeningHours = groupWeekdays
+			? ({
+					...openingHours,
+					monday: { ...weekdayGroup },
+					tuesday: { ...weekdayGroup },
+					wednesday: { ...weekdayGroup },
+					thursday: { ...weekdayGroup },
+					friday: { ...weekdayGroup },
+				} satisfies typeof openingHours)
+			: openingHours;
+
+		const openingHoursPayload = Object.fromEntries(
+			Object.entries(effectiveOpeningHours)
+				.filter(([, v]) => !v.closed)
+				.map(([day, v]) => [day, { from: v.from, to: v.to }]),
+		);
+		const shouldSendOpeningHours = Object.keys(openingHoursPayload).length > 0;
+
+		setIsSubmitting(true);
+		try {
+			await submitBusinessClaimRequest(claimableImport.id, {
+				cfarNr: claimableImport.cfarNr,
+				orgNr: orgNumber.trim(),
+				applicantEmail: email,
+				contactEmail: email,
+				contactPhone: phone,
+				name: companyName,
+				description: longDescription,
+				website: normalizedWebsite ?? null,
+				address,
+				city,
+				...(shouldSendOpeningHours ? { openingHours: openingHoursPayload } : {}),
+			});
+
+			setShowClaimSubmittedPopup(true);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : "Kunde inte skicka ägarskapsansökan.";
+			toast.error(message);
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
 	const handleRegister = async () => {
+		if (claimableImport) {
+			await handleClaim();
+			return;
+		}
+
 		const email = (document.getElementById("email") as HTMLInputElement | null)?.value.trim() ?? "";
 		const phone = (document.getElementById("phonenumber") as HTMLInputElement | null)?.value.trim() ?? "";
 		const website = (document.getElementById("website") as HTMLInputElement | null)?.value.trim() ?? "";
@@ -276,20 +368,36 @@ export default function Registration() {
 		}
 	};
 
-	const applySelectedCompany = (c: ScbCompanySearchHit) => {
+	const applySelectedCompany = async (c: ScbCompanySearchHit) => {
 		setSelectedCompanyName(c.name);
 		setBusinessName(c.name);
 		setSelectedCfarNr(c.cfarNr || null);
 		setCompany("annat");
 		setCompanyOpen(false);
-		// Inputs below mount only after selection, so push values through React
-		// (defaultValue on first mount) instead of writing to the DOM directly.
+		setClaimableImport(null);
+		setImportDescription("");
+
+		let matchedImport: ClaimableImport | null = null;
+		if (c.cfarNr) {
+			try {
+				matchedImport = await lookupClaimableImport(c.cfarNr);
+				setClaimableImport(matchedImport);
+			} catch {
+				setClaimableImport(null);
+			}
+		}
+
 		setPrefill({
-			email: c.email ?? "",
-			phone: c.phone ?? "",
-			city: c.city ?? "",
-			address: c.street ?? "",
+			email: matchedImport?.contactEmail ?? c.email ?? "",
+			phone: matchedImport?.contactPhone ?? c.phone ?? "",
+			city: matchedImport?.city ?? c.city ?? "",
+			address: matchedImport?.address ?? c.street ?? "",
 		});
+
+		if (matchedImport) {
+			setBusinessName(matchedImport.name);
+			setImportDescription(matchedImport.description);
+		}
 
 		// Auto-pick the closest TooDoo category. Prefers the backend-supplied
 		// industryCategory (from the SCB SNI prefix map), then falls back to the
@@ -302,6 +410,13 @@ export default function Registration() {
 		);
 		if (matchedCategoryId) {
 			setCategoryIds([matchedCategoryId]);
+		} else if (matchedImport?.categoryNames?.length) {
+			const importCategory = categoryOptions.find((option) =>
+				matchedImport.categoryNames.some((name) => name.toLowerCase() === option.name.toLowerCase()),
+			);
+			if (importCategory) {
+				setCategoryIds([importCategory.id]);
+			}
 		}
 	};
 
@@ -463,6 +578,16 @@ export default function Registration() {
 											<div className="truncate text-xs text-muted-foreground">
 												Org.nr {orgNumber.trim()} · CFAR {selectedCfarNr}
 											</div>
+											{claimableImport?.pendingClaimRequest ? (
+												<div className="mt-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground">
+													En ägarskapsansökan väntar redan på granskning för detta arbetsställe.
+												</div>
+											) : claimableImport ? (
+												<div className="mt-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-foreground">
+													Vi hittade en befintlig TooDoo-profil för detta arbetsställe. Skicka in en ansökan
+													så granskar vår admin att du representerar företaget innan du får manageråtkomst.
+												</div>
+											) : null}
 										</div>
 										<button
 											type="button"
@@ -470,6 +595,10 @@ export default function Registration() {
 												setSelectedCompanyName(null);
 												setBusinessName("");
 												setSelectedCfarNr(null);
+												setClaimableImport(null);
+												setManagerPassword("");
+												setManagerPasswordRepeat("");
+												setImportDescription("");
 												setManualEntry(false);
 											}}
 											className="shrink-0 text-xs font-semibold text-accent underline underline-offset-4 hover:opacity-90"
@@ -542,12 +671,25 @@ export default function Registration() {
 							/>
 							<div className="space-y-2">
 								<label className="ml-0.5 text-sm font-semibold text-muted-foreground">Lång beskrivning:</label>
-								<Textarea
-									ref={longDescRef}
-									placeholder="Berätta på en mer detaljerad nivå om ditt företag och vad ni gör"
-									onChange={() => handleTextareaResize(longDescRef)}
-									className="resize-none overflow-hidden bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
-								/>
+								{claimableImport ? (
+									<Textarea
+										ref={longDescRef}
+										value={importDescription}
+										onChange={(e) => {
+											setImportDescription(e.target.value);
+											handleTextareaResize(longDescRef);
+										}}
+										placeholder="Uppdatera beskrivningen om du vill"
+										className="resize-none overflow-hidden bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+									/>
+								) : (
+									<Textarea
+										ref={longDescRef}
+										placeholder="Berätta på en mer detaljerad nivå om ditt företag och vad ni gör"
+										onChange={() => handleTextareaResize(longDescRef)}
+										className="resize-none overflow-hidden bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:border-border focus-visible:ring-accent"
+									/>
+								)}
 							</div>
 							<div className="space-y-2">
 								<label htmlFor="website" className="ml-0.5 text-sm font-semibold text-muted-foreground">Hemsida:</label>
@@ -887,17 +1029,50 @@ export default function Registration() {
 
 						<button
 							type="button"
-							disabled={isSubmitting || !acceptedTerms}
+							disabled={
+								isSubmitting ||
+								!acceptedTerms ||
+								Boolean(claimableImport?.pendingClaimRequest)
+							}
 							onClick={handleRegister}
 							className="group no-hover-motion relative mt-4 mb-10 inline-flex h-11 w-full items-center justify-center overflow-hidden rounded-lg bg-accent text-accent-foreground font-semibold transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
 						>
-							<LoginArrowLabel>{isSubmitting ? "Registrerar" : "Registrera företag"}</LoginArrowLabel>
+							<LoginArrowLabel>
+								{isSubmitting
+									? claimableImport
+										? "Skickar ansökan"
+										: "Registrerar"
+									: claimableImport
+										? "Skicka ägarskapsansökan"
+										: "Registrera företag"}
+							</LoginArrowLabel>
 						</button>
 						</>
 						) : null}
 					</div>
 				</div>
 			</div>
+
+			{showClaimSubmittedPopup && (
+				<div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 px-4 backdrop-blur-sm">
+					<div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.55)]">
+						<p className="text-sm text-foreground leading-relaxed">
+							Din ägarskapsansökan har skickats till vår admin för granskning. Om den godkänns får du ett
+							mail med en länk för att skapa ditt managerkonto och ta över profilen.
+						</p>
+						<button
+							type="button"
+							onClick={() => {
+								setShowClaimSubmittedPopup(false);
+								navigate("/login");
+							}}
+							className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-lg bg-accent px-4 font-semibold text-accent-foreground transition-colors hover:bg-accent/90"
+						>
+							Tillbaka till logg in
+						</button>
+					</div>
+				</div>
+			)}
 
 			{showSuccessPopup && (
 				<div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 px-4 backdrop-blur-sm">

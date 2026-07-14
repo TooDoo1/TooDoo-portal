@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Building2, ClipboardList, LayoutDashboard, LogOut, ReceiptText, ScrollText, ShieldCheck, Image as ImageIcon } from "lucide-react";
+import { Building2, ClipboardList, LayoutDashboard, LogOut, ReceiptText, ScrollText, ShieldCheck, Image as ImageIcon, UserCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ADMIN_PENDING_COUNTS_REFRESH } from "@/lib/adminPendingCounts";
-import { clearAuthStorage, getAuthEmail, getAuthRole, listBusinessImageRequests, listBusinesses } from "@/lib/api";
+import { clearAuthStorage, getAuthEmail, getAuthRole, listBusinessClaimRequests, listBusinessImageRequests, listBusinesses } from "@/lib/api";
 import {
   Sidebar,
   SidebarContent,
@@ -39,6 +39,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { title: "Företag", url: "/companies", icon: Building2 },
       { title: "Väntande", url: "/pending", icon: ClipboardList },
+      { title: "Ägarskap", url: "/admin/claim-requests", icon: UserCheck },
       { title: "Kvalitets kontroll", url: "/admin/quality-control", icon: ImageIcon },
       { title: "Fakturor", url: "/admin/invoices", icon: ReceiptText },
     ],
@@ -69,6 +70,7 @@ export function AdminSidebar() {
   const [role, setRole] = useState<string | null>(null);
   const [pendingCompanyCount, setPendingCompanyCount] = useState(0);
   const [pendingImageCount, setPendingImageCount] = useState(0);
+  const [pendingClaimRequestCount, setPendingClaimRequestCount] = useState(0);
   const monochrome = useMonochrome();
 
   useEffect(() => {
@@ -81,18 +83,21 @@ export function AdminSidebar() {
 
     const loadCounts = async () => {
       try {
-        const [pendingBusinesses, pendingImages] = await Promise.all([
+        const [pendingBusinesses, pendingImages, pendingClaims] = await Promise.all([
           listBusinesses("PENDING").catch(() => []),
           listBusinessImageRequests({ status: "PENDING" }).catch(() => []),
+          listBusinessClaimRequests("PENDING").catch(() => []),
         ]);
 
         if (cancelled) return;
         setPendingCompanyCount(Array.isArray(pendingBusinesses) ? pendingBusinesses.length : 0);
         setPendingImageCount(Array.isArray(pendingImages) ? pendingImages.length : 0);
+        setPendingClaimRequestCount(Array.isArray(pendingClaims) ? pendingClaims.length : 0);
       } catch {
         if (!cancelled) {
           setPendingCompanyCount(0);
           setPendingImageCount(0);
+          setPendingClaimRequestCount(0);
         }
       }
     };
@@ -170,7 +175,14 @@ export function AdminSidebar() {
               <SidebarMenu className="gap-0.5">
                 {group.items.map((item) => {
                   const active = location.pathname === item.url;
-                  const count = item.url === "/pending" ? pendingCompanyCount : item.url === "/admin/quality-control" ? pendingImageCount : 0;
+                  const count =
+                    item.url === "/pending"
+                      ? pendingCompanyCount
+                      : item.url === "/admin/quality-control"
+                        ? pendingImageCount
+                        : item.url === "/admin/claim-requests"
+                          ? pendingClaimRequestCount
+                          : 0;
                   const showCount = !collapsed && count > 0;
                   return (
                     <SidebarMenuItem key={item.title}>

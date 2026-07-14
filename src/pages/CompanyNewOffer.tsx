@@ -661,7 +661,11 @@ export default function CompanyNewOffer() {
       navigate(offersBackPath);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte skapa erbjudandet.";
-      toast.error(message);
+      if (message.toLowerCase().includes("claimed")) {
+        toast.error("Företagsprofilen måste tas i ägarskap innan du kan publicera erbjudanden.");
+      } else {
+        toast.error(message);
+      }
     } finally {
       setIsSubmitting(false);
     }
