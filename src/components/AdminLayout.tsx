@@ -30,6 +30,7 @@ function formatPageTitle(pathname: string, isCompanyRoute: boolean) {
   if (pathname === "/admin") return "Dashboard";
   if (pathname === "/companies") return "Företag";
   if (pathname === "/pending") return "Väntande företag";
+  if (pathname === "/admin/claim-requests") return "Ägarskapsansökningar";
   if (pathname === "/admin/logs") return "Loggar";
   if (pathname === "/admin/invoices") return "Fakturor";
   if (pathname.startsWith("/category/")) return "Kategori";

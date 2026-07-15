@@ -7,12 +7,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { StatusBadge } from "@/components/StatusBadge";
+import { BusinessImportBadges } from "@/components/BusinessImportBadges";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { CategoryBadges } from "@/components/CategoryBadges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { ManagerInviteDialog } from "@/components/ManagerInviteDialog";
-import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness } from "@/lib/api";
+import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
 import { toast } from "sonner";
@@ -28,7 +29,14 @@ type Company = {
   categoryNames: string[];
   hasManager: boolean;
   managerEmail?: string;
+  source?: BusinessSource;
+  isClaimed?: boolean;
+  cfarNr?: string | null;
+  googlePlaceId?: string | null;
+  importMetadata?: BusinessImportMetadata | null;
 };
+
+type SourceFilter = "all" | "imported" | "self_registered" | "unclaimed_imports";
 
 export default function Companies() {
   const navigate = useNavigate();
@@ -36,6 +44,7 @@ export default function Companies() {
   const [categories, setCategories] = useState<string[]>(["Alla"]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
   const [detailTarget, setDetailTarget] = useState<Company | null>(null);
   const [inviteTarget, setInviteTarget] = useState<Company | null>(null);
@@ -60,6 +69,11 @@ export default function Companies() {
             category: getPrimaryCategoryName(business),
             hasManager: Boolean(business.manager),
             managerEmail: business.manager?.email ?? undefined,
+            source: business.source,
+            isClaimed: business.isClaimed,
+            cfarNr: business.cfarNr,
+            googlePlaceId: business.googlePlaceId,
+            importMetadata: business.importMetadata,
           })),
         );
         setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
@@ -75,8 +89,13 @@ export default function Companies() {
   const filtered = useMemo(() => companies.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
     const matchCategory = category === "Alla" || matchesCategoryName(c.categoryNames, category);
-    return matchSearch && matchCategory;
-  }), [companies, search, category]);
+    const matchSource =
+      sourceFilter === "all" ||
+      (sourceFilter === "imported" && c.source === "IMPORTED") ||
+      (sourceFilter === "self_registered" && c.source !== "IMPORTED") ||
+      (sourceFilter === "unclaimed_imports" && c.source === "IMPORTED" && !c.isClaimed);
+    return matchSearch && matchCategory && matchSource;
+  }), [companies, search, category, sourceFilter]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -176,6 +195,17 @@ export default function Companies() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={sourceFilter} onValueChange={(value) => setSourceFilter(value as SourceFilter)}>
+          <SelectTrigger className="w-full sm:w-[220px] bg-card border-border text-foreground">
+            <SelectValue placeholder="Ursprung" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover border-border">
+            <SelectItem value="all">Alla ursprung</SelectItem>
+            <SelectItem value="imported">Importerade</SelectItem>
+            <SelectItem value="self_registered">Självregistrerade</SelectItem>
+            <SelectItem value="unclaimed_imports">Ej ägda importer</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {filtered.length === 0 ? (
@@ -197,6 +227,7 @@ export default function Companies() {
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-foreground truncate" title={company.name}>{company.name}</p>
                       <p className="text-sm text-muted-foreground truncate" title={company.email}>{company.email}</p>
+                      <BusinessImportBadges business={company} className="mt-2" />
                     </div>
                   </div>
                   <div className="shrink-0">

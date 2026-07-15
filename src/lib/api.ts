@@ -374,6 +374,8 @@ export type UpdateBusinessRequest = {
 
 export type BusinessStatus = "PENDING" | "APPROVED" | "REJECTED";
 
+export type BusinessSource = "SELF_REGISTERED" | "IMPORTED";
+
 export type BusinessManager = {
   id: string;
   email?: string | null;
@@ -381,12 +383,90 @@ export type BusinessManager = {
   lastName?: string | null;
 };
 
+export type BusinessImportMetadata = {
+  scb?: Record<string, unknown>;
+  importedAt?: string;
+  google?: {
+    placeId?: string;
+    score?: number;
+    scoreBreakdown?: Record<string, number>;
+    query?: string;
+    candidateName?: string;
+    candidateAddress?: string;
+    enrichedAt?: string;
+    duplicatePlaceId?: boolean;
+    primaryBusinessId?: string;
+  };
+};
+
+export type ClaimableImport = {
+  id: string;
+  name: string;
+  description: string;
+  address: string;
+  city: string;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  website: string | null;
+  openingHours: Record<string, unknown> | null;
+  cfarNr: string;
+  orgNr: string | null;
+  categoryNames: string[];
+  pendingClaimRequest?: {
+    id: string;
+    applicantEmail: string;
+    createdAt: string;
+  } | null;
+};
+
+export type SubmitBusinessClaimRequest = {
+  cfarNr: string;
+  orgNr: string;
+  applicantEmail: string;
+  contactEmail: string;
+  contactPhone: string;
+  name?: string;
+  description?: string;
+  website?: string | null;
+  address?: string;
+  city?: string;
+  openingHours?: Record<string, unknown>;
+};
+
+export type SubmitBusinessClaimResponse = {
+  requestId: string;
+  businessId: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+};
+
+export type BusinessClaimRequest = {
+  id: string;
+  businessId: string;
+  businessName: string;
+  businessCity: string;
+  applicantEmail: string;
+  orgNr: string;
+  cfarNr: string;
+  proposedName: string | null;
+  proposedDescription: string | null;
+  proposedContactEmail: string;
+  proposedContactPhone: string;
+  proposedWebsite: string | null;
+  proposedAddress: string | null;
+  proposedCity: string | null;
+  proposedOpeningHours: Record<string, unknown> | null;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+};
+
 export type Business = {
   id: string;
   name: string;
   description: string;
-  contactEmail: string;
-  contactPhone: string;
+  contactEmail: string | null;
+  contactPhone: string | null;
   website?: string | null;
   address: string;
   city: string;
@@ -400,6 +480,15 @@ export type Business = {
   categories?: Array<{ id?: string; name?: string | null; icon?: string | null }>;
   manager?: BusinessManager | null;
   status?: BusinessStatus;
+  source?: BusinessSource;
+  isClaimed?: boolean;
+  orgNr?: string | null;
+  cfarNr?: string | null;
+  sniCode?: string | null;
+  googlePlaceId?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  importMetadata?: BusinessImportMetadata | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -1027,6 +1116,42 @@ export async function createBusiness(body: CreateBusinessRequest) {
   });
 }
 
+export async function lookupClaimableImport(cfarNr: string) {
+  return apiRequest<ClaimableImport>(
+    `/business/import-lookup?cfarNr=${encodeURIComponent(cfarNr)}`,
+    { method: "GET" },
+  );
+}
+
+export async function submitBusinessClaimRequest(businessId: string, body: SubmitBusinessClaimRequest) {
+  return apiRequest<SubmitBusinessClaimResponse>(
+    `/business/${encodeURIComponent(businessId)}/claim`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function listBusinessClaimRequests(status?: "PENDING" | "APPROVED" | "REJECTED") {
+  const query = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiRequest<BusinessClaimRequest[]>(`/business/claim-requests${query}`, { method: "GET" }, true);
+}
+
+export async function reviewBusinessClaimRequest(
+  requestId: string,
+  body: { status: "APPROVED" | "REJECTED"; note?: string },
+) {
+  return apiRequest<BusinessClaimRequest>(
+    `/business/claim-requests/${encodeURIComponent(requestId)}/review`,
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
+    },
+    true,
+  );
+}
+
 export async function submitBusinessImageRequest(body: { imageSourceType: ImageSourceType; imageUrl?: string; imageFile?: File }) {
   const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
   if (!wantsUpload) {
@@ -1077,8 +1202,8 @@ export async function listBusinesses(
   return apiRequest<Business[]>(`/business${query}`, { method: "GET" }, withAuth);
 }
 
-export async function getBusinessById(id: string) {
-  return apiRequest<Business>(`/business/${encodeURIComponent(id)}`, { method: "GET" });
+export async function getBusinessById(id: string, withAuth = false) {
+  return apiRequest<Business>(`/business/${encodeURIComponent(id)}`, { method: "GET" }, withAuth);
 }
 
 export async function updateBusinessStatus(id: string, status: BusinessStatus) {
