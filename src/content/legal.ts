@@ -1,6 +1,6 @@
-/** Served from public/docs/TooDoo_Launch_Legal_Pack_v1/ — Launch Legal Pack v1. */
+/** Served from public/docs/TooDoo_Legal_Pack_v2_0_Launch_Candidate/ — Legal Pack v2.0 Launch Candidate. */
 
-const legalPackBase = "/docs/TooDoo_Launch_Legal_Pack_v1";
+const legalPackBase = "/docs/TooDoo_Legal_Pack_v2_0_Launch_Candidate";
 
 export const userTermsPdfUrl = `${legalPackBase}/01_Anvandarvillkor_Privatpersoner.pdf`;
 

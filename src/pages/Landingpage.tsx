@@ -794,27 +794,6 @@ export default function LandingPage() {
 								/>
 							))}
 						</div>
-
-						{/* floating proof cards */}
-						<div className="absolute -left-6 top-28 hidden animate-float-soft items-center gap-2.5 rounded-2xl border border-border bg-card/90 p-3 shadow-xl backdrop-blur sm:flex">
-							<span className="flex h-9 w-9 items-center justify-center rounded-xl bg-success/15 text-success">
-								<Zap className="h-4 w-4" />
-							</span>
-							<div className="leading-tight">
-								<p className="text-xs font-bold">Claimad!</p>
-								<p className="text-[10px] text-muted-foreground">Sparade 120 kr</p>
-							</div>
-						</div>
-
-						<div className="absolute -right-4 bottom-24 hidden animate-float-soft items-center gap-2.5 rounded-2xl border border-border bg-card/90 p-3 shadow-xl backdrop-blur [animation-delay:1.5s] sm:flex">
-							<span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
-								<Sparkles className="h-4 w-4" />
-							</span>
-							<div className="leading-tight">
-								<p className="text-xs font-bold">12 nya deals</p>
-								<p className="text-[10px] text-muted-foreground">nära dig idag</p>
-							</div>
-						</div>
 					</div>
 				</div>
 			</section>
