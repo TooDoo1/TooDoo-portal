@@ -55,8 +55,11 @@ Add a sidebar item under **Hantera**, e.g.:
 **Actions per row:**
 
 - View details (reuse / extend `CompanyDetailsDialog` — show SCB fields: name, address, city, org.nr, CFAR, SNI, category, import metadata)
+- **Redigera** → `/companies/:id/edit?from=imported` (same admin edit page as Företag: update fields via `PUT /business/:id`, upload/set image via gallery + `imageAssetId`)
 - **Godkänn** → `updateBusinessStatus(id, "APPROVED")` → leaves queue; appears under Företag when live
 - **Neka** → `updateBusinessStatus(id, "REJECTED")` (or delete if product prefers hard remove)
+
+Contact email/phone are often missing on SCB imports — treat them as optional during audit edit. First uploaded gallery image becomes primary if none is set.
 
 **Do not** auto-send manager invite on approve for imports (often no email; ownership is via claim). Väntande can keep invite-on-approve for self-registered.
 

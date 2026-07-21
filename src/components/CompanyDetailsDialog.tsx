@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Calendar, Clock, Globe, Loader2, Mail, MapPin, Phone, Tag, Tags } from "lucide-react";
+import { Calendar, Clock, Globe, Loader2, Mail, MapPin, Pencil, Phone, Tag, Tags } from "lucide-react";
 import {
   Dialog,
   DialogClose,
@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
 import { BusinessImportBadges } from "@/components/BusinessImportBadges";
@@ -155,6 +156,8 @@ type CompanyDetailsDialogProps = {
   companyName?: string;
   category?: string;
   initialBusiness?: Business | null;
+  /** When set, shows a Redigera button that navigates to this path. */
+  editHref?: string | null;
 };
 
 function DetailRow({
@@ -184,6 +187,7 @@ export function CompanyDetailsDialog({
   companyName,
   category,
   initialBusiness = null,
+  editHref = null,
 }: CompanyDetailsDialogProps) {
   const [business, setBusiness] = useState<Business | null>(null);
   const [offers, setOffers] = useState<CompanyOffer[]>([]);
@@ -292,10 +296,22 @@ export function CompanyDetailsDialog({
                 <CompanyAvatar name={displayName} />
               )}
               <div className="min-w-0 flex-1">
-                <p className="font-bold text-lg text-foreground">{displayName}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {business && <StatusBadge status={mapStatus(business.status)} />}
-                  {business ? <BusinessImportBadges business={business} /> : null}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-bold text-lg text-foreground">{displayName}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {business && <StatusBadge status={mapStatus(business.status)} />}
+                      {business ? <BusinessImportBadges business={business} /> : null}
+                    </div>
+                  </div>
+                  {editHref && companyId ? (
+                    <Button asChild size="sm" variant="outline" className="border-border shrink-0">
+                      <Link to={editHref} onClick={() => onOpenChange(false)}>
+                        <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                        Redigera
+                      </Link>
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </div>

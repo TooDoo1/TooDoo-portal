@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, X, Search, Filter, Eye, Download } from "lucide-react";
+import { Check, X, Search, Filter, Eye, Download, Pencil } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ type ImportedCompany = {
 };
 
 export default function AdminImportedBusinesses() {
+  const navigate = useNavigate();
   const [companies, setCompanies] = useState<ImportedCompany[]>([]);
   const [categories, setCategories] = useState<string[]>(["Alla"]);
   const [search, setSearch] = useState("");
@@ -139,7 +141,7 @@ export default function AdminImportedBusinesses() {
       <div>
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Importerade företag</h1>
         <p className="text-muted-foreground mt-1">
-          Företag hämtade från SCB. Godkänn för att visa dem i appen, eller neka om de inte hör hemma här.
+          Företag hämtade från SCB. Redigera uppgifter och bild innan du godkänner, eller neka om de inte hör hemma här.
         </p>
       </div>
 
@@ -224,6 +226,15 @@ export default function AdminImportedBusinesses() {
                     </Button>
                     <Button
                       size="sm"
+                      variant="outline"
+                      className="flex-1 sm:flex-none border-border"
+                      onClick={() => navigate(`/companies/${company.id}/edit?from=imported`)}
+                    >
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                      Redigera
+                    </Button>
+                    <Button
+                      size="sm"
                       className="flex-1 sm:flex-none bg-success hover:bg-success/90 text-success-foreground"
                       onClick={() => setDialogState({ company, action: "approve" })}
                     >
@@ -254,6 +265,7 @@ export default function AdminImportedBusinesses() {
         companyName={detailTarget?.name}
         category={detailTarget?.category}
         initialBusiness={detailTarget as Business}
+        editHref={detailTarget ? `/companies/${detailTarget.id}/edit?from=imported` : null}
       />
 
       <ConfirmDialog

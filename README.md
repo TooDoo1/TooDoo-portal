@@ -1,6 +1,6 @@
 # TooDoo Portal
 
-Web portal for TooDoo admins and business managers. It is the operational back-office for the TooDoo platform — admins vet and manage companies (including bulk-imported workplaces and ownership-claim applications), and business managers run their own listing (offers, events, invoices, workers).
+Web portal for TooDoo admins and business managers. It is the operational back-office for the TooDoo platform — admins vet self-registered companies and SCB bulk imports (edit details/images before approval), review ownership-claim applications, and business managers run their own listing (offers, events, invoices, workers).
 
 Built with **React 18**, **Vite 5**, **TypeScript**, **React Router 6**, **TanStack Query**, **Tailwind CSS**, and **shadcn/ui** (Radix primitives).
 
@@ -89,19 +89,24 @@ src/
   main.tsx           App entry point
   index.css          Tailwind layers, theme CSS variables, self-hosted @font-face, keyframes
   components/        Feature components (sidebars, dialogs, cards, badges, ...)
-    BusinessImportBadges.tsx   Origin/enrichment badges for imported companies
+    BusinessImportBadges.tsx   Origin badges for imported companies
     ImportedBusinessBanner.tsx Unclaimed-import warning on the manager dashboard
+    CompanyDetailsDialog.tsx   Read-only company details (supports edit link into AdminCompanyEdit)
     ui/              shadcn/ui primitives (button, dialog, select, table, ...)
   content/           Static content (e.g. legal.ts — privacy/terms/cookie copy)
   hooks/             Custom hooks (useRealtime, useMonochrome, use-mobile, use-toast, ...)
   lib/               API client and utilities
     api.ts           Typed fetch wrapper, auth-token storage, all endpoint functions & DTO types
-    businessImport.ts  Labels/helpers for imported businesses (enrichment status, Google Maps links)
+    businessImport.ts  Labels/helpers for imported businesses (Maps links, import metadata)
     adminAccess.ts   Admin gating helpers
+    adminPendingCounts.ts  Sidebar badges for Väntande / Importerade / Ägarskap
     monochrome.ts    Light/monochrome theme application
     ...
   pages/             Route-level components (Landingpage, LoggIn, Dashboard, Company*/Admin*, ...)
-    AdminClaimRequests.tsx   Admin queue for imported-business ownership claims
+    AdminImportedBusinesses.tsx  Admin queue for pending SCB imports (`/admin/imported`)
+    AdminClaimRequests.tsx       Admin queue for imported-business ownership claims
+    AdminCompanyEdit.tsx         Edit company details, gallery images, offers, events
+    Pending.tsx                  Self-registered pending applications only
   test/              Vitest + Playwright tests
 public/              Static assets served as-is
   fonts/             Self-hosted Inter (inter-latin.woff2)
@@ -116,7 +121,7 @@ public/              Static assets served as-is
 Routes are declared in `src/App.tsx`. All routes except the landing page are lazy-loaded; the landing page is imported statically for a faster first paint. Protected routes are wrapped in `ProtectedRoute` with an allowed-roles list and rendered inside `AdminLayout`.
 
 - **Public**: `/` (landing), `/login`, `/reset-password`, `/registration`, `/manager-registration`, `/manager/onboard`, `/invite/manager`, `/worker/onboard`, `/invite/worker`
-- **Admin** (`ADMIN`): `/admin`, `/admin/logs`, `/admin/invoices`, `/admin/quality-control`, `/admin/claim-requests`, `/companies`, `/companies/:businessId/edit`, `/companies/:businessId/offers/new`, `/companies/:businessId/events/new`, `/pending`, `/category/:name`
+- **Admin** (`ADMIN`): `/admin`, `/admin/logs`, `/admin/invoices`, `/admin/quality-control`, `/admin/claim-requests`, `/admin/imported`, `/companies`, `/companies/:businessId/edit`, `/companies/:businessId/offers/new`, `/companies/:businessId/events/new`, `/pending`, `/category/:name`
 - **Manager** (`MANAGER`): `/company`, `/company/offers`, `/company/offers/new`, `/company/events`, `/company/events/new`, `/company/verification`, `/company/invoices`, `/company/account`, `/company/image-request`, `/company/support`, `/company/workers/new`
 
 Log in via `/login`, which calls `POST /user/login/portal` on the backend (admin and manager accounts only).
@@ -137,7 +142,7 @@ Authenticated requests attach `Authorization: Bearer <token>`. On logout or inva
 - `apiRequest` / `apiRequestFormData` — typed fetch wrappers that set headers, attach auth, parse JSON, and normalize errors.
 - `ApiError` — error type carrying `details` (validation field errors) and `reason` codes; messages are suffixed with `[status method path]` for actionable UI errors.
 - `resolveImageUrl` — resolves relative backend image paths against `VITE_API_URL` (passes through absolute/`data:`/`blob:` URLs).
-- Endpoint functions and DTO types for users, businesses, orders/offers, business events, order presets, invoices, images, categories, logs, claims/redemptions, SCB company/workplace lookups, and **import ownership claims** (`lookupClaimableImport`, `submitBusinessClaimRequest`, `listBusinessClaimRequests`, `reviewBusinessClaimRequest`).
+- Endpoint functions and DTO types for users, businesses (including `listBusinesses(..., source?)` for admin queues), orders/offers, business events, order presets, invoices, images, categories, logs, claims/redemptions, SCB company/workplace lookups, and **import ownership claims** (`lookupClaimableImport`, `submitBusinessClaimRequest`, `listBusinessClaimRequests`, `reviewBusinessClaimRequest`).
 
 ## Feature areas
 
@@ -145,12 +150,14 @@ Authenticated requests attach `Authorization: Bearer <token>`. On logout or inva
 
 Public registration at `/registration` uses SCB workplace lookup (`GET /scb/workplaces`) to pre-fill company details.
 
-When the selected workplace (`cfarNr`) already exists as an **enriched import** in TooDoo:
+When the selected workplace (`cfarNr`) already exists as an **approved** import in TooDoo:
 
 1. The portal calls `GET /business/import-lookup?cfarNr=...`.
 2. If claimable, the user submits an **ownership application** via `POST /business/:id/claim` (no password on this path).
 3. A success dialog explains that an admin must review the request before access is granted.
 4. If a `PENDING` request already exists, the form is disabled to prevent duplicate applications.
+
+When the CFAR matches a pending (not yet approved) import, registration shows that the listing is awaiting admin review and is not claimable yet.
 
 When no import exists, the flow continues as before: submit `POST /business` (`PENDING`) and wait for admin approval at `/pending`.
 
@@ -160,20 +167,25 @@ After **claim approval**, the backend sends the standard manager invite email. T
 
 From **Företag** (`/companies`), admins can:
 
-- View company details with **import badges** (imported vs self-registered, enrichment status, claimed vs unclaimed)
+- View company details with **import badges** (imported vs self-registered, claimed vs unclaimed)
 - Filter the list by origin (`imported` / `self-registered`) and claim state (`unclaimed` imports)
-- Open **import metadata** in the company details dialog (`orgNr`, `cfarNr`, Google enrichment, Maps link)
+- Open **import metadata** in the company details dialog (`orgNr`, `cfarNr`, Maps link)
 - **Edit** a company at `/companies/:businessId/edit`
-  - **Uppgifter** — update name, contact info, address, description, categories
-  - **Bilder** — upload or link images directly to the company gallery, set profile image, remove uploaded images
+  - **Uppgifter** — update name, contact info, address, description, categories (email/phone optional for imports)
+  - **Bilder** — upload or link images directly to the company gallery, set profile image, remove uploaded images (first upload becomes primary when none is set)
   - **Erbjudanden** — list, create (`/companies/:businessId/offers/new`), and delete offers
   - **Event** — list, create (`/companies/:businessId/events/new`), and delete events
 - Invite a manager (when none is assigned)
 - Delete a company
 
-Pending **self-registrations** are reviewed at `/pending` (approve/reject + optional manager invite).
+Pending **self-registrations** are reviewed at **Väntande** (`/pending`) — `source = SELF_REGISTERED` only (approve/reject + optional manager invite).
 
-**Imported ownership claims** are reviewed at **Ägarskap** (`/admin/claim-requests`): approve applies the applicant's proposed contact/profile fields, marks the business claimed, and triggers the manager invite email; reject leaves the import unclaimed. The admin sidebar shows a pending-count badge.
+Pending **SCB imports** are reviewed at **Importerade** (`/admin/imported`) — `status = PENDING` and `source = IMPORTED`:
+
+- View details, **edit** info/images (`/companies/:id/edit?from=imported`), then **approve** (becomes live in the app, no manager invite) or **reject**
+- Search/filter by name, city, category, org.nr, CFAR, SNI
+
+**Imported ownership claims** are reviewed at **Ägarskap** (`/admin/claim-requests`): approve applies the applicant's proposed contact/profile fields, marks the business claimed, and triggers the manager invite email; reject leaves the import unclaimed. The admin sidebar shows pending-count badges for Väntande, Importerade, and Ägarskap.
 
 Admins also have logs (`/admin/logs`), invoices (`/admin/invoices`), and quality control (`/admin/quality-control`).
 
@@ -229,5 +241,7 @@ Set `VITE_API_URL` (and optionally `VITE_PORTAL_URL`) in the host's environment 
 
 ## Related docs
 
-- Backend API details (auth rules, `businessId` for admin create endpoints, image gallery routes, import/claim endpoints, CLI import pipeline): [TooDoo-Backend/README.md](../TooDoo-Backend/README.md)
-- Bulk import design spec (SCB → enrich → cleanup → claim): [TooDoo-Backend/docs/business-bulk-import-implementation.md](../TooDoo-Backend/docs/business-bulk-import-implementation.md)
+- Backend API details (auth rules, `businessId` for admin create endpoints, image gallery routes, import/claim endpoints, CLI import pipeline, personalized feeds): [TooDoo-Backend/README.md](../TooDoo-Backend/README.md)
+- Bulk import revamp (SCB → `PENDING` → admin review; no Google in pipeline): [TooDoo-Backend/docs/bulk-import-revamp.md](../TooDoo-Backend/docs/bulk-import-revamp.md)
+- Portal import-audit UX: [docs/bulk-import-revamp.md](./docs/bulk-import-revamp.md)
+- Older enrich/cleanup design notes: [TooDoo-Backend/docs/business-bulk-import-implementation.md](../TooDoo-Backend/docs/business-bulk-import-implementation.md)

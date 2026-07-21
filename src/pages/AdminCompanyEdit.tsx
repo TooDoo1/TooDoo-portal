@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, CalendarDays, ImageIcon, Link2, Loader2, Plus, Save, Star, Tag, Trash2, Upload } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -109,11 +109,14 @@ function normalizeExternalUrl(value: string) {
 export default function AdminCompanyEdit() {
   const { businessId = "" } = useParams<{ businessId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const backPath = searchParams.get("from") === "imported" ? "/admin/imported" : "/companies";
   const [form, setForm] = useState<CompanyForm>(emptyForm);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [originalCategoryIds, setOriginalCategoryIds] = useState<string[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [status, setStatus] = useState<BusinessStatus | undefined>();
+  const [isImported, setIsImported] = useState(false);
   const [offers, setOffers] = useState<Order[]>([]);
   const [events, setEvents] = useState<BusinessEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,7 +150,7 @@ export default function AdminCompanyEdit() {
     setLoading(true);
     try {
       const [business, categories, orderRows, eventRows, gallery] = await Promise.all([
-        getBusinessById(businessId),
+        getBusinessById(businessId, true),
         listCategories(),
         listOrders(undefined, businessId),
         listBusinessEvents({ businessId }),
@@ -157,6 +160,7 @@ export default function AdminCompanyEdit() {
       const resolvedCategoryIds = getBusinessCategoryIds(business);
       setForm(businessToForm(business));
       setStatus(business.status);
+      setIsImported(business.source === "IMPORTED");
       setCategoryIds(resolvedCategoryIds);
       setOriginalCategoryIds(resolvedCategoryIds);
       setCategoryOptions(categories.map((cat) => ({ id: cat.id, name: cat.name })));
@@ -193,8 +197,8 @@ export default function AdminCompanyEdit() {
     const trimmedCity = form.city.trim();
     const trimmedDescription = form.description.trim();
 
-    if (!trimmedName || !trimmedEmail || !trimmedPhone || !trimmedAddress || !trimmedCity || !trimmedDescription) {
-      toast.error("Fyll i alla obligatoriska fält.");
+    if (!trimmedName || !trimmedAddress || !trimmedCity || !trimmedDescription) {
+      toast.error("Fyll i namn, adress, ort och beskrivning.");
       return;
     }
     if (categoryIds.length === 0) {
@@ -207,8 +211,8 @@ export default function AdminCompanyEdit() {
       const updated = await updateBusiness(businessId, {
         name: trimmedName,
         description: trimmedDescription,
-        contactEmail: trimmedEmail,
-        contactPhone: trimmedPhone,
+        ...(trimmedEmail ? { contactEmail: trimmedEmail } : {}),
+        ...(trimmedPhone ? { contactPhone: trimmedPhone } : {}),
         website: form.website.trim() ? form.website.trim() : null,
         address: trimmedAddress,
         city: trimmedCity,
@@ -268,13 +272,13 @@ export default function AdminCompanyEdit() {
 
     setIsAddingImage(true);
     try {
+      let created: ImageGalleryItem;
       if (imageMode === "upload") {
         if (!imageFile) {
           toast.error("Välj en bildfil först.");
           return;
         }
-        const created = await addBusinessImage(businessId, { imageSourceType: "UPLOADED", imageFile });
-        setBusinessImages((prev) => [created, ...prev]);
+        created = await addBusinessImage(businessId, { imageSourceType: "UPLOADED", imageFile });
       } else {
         let normalizedUrl: string;
         try {
@@ -283,14 +287,22 @@ export default function AdminCompanyEdit() {
           toast.error("Bildlänken måste vara en giltig http- eller https-URL.");
           return;
         }
-        const created = await addBusinessImage(businessId, {
+        created = await addBusinessImage(businessId, {
           imageSourceType: "EXTERNAL_URL",
           imageUrl: normalizedUrl,
         });
-        setBusinessImages((prev) => [created, ...prev]);
       }
 
-      toast.success("Bilden har lagts till i företagets galleri.");
+      setBusinessImages((prev) => [created, ...prev]);
+
+      if (!primaryImageAssetId) {
+        const updated = await updateBusiness(businessId, { imageAssetId: created.id });
+        setPrimaryImageAssetId(created.id);
+        setPrimaryImageUrl(getBusinessPrimaryImageUrl(updated));
+        toast.success("Bilden har lagts till och satts som profilbild.");
+      } else {
+        toast.success("Bilden har lagts till i företagets galleri.");
+      }
       resetImageForm();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte lägga till bilden.";
@@ -404,7 +416,7 @@ export default function AdminCompanyEdit() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <Button variant="outline" size="icon" className="shrink-0 border-border" onClick={() => navigate("/companies")}>
+          <Button variant="outline" size="icon" className="shrink-0 border-border" onClick={() => navigate(backPath)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -421,7 +433,11 @@ export default function AdminCompanyEdit() {
                 </div>
               </div>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">Hantera företagsinformation, bilder, erbjudanden och event.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {isImported
+                ? "Granska och komplettera importerade uppgifter, ladda upp bild, sedan godkänn från Importerade-kön."
+                : "Hantera företagsinformation, bilder, erbjudanden och event."}
+            </p>
           </div>
         </div>
       </div>
@@ -447,11 +463,15 @@ export default function AdminCompanyEdit() {
                     <Input id="company-name" value={form.name} onChange={(e) => updateField("name", e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground" htmlFor="company-email">E-post</label>
+                    <label className="text-sm font-medium text-foreground" htmlFor="company-email">
+                      E-post{isImported ? " (valfritt)" : ""}
+                    </label>
                     <Input id="company-email" type="email" value={form.contactEmail} onChange={(e) => updateField("contactEmail", e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground" htmlFor="company-phone">Telefon</label>
+                    <label className="text-sm font-medium text-foreground" htmlFor="company-phone">
+                      Telefon{isImported ? " (valfritt)" : ""}
+                    </label>
                     <Input id="company-phone" value={form.contactPhone} onChange={(e) => updateField("contactPhone", e.target.value)} />
                   </div>
                   <div className="space-y-2">
