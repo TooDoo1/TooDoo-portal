@@ -21,6 +21,7 @@ const Companies = lazy(() => import("./pages/Companies"));
 const AdminCompanyEdit = lazy(() => import("./pages/AdminCompanyEdit"));
 const Pending = lazy(() => import("./pages/Pending"));
 const AdminClaimRequests = lazy(() => import("./pages/AdminClaimRequests"));
+const AdminImportedBusinesses = lazy(() => import("./pages/AdminImportedBusinesses"));
 const AdminLogs = lazy(() => import("./pages/AdminLogs"));
 const AdminInvoices = lazy(() => import("./pages/AdminInvoices"));
 const AdminQualityControl = lazy(() => import("./pages/AdminQualityControl"));
@@ -136,6 +137,7 @@ const App = () => {
                   <Route path="/companies/:businessId/offers/new" element={<CompanyNewOffer />} />
                   <Route path="/companies/:businessId/events/new" element={<CompanyNewEvent />} />
                   <Route path="/pending" element={<Pending />} />
+                  <Route path="/admin/imported" element={<AdminImportedBusinesses />} />
                   <Route path="/admin/claim-requests" element={<AdminClaimRequests />} />
                   <Route path="/category/:name" element={<CategoryPage />} />
                 </Route>

@@ -27,7 +27,7 @@ export function getBusinessClaimLabel(business: Pick<Business, "source" | "isCla
 
 export function getBusinessEnrichmentLabel(business: Pick<Business, "source" | "googlePlaceId" | "importMetadata">): string | null {
   if (business.source !== "IMPORTED") return null;
-  return isBusinessImportEnriched(business) ? "Google-enrichat" : "Ej enrichat";
+  return isBusinessImportEnriched(business) ? "Google-enrichat" : null;
 }
 
 export function buildGoogleMapsUrl(business: Pick<Business, "latitude" | "longitude" | "address" | "city">): string | null {

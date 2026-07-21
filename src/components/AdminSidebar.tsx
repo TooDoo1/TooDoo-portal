@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, ClipboardList, LayoutDashboard, LogOut, ReceiptText, ScrollText, ShieldCheck, Image as ImageIcon, UserCheck } from "lucide-react";
+import { Building2, ClipboardList, Download, LayoutDashboard, LogOut, ReceiptText, ScrollText, ShieldCheck, Image as ImageIcon, UserCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ADMIN_PENDING_COUNTS_REFRESH } from "@/lib/adminPendingCounts";
@@ -39,6 +39,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { title: "Företag", url: "/companies", icon: Building2 },
       { title: "Väntande", url: "/pending", icon: ClipboardList },
+      { title: "Importerade", url: "/admin/imported", icon: Download },
       { title: "Ägarskap", url: "/admin/claim-requests", icon: UserCheck },
       { title: "Kvalitets kontroll", url: "/admin/quality-control", icon: ImageIcon },
       { title: "Fakturor", url: "/admin/invoices", icon: ReceiptText },
@@ -69,6 +70,7 @@ export function AdminSidebar() {
   const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [pendingCompanyCount, setPendingCompanyCount] = useState(0);
+  const [pendingImportedCount, setPendingImportedCount] = useState(0);
   const [pendingImageCount, setPendingImageCount] = useState(0);
   const [pendingClaimRequestCount, setPendingClaimRequestCount] = useState(0);
   const monochrome = useMonochrome();
@@ -83,19 +85,22 @@ export function AdminSidebar() {
 
     const loadCounts = async () => {
       try {
-        const [pendingBusinesses, pendingImages, pendingClaims] = await Promise.all([
-          listBusinesses("PENDING").catch(() => []),
+        const [pendingBusinesses, pendingImports, pendingImages, pendingClaims] = await Promise.all([
+          listBusinesses("PENDING", true, undefined, "SELF_REGISTERED").catch(() => []),
+          listBusinesses("PENDING", true, undefined, "IMPORTED").catch(() => []),
           listBusinessImageRequests({ status: "PENDING" }).catch(() => []),
           listBusinessClaimRequests("PENDING").catch(() => []),
         ]);
 
         if (cancelled) return;
         setPendingCompanyCount(Array.isArray(pendingBusinesses) ? pendingBusinesses.length : 0);
+        setPendingImportedCount(Array.isArray(pendingImports) ? pendingImports.length : 0);
         setPendingImageCount(Array.isArray(pendingImages) ? pendingImages.length : 0);
         setPendingClaimRequestCount(Array.isArray(pendingClaims) ? pendingClaims.length : 0);
       } catch {
         if (!cancelled) {
           setPendingCompanyCount(0);
+          setPendingImportedCount(0);
           setPendingImageCount(0);
           setPendingClaimRequestCount(0);
         }
@@ -178,11 +183,13 @@ export function AdminSidebar() {
                   const count =
                     item.url === "/pending"
                       ? pendingCompanyCount
-                      : item.url === "/admin/quality-control"
-                        ? pendingImageCount
-                        : item.url === "/admin/claim-requests"
-                          ? pendingClaimRequestCount
-                          : 0;
+                      : item.url === "/admin/imported"
+                        ? pendingImportedCount
+                        : item.url === "/admin/quality-control"
+                          ? pendingImageCount
+                          : item.url === "/admin/claim-requests"
+                            ? pendingClaimRequestCount
+                            : 0;
                   const showCount = !collapsed && count > 0;
                   return (
                     <SidebarMenuItem key={item.title}>

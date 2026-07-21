@@ -301,6 +301,7 @@ export function CompanyDetailsDialog({
                 <div className="mt-3 grid gap-2 text-muted-foreground">
                   {business.cfarNr ? <p>CFAR: <span className="text-foreground">{business.cfarNr}</span></p> : null}
                   {business.orgNr ? <p>Org.nr: <span className="text-foreground">{business.orgNr}</span></p> : null}
+                  {business.sniCode ? <p>SNI: <span className="text-foreground">{business.sniCode}</span></p> : null}
                   {googleScore ? <p>Google-matchning: <span className="text-foreground">{googleScore}</span></p> : null}
                   {business.importMetadata?.google?.enrichedAt ? (
                     <p>Enrichat: <span className="text-foreground">{new Date(business.importMetadata.google.enrichedAt).toLocaleString("sv-SE")}</span></p>

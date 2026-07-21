@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, X, Clock, Search, Filter, Eye } from "lucide-react";
+import { Check, X, Search, Filter, Eye, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,45 +8,45 @@ import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
+import { BusinessImportBadges } from "@/components/BusinessImportBadges";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { hasAdminAccess } from "@/lib/adminAccess";
-import { getBusinessCategoryNames, matchesCategoryName } from "@/lib/businessCategories";
-import { inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus } from "@/lib/api";
+import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
+import { listBusinesses, listCategories, updateBusinessStatus, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
 import { useRealtime } from "@/hooks/useRealtime";
 import { CategoryBadges } from "@/components/CategoryBadges";
 import { toast } from "sonner";
 
 type ActionType = "approve" | "deny";
 
-type Company = {
+type ImportedCompany = {
   id: string;
   name: string;
-  email: string;
+  address: string;
+  city: string;
   categoryNames: string[];
-  status: "pending" | "active" | "inactive";
+  category: string;
+  orgNr?: string | null;
+  cfarNr?: string | null;
+  sniCode?: string | null;
   description?: string;
-  appliedAt?: string;
+  source: BusinessSource;
+  importMetadata?: BusinessImportMetadata | null;
+  importedAt?: string;
 };
 
-function mapBusinessStatusToBadge(status: unknown): Company["status"] {
-  const normalized = typeof status === "string" ? status.toUpperCase() : "";
-  if (normalized === "APPROVED") return "active";
-  if (normalized === "REJECTED") return "inactive";
-  return "pending";
-}
-
-export default function Pending() {
-  const [companies, setCompanies] = useState<Company[]>([]);
+export default function AdminImportedBusinesses() {
+  const [companies, setCompanies] = useState<ImportedCompany[]>([]);
   const [categories, setCategories] = useState<string[]>(["Alla"]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
-  const [dialogState, setDialogState] = useState<{ company: Company; action: ActionType } | null>(null);
-  const [detailTarget, setDetailTarget] = useState<Company | null>(null);
+  const [dialogState, setDialogState] = useState<{ company: ImportedCompany; action: ActionType } | null>(null);
+  const [detailTarget, setDetailTarget] = useState<ImportedCompany | null>(null);
 
   const load = useCallback(async () => {
     try {
       const [businessRows, categoryRows] = await Promise.all([
-        listBusinesses("PENDING", true, undefined, "SELF_REGISTERED"),
+        listBusinesses("PENDING", true, undefined, "IMPORTED"),
         listCategories(),
       ]);
 
@@ -54,11 +54,17 @@ export default function Pending() {
         businessRows.map((business) => ({
           id: business.id,
           name: business.name,
-          email: business.contactEmail ?? "",
+          address: business.address,
+          city: business.city,
           categoryNames: getBusinessCategoryNames(business),
-          status: mapBusinessStatusToBadge(business.status),
+          category: getPrimaryCategoryName(business),
+          orgNr: business.orgNr,
+          cfarNr: business.cfarNr,
+          sniCode: business.sniCode,
           description: business.description,
-          appliedAt: business.createdAt || new Date().toISOString(),
+          source: business.source ?? "IMPORTED",
+          importMetadata: business.importMetadata,
+          importedAt: business.createdAt || new Date().toISOString(),
         })),
       );
       setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
@@ -79,11 +85,25 @@ export default function Pending() {
     }
   });
 
-  const filtered = useMemo(() => companies.filter((c) => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = category === "Alla" || matchesCategoryName(c.categoryNames, category);
-    return matchSearch && matchCategory;
-  }), [companies, search, category]);
+  const filtered = useMemo(
+    () =>
+      companies.filter((company) => {
+        const haystack = [
+          company.name,
+          company.address,
+          company.city,
+          company.orgNr ?? "",
+          company.cfarNr ?? "",
+          company.sniCode ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        const matchSearch = haystack.includes(search.toLowerCase());
+        const matchCategory = category === "Alla" || matchesCategoryName(company.categoryNames, category);
+        return matchSearch && matchCategory;
+      }),
+    [companies, search, category],
+  );
 
   const handleAction = async () => {
     if (!dialogState) return;
@@ -91,27 +111,20 @@ export default function Pending() {
 
     try {
       const isAdmin = await hasAdminAccess();
-
-      if (isAdmin) {
-        await updateBusinessStatus(company.id, action === "approve" ? "APPROVED" : "REJECTED");
-        setCompanies((prev) => prev.filter((c) => c.id !== company.id));
-        refreshAdminPendingCounts();
-        toast.success(action === "approve" ? `${company.name} har godkänts!` : `${company.name} har nekats.`);
-      } else {
+      if (!isAdmin) {
         toast.error("Saknar admin-behörighet. Du kan inte uppdatera företagsstatus.");
         setDialogState(null);
         return;
       }
 
-      if (action === "approve" && company.email.trim()) {
-        const inviteResponse = await inviteManagerToBusiness(company.email, company.id);
+      await updateBusinessStatus(company.id, action === "approve" ? "APPROVED" : "REJECTED");
+      setCompanies((prev) => prev.filter((c) => c.id !== company.id));
+      refreshAdminPendingCounts();
 
-        if (inviteResponse.emailSent) {
-          toast.success(`Inbjudan skickad till ${company.email}`);
-        } else {
-          const errorMsg = inviteResponse.emailError || "Okänt fel";
-          toast.warning(`Inbjudan skapades men kunde inte skicka e-post: ${errorMsg}`);
-        }
+      if (action === "approve") {
+        toast.success(`${company.name} är godkänt och synligt i appen.`);
+      } else {
+        toast.success(`${company.name} har nekats.`);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte uppdatera företagsstatus.";
@@ -124,15 +137,17 @@ export default function Pending() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">Väntande företag</h1>
-        <p className="text-muted-foreground mt-1">Granska företag som registrerat sig själva via portalen</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">Importerade företag</h1>
+        <p className="text-muted-foreground mt-1">
+          Företag hämtade från SCB. Godkänn för att visa dem i appen, eller neka om de inte hör hemma här.
+        </p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Sök företag..."
+            placeholder="Sök namn, ort, org.nr, CFAR..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9 bg-card border-border text-foreground placeholder:text-muted-foreground"
@@ -145,7 +160,9 @@ export default function Pending() {
           </SelectTrigger>
           <SelectContent className="bg-popover border-border">
             {categories.map((cat) => (
-              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+              <SelectItem key={cat} value={cat}>
+                {cat}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -154,9 +171,15 @@ export default function Pending() {
       {filtered.length === 0 ? (
         <Card className="bg-card border-border">
           <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-            <Clock className="h-12 w-12 mb-4 opacity-40" />
-            <p className="text-lg font-medium">{search || category !== "Alla" ? "Inga företag hittades" : "Inga väntande företag"}</p>
-            <p className="text-sm">{search || category !== "Alla" ? "Försök ändra dina sökkriterier" : "Backend saknar lista för väntande företag just nu"}</p>
+            <Download className="h-12 w-12 mb-4 opacity-40" />
+            <p className="text-lg font-medium">
+              {search || category !== "Alla" ? "Inga importerade företag hittades" : "Inga väntande importer"}
+            </p>
+            <p className="text-sm text-center max-w-md">
+              {search || category !== "Alla"
+                ? "Försök ändra dina sökkriterier"
+                : "Kör bulk-import i backend när du vill fylla på med SCB-data."}
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -170,13 +193,23 @@ export default function Pending() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-foreground">{company.name}</p>
-                        <StatusBadge status={company.status} />
+                        <StatusBadge status="pending" />
                         <CategoryBadges names={company.categoryNames} />
+                        <BusinessImportBadges business={company} />
                       </div>
-                      <p className="text-sm text-muted-foreground mt-0.5">{company.email}</p>
-                      <p className="text-sm text-foreground/70 mt-2 leading-relaxed">{company.description}</p>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        {[company.address, company.city].filter(Boolean).join(", ")}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        {company.orgNr ? <span>Org.nr: {company.orgNr}</span> : null}
+                        {company.cfarNr ? <span>CFAR: {company.cfarNr}</span> : null}
+                        {company.sniCode ? <span>SNI: {company.sniCode}</span> : null}
+                      </div>
+                      {company.description ? (
+                        <p className="text-sm text-foreground/70 mt-2 leading-relaxed">{company.description}</p>
+                      ) : null}
                       <p className="text-xs text-muted-foreground mt-2">
-                        Ansökte: {new Date(company.appliedAt!).toLocaleDateString("sv-SE")}
+                        Importerad: {new Date(company.importedAt!).toLocaleDateString("sv-SE")}
                       </p>
                     </div>
                   </div>
@@ -219,16 +252,16 @@ export default function Pending() {
         onOpenChange={(open) => !open && setDetailTarget(null)}
         companyId={detailTarget?.id ?? null}
         companyName={detailTarget?.name}
-        category={detailTarget?.categoryNames[0]}
+        category={detailTarget?.category}
       />
 
       <ConfirmDialog
         open={!!dialogState}
         onOpenChange={(open) => !open && setDialogState(null)}
-        title={dialogState?.action === "approve" ? "Godkänn företag" : "Neka företag"}
+        title={dialogState?.action === "approve" ? "Godkänn import" : "Neka import"}
         description={
           dialogState?.action === "approve"
-            ? `Är du säker på att du vill godkänna ${dialogState?.company.name}?`
+            ? `Är du säker på att du vill godkänna ${dialogState?.company.name}? Företaget blir synligt i appen utan managerinbjudan.`
             : `Är du säker på att du vill neka ${dialogState?.company.name}?`
         }
         confirmLabel={dialogState?.action === "approve" ? "Godkänn" : "Neka"}
