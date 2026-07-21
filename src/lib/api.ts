@@ -1194,10 +1194,12 @@ export async function listBusinesses(
   status?: BusinessStatus,
   withAuth = false,
   categoryName?: string,
+  source?: BusinessSource,
 ) {
   const params = new URLSearchParams();
   if (status) params.set("status", status);
   if (categoryName?.trim()) params.set("categoryName", categoryName.trim());
+  if (source) params.set("source", source);
   const query = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<Business[]>(`/business${query}`, { method: "GET" }, withAuth);
 }

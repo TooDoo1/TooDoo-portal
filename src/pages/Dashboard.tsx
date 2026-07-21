@@ -20,16 +20,21 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [ordersData, categoriesData, approvedList, pendingBusinesses] = await Promise.all([
+        const [ordersData, categoriesData, approvedList, pendingSelfRegistered, pendingImported] = await Promise.all([
           listOrders(),
           listCategories(),
-          listBusinesses("APPROVED"),
-          listBusinesses("PENDING"),
+          listBusinesses("APPROVED", true),
+          listBusinesses("PENDING", true, undefined, "SELF_REGISTERED"),
+          listBusinesses("PENDING", true, undefined, "IMPORTED"),
         ]);
         setOrders(ordersData);
         setCategories(categoriesData);
         setApprovedBusinesses(approvedList);
-        setPendingBusinessIds(Array.from(new Set(pendingBusinesses.map((business) => business.id))));
+        setPendingBusinessIds(
+          Array.from(
+            new Set([...pendingSelfRegistered, ...pendingImported].map((business) => business.id)),
+          ),
+        );
       } catch {
         setOrders([]);
         setCategories([]);
@@ -58,7 +63,7 @@ export default function Dashboard() {
 
   const stats = [
     { label: "Aktiva företag", value: activeBusinessCount, icon: Building2, trend: "Godkända företag", color: "bg-accent/15 text-accent" },
-    { label: "Väntande", value: pendingBusinessCount, icon: Clock, trend: "Unika företag med status PENDING", color: "bg-warning/15 text-warning" },
+    { label: "Väntande", value: pendingBusinessCount, icon: Clock, trend: "Självregistrerade + importerade", color: "bg-warning/15 text-warning" },
     { label: "Aktiva erbjudanden", value: activeOrderCount, icon: CheckCircle, trend: "Giltiga just nu", color: "bg-success/15 text-success" },
     { label: "Tillväxt", value: "-", icon: TrendingUp, trend: "Kräver historikdata", color: "bg-primary/15 text-primary" },
   ];

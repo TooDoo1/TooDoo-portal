@@ -587,7 +587,11 @@ export default function Registration() {
 													Vi hittade en befintlig TooDoo-profil för detta arbetsställe. Skicka in en ansökan
 													så granskar vår admin att du representerar företaget innan du får manageråtkomst.
 												</div>
-											) : null}
+											) : (
+												<div className="mt-2 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+													Om företaget redan importerats till TooDoo kan det vänta på admin-godkännande innan du kan göra anspråk här.
+												</div>
+											)}
 										</div>
 										<button
 											type="button"
