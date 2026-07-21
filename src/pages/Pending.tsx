@@ -11,7 +11,7 @@ import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, matchesCategoryName } from "@/lib/businessCategories";
-import { inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus } from "@/lib/api";
+import { inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus, type Business } from "@/lib/api";
 import { useRealtime } from "@/hooks/useRealtime";
 import { CategoryBadges } from "@/components/CategoryBadges";
 import { toast } from "sonner";
@@ -220,6 +220,7 @@ export default function Pending() {
         companyId={detailTarget?.id ?? null}
         companyName={detailTarget?.name}
         category={detailTarget?.categoryNames[0]}
+        initialBusiness={detailTarget as Business}
       />
 
       <ConfirmDialog

@@ -154,6 +154,7 @@ type CompanyDetailsDialogProps = {
   companyId: string | null;
   companyName?: string;
   category?: string;
+  initialBusiness?: Business | null;
 };
 
 function DetailRow({
@@ -182,6 +183,7 @@ export function CompanyDetailsDialog({
   companyId,
   companyName,
   category,
+  initialBusiness = null,
 }: CompanyDetailsDialogProps) {
   const [business, setBusiness] = useState<Business | null>(null);
   const [offers, setOffers] = useState<CompanyOffer[]>([]);
@@ -198,6 +200,7 @@ export function CompanyDetailsDialog({
       return;
     }
 
+    setBusiness(initialBusiness);
     let cancelled = false;
 
     const load = async () => {
@@ -226,9 +229,11 @@ export function CompanyDetailsDialog({
         }
       } catch (err) {
         if (!cancelled) {
-          setBusiness(null);
+          setBusiness(initialBusiness);
           setOffers([]);
-          setError(err instanceof Error ? err.message : "Kunde inte ladda företagsinformation.");
+          if (!initialBusiness) {
+            setError(err instanceof Error ? err.message : "Kunde inte ladda företagsinformation.");
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -240,7 +245,7 @@ export function CompanyDetailsDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, companyId]);
+  }, [open, companyId, initialBusiness]);
 
   const displayName = business?.name ?? companyName ?? "Företag";
   const categoryName = business ? getCategoryName(business, category) : category;

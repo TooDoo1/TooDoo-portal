@@ -12,7 +12,7 @@ import { BusinessImportBadges } from "@/components/BusinessImportBadges";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
-import { listBusinesses, listCategories, updateBusinessStatus, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
+import { listBusinesses, listCategories, updateBusinessStatus, type Business, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
 import { useRealtime } from "@/hooks/useRealtime";
 import { CategoryBadges } from "@/components/CategoryBadges";
 import { toast } from "sonner";
@@ -253,6 +253,7 @@ export default function AdminImportedBusinesses() {
         companyId={detailTarget?.id ?? null}
         companyName={detailTarget?.name}
         category={detailTarget?.category}
+        initialBusiness={detailTarget as Business}
       />
 
       <ConfirmDialog
