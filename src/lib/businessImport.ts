@@ -20,7 +20,12 @@ export function getBusinessOriginLabel(source?: BusinessSource): string {
   }
 }
 
-export function getBusinessClaimLabel(business: Pick<Business, "source" | "isClaimed">): string | null {
+export function getBusinessClaimLabel(
+  business: Pick<Business, "source" | "isClaimed"> & { hasManager?: boolean },
+): string | null {
+  if (typeof business.hasManager === "boolean") {
+    return business.hasManager ? "Ägt" : "Ej ägt";
+  }
   if (business.source !== "IMPORTED") return null;
   return business.isClaimed ? "Ägt" : "Ej ägt";
 }

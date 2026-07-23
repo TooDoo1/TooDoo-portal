@@ -300,9 +300,10 @@ export default function AdminCompanyNew() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Nytt företag</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Sök via organisationsnummer (samma flöde som registrering). Företaget godkänns direkt.
-          </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Sök via organisationsnummer (samma flöde som registrering). Företaget godkänns direkt.
+              Managerinbjudan skickas separat från Företag om du vill.
+            </p>
         </div>
       </div>
 
