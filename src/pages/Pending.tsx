@@ -80,7 +80,10 @@ export default function Pending() {
   });
 
   const filtered = useMemo(() => companies.filter((c) => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const matchSearch =
+      c.name.toLowerCase().includes(q) ||
+      (c.email ?? "").toLowerCase().includes(q);
     const matchCategory = category === "Alla" || matchesCategoryName(c.categoryNames, category);
     return matchSearch && matchCategory;
   }), [companies, search, category]);

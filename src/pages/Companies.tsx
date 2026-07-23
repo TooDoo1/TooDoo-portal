@@ -62,7 +62,7 @@ export default function Companies() {
           businessRows.map((business) => ({
             id: business.id,
             name: business.name,
-            email: business.contactEmail,
+            email: business.contactEmail ?? "",
             status: "active",
             joinedAt: business.createdAt || new Date().toISOString(),
             categoryNames: getBusinessCategoryNames(business),
@@ -87,7 +87,10 @@ export default function Companies() {
   }, []);
 
   const filtered = useMemo(() => companies.filter((c) => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const matchSearch =
+      c.name.toLowerCase().includes(q) ||
+      (c.email ?? "").toLowerCase().includes(q);
     const matchCategory = category === "Alla" || matchesCategoryName(c.categoryNames, category);
     const matchSource =
       sourceFilter === "all" ||

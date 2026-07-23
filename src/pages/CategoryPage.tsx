@@ -40,7 +40,7 @@ export default function CategoryPage() {
         const matches = approvedBusinesses.map<Company>((business) => ({
           id: business.id,
           name: business.name,
-          email: business.contactEmail,
+          email: business.contactEmail ?? "",
           category: categoryName,
           status: "active",
           joinedAt: business.createdAt || new Date().toISOString(),
@@ -56,7 +56,14 @@ export default function CategoryPage() {
   }, [categoryName]);
 
   const filteredActive = useMemo(
-    () => active.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase())),
+    () =>
+      active.filter((c) => {
+        const q = search.toLowerCase();
+        return (
+          c.name.toLowerCase().includes(q) ||
+          (c.email ?? "").toLowerCase().includes(q)
+        );
+      }),
     [active, search],
   );
 
