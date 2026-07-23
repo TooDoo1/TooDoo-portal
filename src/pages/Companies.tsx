@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Filter, Eye, Trash2, Mail, Pencil } from "lucide-react";
+import { Search, Filter, Eye, Trash2, Mail, Pencil, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -169,9 +169,18 @@ export default function Companies() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">Företag</h1>
-        <p className="text-muted-foreground mt-1">Hantera alla aktiva företag i systemet</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Företag</h1>
+          <p className="text-muted-foreground mt-1">Hantera alla aktiva företag i systemet</p>
+        </div>
+        <Button
+          className="bg-accent hover:bg-accent/90 text-accent-foreground shrink-0"
+          onClick={() => navigate("/companies/new")}
+        >
+          <Plus className="mr-1.5 h-4 w-4" />
+          Nytt företag
+        </Button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">

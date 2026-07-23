@@ -104,6 +104,7 @@ src/
     ...
   pages/             Route-level components (Landingpage, LoggIn, Dashboard, Company*/Admin*, ...)
     AdminImportedBusinesses.tsx  Admin queue for pending SCB imports (`/admin/imported`)
+    AdminCompanyNew.tsx          Admin create company (`/companies/new`) — approved immediately
     AdminClaimRequests.tsx       Admin queue for imported-business ownership claims
     AdminCompanyEdit.tsx         Edit company details, gallery images, offers, events
     Pending.tsx                  Self-registered pending applications only
@@ -121,7 +122,7 @@ public/              Static assets served as-is
 Routes are declared in `src/App.tsx`. All routes except the landing page are lazy-loaded; the landing page is imported statically for a faster first paint. Protected routes are wrapped in `ProtectedRoute` with an allowed-roles list and rendered inside `AdminLayout`.
 
 - **Public**: `/` (landing), `/login`, `/reset-password`, `/registration`, `/manager-registration`, `/manager/onboard`, `/invite/manager`, `/worker/onboard`, `/invite/worker`
-- **Admin** (`ADMIN`): `/admin`, `/admin/logs`, `/admin/invoices`, `/admin/quality-control`, `/admin/claim-requests`, `/admin/imported`, `/companies`, `/companies/:businessId/edit`, `/companies/:businessId/offers/new`, `/companies/:businessId/events/new`, `/pending`, `/category/:name`
+- **Admin** (`ADMIN`): `/admin`, `/admin/logs`, `/admin/invoices`, `/admin/quality-control`, `/admin/claim-requests`, `/admin/imported`, `/companies`, `/companies/new`, `/companies/:businessId/edit`, `/companies/:businessId/offers/new`, `/companies/:businessId/events/new`, `/pending`, `/category/:name`
 - **Manager** (`MANAGER`): `/company`, `/company/offers`, `/company/offers/new`, `/company/events`, `/company/events/new`, `/company/verification`, `/company/invoices`, `/company/account`, `/company/image-request`, `/company/support`, `/company/workers/new`
 
 Log in via `/login`, which calls `POST /user/login/portal` on the backend (admin and manager accounts only).
@@ -167,6 +168,7 @@ After **claim approval**, the backend sends the standard manager invite email. T
 
 From **Företag** (`/companies`), admins can:
 
+- **Create** a company at `/companies/new` — SCB org.nr lookup (same as public registration), then fill details; status is **APPROVED** immediately; optional profile image (upload or URL) is set as primary; `orgNr`/`cfarNr` are stored when selected from SCB
 - View company details with **import badges** (imported vs self-registered, claimed vs unclaimed)
 - Filter the list by origin (`imported` / `self-registered`) and claim state (`unclaimed` imports)
 - Open **import metadata** in the company details dialog (`orgNr`, `cfarNr`, Maps link)

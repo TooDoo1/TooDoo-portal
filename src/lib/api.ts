@@ -344,6 +344,8 @@ export type CreateBusinessRequest = {
   openingHours?: Record<string, unknown>;
   categoryId?: string;
   categoryIds?: string[];
+  orgNr?: string;
+  cfarNr?: string;
 };
 
 export type BusinessImageRequest = {
@@ -1114,6 +1116,14 @@ export async function createBusiness(body: CreateBusinessRequest) {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+/** Admin-only: creates a business that is immediately APPROVED and live. */
+export async function createAdminBusiness(body: CreateBusinessRequest) {
+  return apiRequest<Business>("/business/admin", {
+    method: "POST",
+    body: JSON.stringify(body),
+  }, true);
 }
 
 export async function lookupClaimableImport(cfarNr: string) {

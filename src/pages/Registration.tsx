@@ -315,6 +315,8 @@ export default function Registration() {
 				address,
 				city,
 				categoryIds,
+				...(orgNumber.trim() ? { orgNr: orgNumber.trim() } : {}),
+				...(selectedCfarNr ? { cfarNr: selectedCfarNr } : {}),
 				...(shouldSendOpeningHours ? { openingHours: openingHoursPayload } : {}),
 			});
 

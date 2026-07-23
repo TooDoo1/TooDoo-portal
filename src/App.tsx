@@ -18,6 +18,7 @@ const ProtectedRoute = lazy(() =>
 
 const Index = lazy(() => import("./pages/Index"));
 const Companies = lazy(() => import("./pages/Companies"));
+const AdminCompanyNew = lazy(() => import("./pages/AdminCompanyNew"));
 const AdminCompanyEdit = lazy(() => import("./pages/AdminCompanyEdit"));
 const Pending = lazy(() => import("./pages/Pending"));
 const AdminClaimRequests = lazy(() => import("./pages/AdminClaimRequests"));
@@ -133,6 +134,7 @@ const App = () => {
                   <Route path="/admin/invoices" element={<AdminInvoices />} />
                   <Route path="/admin/quality-control" element={<AdminQualityControl />} />
                   <Route path="/companies" element={<Companies />} />
+                  <Route path="/companies/new" element={<AdminCompanyNew />} />
                   <Route path="/companies/:businessId/edit" element={<AdminCompanyEdit />} />
                   <Route path="/companies/:businessId/offers/new" element={<CompanyNewOffer />} />
                   <Route path="/companies/:businessId/events/new" element={<CompanyNewEvent />} />

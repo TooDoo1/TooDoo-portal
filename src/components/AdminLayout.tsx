@@ -29,6 +29,7 @@ function getInitials(email: string | null | undefined, fallback: string) {
 function formatPageTitle(pathname: string, isCompanyRoute: boolean) {
   if (pathname === "/admin") return "Dashboard";
   if (pathname === "/companies") return "Företag";
+  if (pathname === "/companies/new") return "Nytt företag";
   if (pathname === "/pending") return "Väntande företag";
   if (pathname === "/admin/imported") return "Importerade företag";
   if (pathname === "/admin/claim-requests") return "Ägarskapsansökningar";
