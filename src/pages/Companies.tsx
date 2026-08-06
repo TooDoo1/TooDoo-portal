@@ -13,7 +13,7 @@ import { CategoryBadges } from "@/components/CategoryBadges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { ManagerInviteDialog } from "@/components/ManagerInviteDialog";
-import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
+import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness, type BusinessSource } from "@/lib/api";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
 import { toast } from "sonner";
@@ -32,8 +32,6 @@ type Company = {
   source?: BusinessSource;
   isClaimed?: boolean;
   cfarNr?: string | null;
-  googlePlaceId?: string | null;
-  importMetadata?: BusinessImportMetadata | null;
 };
 
 type SourceFilter = "all" | "imported" | "self_registered" | "unclaimed_imports";
@@ -72,8 +70,6 @@ export default function Companies() {
             source: business.source,
             isClaimed: business.isClaimed,
             cfarNr: business.cfarNr,
-            googlePlaceId: business.googlePlaceId,
-            importMetadata: business.importMetadata,
           })),
         );
         setCategories(["Alla", ...categoryRows.map((row) => row.name)]);

@@ -385,9 +385,44 @@ export type BusinessManager = {
   lastName?: string | null;
 };
 
+export type BusinessAiSearchMetadata = {
+  displayNameAlternatives?: string[] | null;
+  tags?: string[] | null;
+  synonyms?: string[] | null;
+  neighborhood?: string | null;
+  sniHint?: string | null;
+  priceLevel?: string | null;
+  audience?: string[] | null;
+  goodForDeals?: string | null;
+  fitReason?: string | null;
+  confidence?: number | null;
+  fieldConfidence?: Record<string, unknown> | null;
+  sources?: string[] | null;
+};
+
+export type BusinessAiImportMetadata = {
+  promptVersion?: string | null;
+  model?: string | null;
+  rank?: number | null;
+  searchMetadata?: BusinessAiSearchMetadata | null;
+  imageUrl?: string | null;
+  imageAttribution?: string | null;
+  isChain?: boolean | null;
+  chainBrand?: string | null;
+  outletsInCityEstimate?: "1" | "2+" | "unknown" | string | null;
+  entityType?: "commercial" | "municipalPublic" | string | null;
+  claimPath?: "in_app" | "email" | string | null;
+  orgNrDisplay?: string | null;
+  gate?: {
+    action?: "accept" | "flag" | "drop" | string;
+    reason?: string;
+  } | null;
+};
+
 export type BusinessImportMetadata = {
   scb?: Record<string, unknown>;
   importedAt?: string;
+  ai?: BusinessAiImportMetadata;
   google?: {
     placeId?: string;
     score?: number;

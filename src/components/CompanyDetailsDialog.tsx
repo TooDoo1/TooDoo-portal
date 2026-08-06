@@ -15,9 +15,10 @@ import { Separator } from "@/components/ui/separator";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
 import { BusinessImportBadges } from "@/components/BusinessImportBadges";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
+import { ImportMetadataSection } from "@/components/ImportMetadataSection";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getBusinessById, listOrders, resolveImageUrl, type Business, type Order } from "@/lib/api";
-import { buildGoogleMapsUrl, formatImportGoogleScore } from "@/lib/businessImport";
+import { buildGoogleMapsUrl } from "@/lib/businessImport";
 
 const dayLabels: Record<string, string> = {
   monday: "Måndag",
@@ -256,7 +257,6 @@ export function CompanyDetailsDialog({
   const openingHoursLines = business ? formatOpeningHours(business.openingHours) : null;
   const imageUrl = business ? resolveImageUrl(getBusinessImageUrl(business)) : null;
   const mapsUrl = business ? buildGoogleMapsUrl(business) : null;
-  const googleScore = business ? formatImportGoogleScore(business.importMetadata) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -316,20 +316,7 @@ export function CompanyDetailsDialog({
               </div>
             </div>
 
-            {business?.source === "IMPORTED" ? (
-              <div className="rounded-xl border border-border bg-background/40 p-4 text-sm">
-                <p className="font-semibold text-foreground">Importinformation</p>
-                <div className="mt-3 grid gap-2 text-muted-foreground">
-                  {business.cfarNr ? <p>CFAR: <span className="text-foreground">{business.cfarNr}</span></p> : null}
-                  {business.orgNr ? <p>Org.nr: <span className="text-foreground">{business.orgNr}</span></p> : null}
-                  {business.sniCode ? <p>SNI: <span className="text-foreground">{business.sniCode}</span></p> : null}
-                  {googleScore ? <p>Google-matchning: <span className="text-foreground">{googleScore}</span></p> : null}
-                  {business.importMetadata?.google?.enrichedAt ? (
-                    <p>Enrichat: <span className="text-foreground">{new Date(business.importMetadata.google.enrichedAt).toLocaleString("sv-SE")}</span></p>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
+            {business?.source === "IMPORTED" ? <ImportMetadataSection business={business} /> : null}
 
             <Separator className="bg-border/50" />
 

@@ -1,13 +1,14 @@
 import { Badge } from "@/components/ui/badge";
 import type { Business } from "@/lib/api";
 import {
+  getAiImportMetadata,
   getBusinessClaimLabel,
-  getBusinessEnrichmentLabel,
   getBusinessOriginLabel,
+  isAiFlaggedImport,
 } from "@/lib/businessImport";
 
 type BusinessImportBadgesProps = {
-  business: Pick<Business, "source" | "isClaimed" | "googlePlaceId" | "importMetadata"> & {
+  business: Pick<Business, "source" | "isClaimed" | "importMetadata"> & {
     hasManager?: boolean;
   };
   className?: string;
@@ -16,9 +17,10 @@ type BusinessImportBadgesProps = {
 export function BusinessImportBadges({ business, className }: BusinessImportBadgesProps) {
   const isImported = business.source === "IMPORTED";
   const claimLabel = getBusinessClaimLabel(business);
-  const enrichmentLabel = isImported ? getBusinessEnrichmentLabel(business) : null;
+  const ai = getAiImportMetadata(business.importMetadata);
+  const flagged = isAiFlaggedImport(business.importMetadata);
 
-  if (!isImported && !claimLabel) return null;
+  if (!isImported && !claimLabel && !ai) return null;
 
   const isOwned =
     typeof business.hasManager === "boolean" ? business.hasManager : Boolean(business.isClaimed);
@@ -28,6 +30,16 @@ export function BusinessImportBadges({ business, className }: BusinessImportBadg
       {isImported ? (
         <Badge variant="outline" className="border-border text-[11px]">
           {getBusinessOriginLabel(business.source)}
+        </Badge>
+      ) : null}
+      {ai ? (
+        <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent text-[11px]">
+          AI-import
+        </Badge>
+      ) : null}
+      {flagged ? (
+        <Badge variant="outline" className="border-warning/40 bg-warning/10 text-warning text-[11px]">
+          AI-flaggad
         </Badge>
       ) : null}
       {claimLabel ? (
@@ -40,18 +52,6 @@ export function BusinessImportBadges({ business, className }: BusinessImportBadg
           }
         >
           {claimLabel}
-        </Badge>
-      ) : null}
-      {enrichmentLabel ? (
-        <Badge
-          variant="outline"
-          className={
-            enrichmentLabel === "Google-enrichat"
-              ? "border-accent/40 bg-accent/10 text-accent text-[11px]"
-              : "border-destructive/40 bg-destructive/10 text-destructive text-[11px]"
-          }
-        >
-          {enrichmentLabel}
         </Badge>
       ) : null}
     </div>
