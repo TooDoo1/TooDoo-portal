@@ -18,6 +18,7 @@ type Company = {
   category: string;
   status: "active";
   joinedAt: string;
+  imageUrl?: string | null;
 };
 
 type DialogAction = { company: Company; action: "remove" };
@@ -44,6 +45,11 @@ export default function CategoryPage() {
           category: categoryName,
           status: "active",
           joinedAt: business.createdAt || new Date().toISOString(),
+          imageUrl:
+            business.imageUrl?.trim() ||
+            business.imageAsset?.publicUrl?.trim() ||
+            business.imageAsset?.url?.trim() ||
+            null,
         }));
 
         setActive(matches);
@@ -123,7 +129,7 @@ export default function CategoryPage() {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <CompanyAvatar name={company.name} />
+                          <CompanyAvatar name={company.name} imageUrl={company.imageUrl} />
                           <div className="min-w-0 flex-1">
                             <p className="font-semibold text-foreground truncate" title={company.name}>{company.name}</p>
                             <p className="text-sm text-muted-foreground truncate" title={company.email}>{company.email}</p>
@@ -171,7 +177,7 @@ export default function CategoryPage() {
             <Card className="bg-card border-border sticky top-20">
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-center gap-3">
-                  <CompanyAvatar name={selectedCompany.name} />
+                  <CompanyAvatar name={selectedCompany.name} imageUrl={selectedCompany.imageUrl} />
                   <div>
                     <p className="font-bold text-foreground text-lg">{selectedCompany.name}</p>
                     <StatusBadge status={selectedCompany.status} />

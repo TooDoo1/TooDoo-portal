@@ -32,9 +32,19 @@ const dayLabels: Record<string, string> = {
 
 function getBusinessImageUrl(business: Business) {
   if (typeof business.imageUrl === "string" && business.imageUrl.trim()) return business.imageUrl.trim();
-  const assetUrl = business.imageAsset?.url;
-  if (typeof assetUrl === "string" && assetUrl.trim()) return assetUrl.trim();
-  return "";
+  const asset = business.imageAsset as
+    | { url?: string | null; publicUrl?: string | null }
+    | null
+    | undefined;
+  const nestedImage = (business as Business & { image?: { publicUrl?: string | null; originalUrl?: string | null } })
+    .image;
+  const assetUrl =
+    asset?.publicUrl?.trim() ||
+    asset?.url?.trim() ||
+    nestedImage?.publicUrl?.trim() ||
+    nestedImage?.originalUrl?.trim() ||
+    "";
+  return assetUrl;
 }
 
 function formatOpeningHours(openingHours: Business["openingHours"]) {
@@ -293,7 +303,7 @@ export function CompanyDetailsDialog({
                   className="h-14 w-14 shrink-0 rounded-full object-cover"
                 />
               ) : (
-                <CompanyAvatar name={displayName} />
+                <CompanyAvatar name={displayName} imageUrl={imageUrl} />
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-start justify-between gap-2">

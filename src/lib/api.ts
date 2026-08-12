@@ -23,6 +23,17 @@ type ApiErrorShape = {
   details?: Array<{ field?: string; message?: string }>;
   ok?: boolean;
   reason?: string;
+  duplicates?: BusinessDuplicateMatch[];
+};
+
+export type BusinessDuplicateMatch = {
+  id: string;
+  name: string;
+  city: string;
+  status: string;
+  cfarNr?: string | null;
+  orgNr?: string | null;
+  matchReason?: string;
 };
 
 export type ImageAsset = {
@@ -37,12 +48,21 @@ export type ImageAsset = {
 export class ApiError extends Error {
   details?: Array<{ field?: string; message?: string }>;
   reason?: string;
+  duplicates?: BusinessDuplicateMatch[];
 
-  constructor(message: string, options?: { details?: Array<{ field?: string; message?: string }>; reason?: string }) {
+  constructor(
+    message: string,
+    options?: {
+      details?: Array<{ field?: string; message?: string }>;
+      reason?: string;
+      duplicates?: BusinessDuplicateMatch[];
+    },
+  ) {
     super(message);
     this.name = "ApiError";
     this.details = options?.details;
     this.reason = options?.reason;
+    this.duplicates = options?.duplicates;
   }
 }
 
@@ -58,7 +78,7 @@ function toApiError(payload: unknown, fallbackMessage: string): ApiError {
   }
 
   if (value.error) {
-    return new ApiError(value.error, { details: value.details ?? [] });
+    return new ApiError(value.error, { details: value.details ?? [], duplicates: value.duplicates });
   }
 
   return new ApiError(fallbackMessage);
@@ -1262,6 +1282,16 @@ export async function updateBusinessStatus(id: string, status: BusinessStatus) {
     },
     true,
   );
+}
+
+export function formatApprovedDuplicateError(error: ApiError): string {
+  if (!error.duplicates?.length) return error.message;
+  const preview = error.duplicates
+    .slice(0, 3)
+    .map((duplicate) => `${duplicate.name} (${duplicate.city})`)
+    .join(", ");
+  const suffix = error.duplicates.length > 3 ? ` och ${error.duplicates.length - 3} till` : "";
+  return `Detta företag verkar redan vara godkänt. Befintliga poster: ${preview}${suffix}.`;
 }
 
 export async function updateBusiness(id: string, body: UpdateBusinessRequest) {

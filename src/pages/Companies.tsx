@@ -13,9 +13,10 @@ import { CategoryBadges } from "@/components/CategoryBadges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { ManagerInviteDialog } from "@/components/ManagerInviteDialog";
-import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness, type BusinessSource } from "@/lib/api";
+import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness, type Business, type BusinessSource } from "@/lib/api";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
+import { compareBusinessName } from "@/lib/sortBusinesses";
 import { toast } from "sonner";
 
 type Company = {
@@ -61,6 +62,12 @@ export default function Companies() {
             id: business.id,
             name: business.name,
             email: business.contactEmail ?? "",
+            logo:
+              business.imageUrl?.trim() ||
+              business.imageAsset?.publicUrl?.trim() ||
+              business.imageAsset?.url?.trim() ||
+              (business as Business & { image?: { publicUrl?: string } }).image?.publicUrl?.trim() ||
+              undefined,
             status: "active",
             joinedAt: business.createdAt || new Date().toISOString(),
             categoryNames: getBusinessCategoryNames(business),
@@ -94,7 +101,7 @@ export default function Companies() {
       (sourceFilter === "self_registered" && c.source !== "IMPORTED") ||
       (sourceFilter === "unclaimed_imports" && c.source === "IMPORTED" && !c.isClaimed);
     return matchSearch && matchCategory && matchSource;
-  }), [companies, search, category, sourceFilter]);
+  }).sort(compareBusinessName), [companies, search, category, sourceFilter]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -231,7 +238,7 @@ export default function Companies() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <CompanyAvatar name={company.name} logo={company.logo} />
+                    <CompanyAvatar name={company.name} imageUrl={company.logo} />
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-foreground truncate" title={company.name}>{company.name}</p>
                       <p className="text-sm text-muted-foreground truncate" title={company.email}>{company.email}</p>
@@ -325,7 +332,7 @@ export default function Companies() {
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="Ta bort företag"
-        description={`Är du säker på att du vill ta bort ${deleteTarget?.name}? Detta går inte att ångra.`}
+        description={`Är du säker på att du vill ta bort ${deleteTarget?.name}? (ID: ${deleteTarget?.id}) Detta går inte att ångra.`}
         confirmLabel="Ta bort"
         onConfirm={handleDelete}
         variant="destructive"

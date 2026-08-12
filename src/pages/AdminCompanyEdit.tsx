@@ -223,6 +223,8 @@ export default function AdminCompanyEdit() {
       setCategoryIds(nextCategoryIds);
       setOriginalCategoryIds(nextCategoryIds);
       if (updated.status) setStatus(updated.status);
+      setPrimaryImageAssetId(updated.imageAsset?.id ?? null);
+      setPrimaryImageUrl(getBusinessPrimaryImageUrl(updated));
       toast.success("Företaget har uppdaterats.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte spara ändringar.";

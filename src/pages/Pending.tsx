@@ -11,7 +11,9 @@ import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, matchesCategoryName } from "@/lib/businessCategories";
-import { inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus, type Business } from "@/lib/api";
+import { compareBusinessName } from "@/lib/sortBusinesses";
+import { inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus, ApiError, formatApprovedDuplicateError, type Business } from "@/lib/api";
+import { buildDuplicateGroups, formatDuplicateWarning, getDuplicatePeers } from "@/lib/businessDuplicates";
 import { useRealtime } from "@/hooks/useRealtime";
 import { CategoryBadges } from "@/components/CategoryBadges";
 import { toast } from "sonner";
@@ -21,11 +23,13 @@ type ActionType = "approve" | "deny";
 type Company = {
   id: string;
   name: string;
+  city: string;
   email: string;
   categoryNames: string[];
   status: "pending" | "active" | "inactive";
   description?: string;
   appliedAt?: string;
+  imageUrl?: string | null;
 };
 
 function mapBusinessStatusToBadge(status: unknown): Company["status"] {
@@ -54,11 +58,17 @@ export default function Pending() {
         businessRows.map((business) => ({
           id: business.id,
           name: business.name,
+          city: business.city,
           email: business.contactEmail ?? "",
           categoryNames: getBusinessCategoryNames(business),
           status: mapBusinessStatusToBadge(business.status),
           description: business.description,
           appliedAt: business.createdAt || new Date().toISOString(),
+          imageUrl:
+            business.imageUrl?.trim() ||
+            business.imageAsset?.publicUrl?.trim() ||
+            business.imageAsset?.url?.trim() ||
+            null,
         })),
       );
       setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
@@ -79,6 +89,8 @@ export default function Pending() {
     }
   });
 
+  const duplicateGroups = useMemo(() => buildDuplicateGroups(companies), [companies]);
+
   const filtered = useMemo(() => companies.filter((c) => {
     const q = search.toLowerCase();
     const matchSearch =
@@ -86,7 +98,7 @@ export default function Pending() {
       (c.email ?? "").toLowerCase().includes(q);
     const matchCategory = category === "Alla" || matchesCategoryName(c.categoryNames, category);
     return matchSearch && matchCategory;
-  }), [companies, search, category]);
+  }).sort(compareBusinessName), [companies, search, category]);
 
   const handleAction = async () => {
     if (!dialogState) return;
@@ -117,7 +129,12 @@ export default function Pending() {
         }
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Kunde inte uppdatera företagsstatus.";
+      const message =
+        error instanceof ApiError && error.duplicates?.length
+          ? formatApprovedDuplicateError(error)
+          : error instanceof Error
+            ? error.message
+            : "Kunde inte uppdatera företagsstatus.";
       toast.error(message);
     }
 
@@ -164,16 +181,23 @@ export default function Pending() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {filtered.map((company) => (
+          {filtered.map((company) => {
+            const duplicatePeers = getDuplicatePeers(company, duplicateGroups);
+            return (
             <Card key={company.id} className="card-hover bg-card border-border">
               <CardContent className="p-5">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                   <div className="flex items-start gap-3 flex-1">
-                    <CompanyAvatar name={company.name} />
+                    <CompanyAvatar name={company.name} imageUrl={company.imageUrl} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-foreground">{company.name}</p>
                         <StatusBadge status={company.status} />
+                        {duplicatePeers.length > 0 ? (
+                          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700">
+                            Dubblett ({duplicatePeers.length + 1})
+                          </span>
+                        ) : null}
                         <CategoryBadges names={company.categoryNames} />
                       </div>
                       <p className="text-sm text-muted-foreground mt-0.5">{company.email}</p>
@@ -213,7 +237,8 @@ export default function Pending() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -232,7 +257,12 @@ export default function Pending() {
         title={dialogState?.action === "approve" ? "Godkänn företag" : "Neka företag"}
         description={
           dialogState?.action === "approve"
-            ? `Är du säker på att du vill godkänna ${dialogState?.company.name}?`
+            ? [
+                `Är du säker på att du vill godkänna ${dialogState.company.name}?`,
+                formatDuplicateWarning(getDuplicatePeers(dialogState.company, duplicateGroups)),
+              ]
+                .filter(Boolean)
+                .join(" ")
             : `Är du säker på att du vill neka ${dialogState?.company.name}?`
         }
         confirmLabel={dialogState?.action === "approve" ? "Godkänn" : "Neka"}

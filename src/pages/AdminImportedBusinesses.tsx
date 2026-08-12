@@ -13,7 +13,9 @@ import { BusinessImportBadges } from "@/components/BusinessImportBadges";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
-import { listBusinesses, listCategories, updateBusinessStatus, type Business, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
+import { compareBusinessName } from "@/lib/sortBusinesses";
+import { listBusinesses, listCategories, updateBusinessStatus, ApiError, formatApprovedDuplicateError, type Business, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
+import { buildDuplicateGroups, formatDuplicateWarning, getDuplicatePeers } from "@/lib/businessDuplicates";
 import { useRealtime } from "@/hooks/useRealtime";
 import { CategoryBadges } from "@/components/CategoryBadges";
 import { toast } from "sonner";
@@ -34,6 +36,7 @@ type ImportedCompany = {
   source: BusinessSource;
   importMetadata?: BusinessImportMetadata | null;
   importedAt?: string;
+  imageUrl?: string | null;
 };
 
 export default function AdminImportedBusinesses() {
@@ -67,6 +70,12 @@ export default function AdminImportedBusinesses() {
           source: business.source ?? "IMPORTED",
           importMetadata: business.importMetadata,
           importedAt: business.createdAt || new Date().toISOString(),
+          imageUrl:
+            business.imageUrl?.trim() ||
+            business.imageAsset?.publicUrl?.trim() ||
+            business.imageAsset?.url?.trim() ||
+            (business as Business & { image?: { publicUrl?: string } }).image?.publicUrl?.trim() ||
+            null,
         })),
       );
       setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
@@ -87,6 +96,8 @@ export default function AdminImportedBusinesses() {
     }
   });
 
+  const duplicateGroups = useMemo(() => buildDuplicateGroups(companies), [companies]);
+
   const filtered = useMemo(
     () =>
       companies.filter((company) => {
@@ -103,7 +114,7 @@ export default function AdminImportedBusinesses() {
         const matchSearch = haystack.includes(search.toLowerCase());
         const matchCategory = category === "Alla" || matchesCategoryName(company.categoryNames, category);
         return matchSearch && matchCategory;
-      }),
+      }).sort(compareBusinessName),
     [companies, search, category],
   );
 
@@ -129,7 +140,12 @@ export default function AdminImportedBusinesses() {
         toast.success(`${company.name} har nekats.`);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Kunde inte uppdatera företagsstatus.";
+      const message =
+        error instanceof ApiError && error.duplicates?.length
+          ? formatApprovedDuplicateError(error)
+          : error instanceof Error
+            ? error.message
+            : "Kunde inte uppdatera företagsstatus.";
       toast.error(message);
     }
 
@@ -186,16 +202,23 @@ export default function AdminImportedBusinesses() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {filtered.map((company) => (
+          {filtered.map((company) => {
+            const duplicatePeers = getDuplicatePeers(company, duplicateGroups);
+            return (
             <Card key={company.id} className="card-hover bg-card border-border">
               <CardContent className="p-5">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                   <div className="flex items-start gap-3 flex-1">
-                    <CompanyAvatar name={company.name} />
+                    <CompanyAvatar name={company.name} imageUrl={company.imageUrl} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-foreground">{company.name}</p>
                         <StatusBadge status="pending" />
+                        {duplicatePeers.length > 0 ? (
+                          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700">
+                            Dubblett ({duplicatePeers.length + 1})
+                          </span>
+                        ) : null}
                         <CategoryBadges names={company.categoryNames} />
                         <BusinessImportBadges business={company} />
                       </div>
@@ -254,7 +277,8 @@ export default function AdminImportedBusinesses() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -274,7 +298,12 @@ export default function AdminImportedBusinesses() {
         title={dialogState?.action === "approve" ? "Godkänn import" : "Neka import"}
         description={
           dialogState?.action === "approve"
-            ? `Är du säker på att du vill godkänna ${dialogState?.company.name}? Företaget blir synligt i appen utan managerinbjudan.`
+            ? [
+                `Är du säker på att du vill godkänna ${dialogState.company.name}? Företaget blir synligt i appen utan managerinbjudan.`,
+                formatDuplicateWarning(getDuplicatePeers(dialogState.company, duplicateGroups)),
+              ]
+                .filter(Boolean)
+                .join(" ")
             : `Är du säker på att du vill neka ${dialogState?.company.name}?`
         }
         confirmLabel={dialogState?.action === "approve" ? "Godkänn" : "Neka"}
