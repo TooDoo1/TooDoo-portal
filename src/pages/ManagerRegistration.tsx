@@ -121,6 +121,7 @@ export default function ManagerRegistration() {
         await registerManager({
           email: trimmedEmail,
           password,
+          inviteToken,
         });
 
         await finishLogin("Managerkonto skapat och kopplat till företaget.");

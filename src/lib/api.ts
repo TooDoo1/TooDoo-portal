@@ -293,6 +293,7 @@ export type RegisterRequest = {
 export type RegisterManagerRequest = {
   email: string;
   password: string;
+  inviteToken: string;
 };
 
 export type LoginRequest = {
@@ -904,10 +905,9 @@ export type ForgotPasswordTokenRequest = {
 };
 
 export type ForgotPasswordTokenResponse = {
-  passwordResetToken: string;
-  /** Present when the backend sends the reset email itself. */
+  message: string;
   emailSent?: boolean;
-  resetUrl?: string;
+  emailError?: string;
 };
 
 export function getPortalBaseUrl() {
@@ -935,20 +935,17 @@ export async function forgotPasswordToken(body: ForgotPasswordTokenRequest) {
   });
 }
 
-/** Requests a reset token. Backend should email `buildPasswordResetUrl` (or return resetUrl). */
+/** Requests a password reset. Backend emails the link; response is generic to avoid account enumeration. */
 export async function requestPasswordResetLink(email: string) {
   const trimmed = email.trim();
   const res = await forgotPasswordToken({ email: trimmed });
-  const token = typeof res.passwordResetToken === "string" ? res.passwordResetToken.trim() : "";
-  if (!token) {
-    throw new ApiError("Kunde inte skapa återställningslänk.");
+
+  if (res.emailSent === false) {
+    throw new ApiError("Kunde inte skicka återställningsmejl. Försök igen senare.");
   }
-  const resetUrl =
-    typeof res.resetUrl === "string" && res.resetUrl.trim()
-      ? res.resetUrl.trim()
-      : buildPasswordResetUrl(trimmed, token);
+
   return {
-    resetUrl,
+    message: res.message,
     emailSent: res.emailSent === true,
   };
 }

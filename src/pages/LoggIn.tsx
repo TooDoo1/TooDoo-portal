@@ -182,13 +182,13 @@ export default function LoggIn() {
 										<DialogContent hideClose className="border-border bg-card sm:max-w-md">
 											<DialogHeader>
 												<DialogTitle>
-													{forgotStep === "request" ? "Glömt lösenord" : "Återställnings email har blivit skickat"}
+													{forgotStep === "request" ? "Glömt lösenord" : "Kolla din e-post"}
 												</DialogTitle>
-												{forgotStep === "request" ? (
-													<DialogDescription>
-														Ange din e-postadress så skickar vi en länk för att återställa lösenordet.
-													</DialogDescription>
-												) : null}
+												<DialogDescription>
+													{forgotStep === "request"
+														? "Ange din e-postadress så skickar vi en länk för att återställa lösenordet."
+														: "Om ett konto finns med den adressen har vi skickat en länk för att återställa lösenordet."}
+												</DialogDescription>
 											</DialogHeader>
 											{forgotStep === "request" ? (
 												<form onSubmit={handleForgotPasswordRequest} className="space-y-3">
