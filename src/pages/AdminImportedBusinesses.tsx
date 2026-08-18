@@ -14,7 +14,18 @@ import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
 import { compareBusinessName } from "@/lib/sortBusinesses";
-import { listBusinesses, listCategories, updateBusinessStatus, ApiError, formatApprovedDuplicateError, type Business, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
+import {
+  listBusinesses,
+  listCategories,
+  normalizeOrgNumber,
+  updateBusiness,
+  updateBusinessStatus,
+  ApiError,
+  formatApprovedDuplicateError,
+  type Business,
+  type BusinessImportMetadata,
+  type BusinessSource,
+} from "@/lib/api";
 import { buildDuplicateGroups, formatDuplicateWarning, getDuplicatePeers } from "@/lib/businessDuplicates";
 import { useRealtime } from "@/hooks/useRealtime";
 import { CategoryBadges } from "@/components/CategoryBadges";
@@ -45,6 +56,7 @@ export default function AdminImportedBusinesses() {
   const [categories, setCategories] = useState<string[]>(["Alla"]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
+  const [savingOrgNrId, setSavingOrgNrId] = useState<string | null>(null);
   const [dialogState, setDialogState] = useState<{ company: ImportedCompany; action: ActionType } | null>(null);
   const [detailTarget, setDetailTarget] = useState<ImportedCompany | null>(null);
 
@@ -152,6 +164,36 @@ export default function AdminImportedBusinesses() {
     setDialogState(null);
   };
 
+  const handleOrgNrChange = (companyId: string, value: string) => {
+    setCompanies((prev) =>
+      prev.map((company) => (company.id === companyId ? { ...company, orgNr: value } : company)),
+    );
+    setDetailTarget((prev) => (prev?.id === companyId ? { ...prev, orgNr: value } : prev));
+  };
+
+  const handleSaveOrgNr = async (company: ImportedCompany) => {
+    setSavingOrgNrId(company.id);
+    try {
+      const updated = await updateBusiness(company.id, {
+        orgNr: company.orgNr?.trim() ? normalizeOrgNumber(company.orgNr) : null,
+      });
+      setCompanies((prev) =>
+        prev.map((item) =>
+          item.id === company.id ? { ...item, orgNr: updated.orgNr ?? null } : item,
+        ),
+      );
+      setDetailTarget((prev) =>
+        prev?.id === company.id ? { ...prev, orgNr: updated.orgNr ?? null } : prev,
+      );
+      toast.success("Org.nr uppdaterat.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte uppdatera org.nr.";
+      toast.error(message);
+    } finally {
+      setSavingOrgNrId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -229,6 +271,29 @@ export default function AdminImportedBusinesses() {
                         {company.orgNr ? <span>Org.nr: {company.orgNr}</span> : null}
                         {company.cfarNr ? <span>CFAR: {company.cfarNr}</span> : null}
                         {company.sniCode ? <span>SNI: {company.sniCode}</span> : null}
+                      </div>
+                      <div className="mt-3 flex flex-col gap-2 sm:max-w-sm">
+                        <label className="text-xs font-medium text-foreground" htmlFor={`orgnr-${company.id}`}>
+                          Org.nr
+                        </label>
+                        <div className="flex gap-2">
+                          <Input
+                            id={`orgnr-${company.id}`}
+                            value={company.orgNr ?? ""}
+                            onChange={(e) => handleOrgNrChange(company.id, e.target.value)}
+                            placeholder="556012-5790"
+                            className="h-8"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 border-border"
+                            disabled={savingOrgNrId === company.id}
+                            onClick={() => void handleSaveOrgNr(company)}
+                          >
+                            Spara
+                          </Button>
+                        </div>
                       </div>
                       {company.description ? (
                         <p className="text-sm text-foreground/70 mt-2 leading-relaxed">{company.description}</p>

@@ -10,6 +10,7 @@ import {
   formatAiPriceLevel,
   formatImportConfidence,
   formatImportedAt,
+  formatRegistryStatus,
   getAiImportMetadata,
   isAiFlaggedImport,
 } from "@/lib/businessImport";
@@ -61,6 +62,7 @@ export function ImportMetadataSection({ business }: ImportMetadataSectionProps) 
     Boolean(value?.trim()),
   );
   const google = metadata?.google;
+  const registryStatus = formatRegistryStatus(ai?.registry?.status);
   const hasRegistry =
     Boolean(business.cfarNr) || Boolean(business.orgNr) || Boolean(business.sniCode) || Boolean(ai?.orgNrDisplay);
   const hasContent =
@@ -114,6 +116,13 @@ export function ImportMetadataSection({ business }: ImportMetadataSectionProps) 
               <MetaRow label="Org.nr (AI)">{ai.orgNrDisplay}</MetaRow>
             ) : null}
             {business.sniCode ? <MetaRow label="SNI">{business.sniCode}</MetaRow> : null}
+            {registryStatus ? <MetaRow label="SCB-status">{registryStatus}</MetaRow> : null}
+            {ai?.registry?.scbCompanyName ? (
+              <MetaRow label="SCB bolagsnamn">{ai.registry.scbCompanyName}</MetaRow>
+            ) : null}
+            {ai?.registry?.reason ? (
+              <MetaRow label="SCB-notering">{ai.registry.reason}</MetaRow>
+            ) : null}
             {business.googlePlaceId ? <MetaRow label="Google Place ID">{business.googlePlaceId}</MetaRow> : null}
           </div>
 

@@ -994,6 +994,8 @@ export default function CompanyAccount() {
         onOpenChange={setGalleryDialogOpen}
         onSelect={selectGalleryImage}
         categoryName={selectedCategoryNames[0] ?? ""}
+        categoryIds={categoryIds}
+        businessId={businessId ?? undefined}
       />
     </div>
   );

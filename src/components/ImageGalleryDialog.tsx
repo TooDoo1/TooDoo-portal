@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { getGalleryImageResolvedUrl, listBusinessImages, listImages, type ImageGalleryItem } from "@/lib/api";
+import { getGalleryImageResolvedUrl, isDefaultImageForCategories, listBusinessImages, listDefaultImages, listImages, type ImageGalleryItem } from "@/lib/api";
 import { toast } from "sonner";
 import { Search, Loader } from "lucide-react";
 import { useRealtime } from "@/hooks/useRealtime";
@@ -12,6 +12,7 @@ interface ImageGalleryDialogProps {
   onOpenChange: (open: boolean) => void;
   onSelect: (image: ImageGalleryItem, resolvedUrl: string) => void;
   categoryName?: string;
+  categoryIds?: string[];
   businessId?: string;
 }
 
@@ -27,6 +28,7 @@ export function ImageGalleryDialog({
   onOpenChange,
   onSelect,
   categoryName,
+  categoryIds,
   businessId,
 }: ImageGalleryDialogProps) {
   const [businessImages, setBusinessImages] = useState<ImageGalleryItem[]>([]);
@@ -43,7 +45,12 @@ export function ImageGalleryDialog({
         ? await listBusinessImages(businessId)
         : await listImages();
       setBusinessImages(result.businessImages ?? []);
-      setDefaultImages(result.defaultImages ?? []);
+      try {
+        const defaults = await listDefaultImages();
+        setDefaultImages(defaults.defaultImages ?? result.defaultImages ?? []);
+      } catch {
+        setDefaultImages(result.defaultImages ?? []);
+      }
     } catch (error) {
       if (!options?.silent) {
         const message = error instanceof Error ? error.message : "Kunde inte ladda galleriet.";
@@ -82,6 +89,7 @@ export function ImageGalleryDialog({
     .filter((entry): entry is GalleryEntry => Boolean(entry));
 
   const defaultEntries: GalleryEntry[] = defaultImages
+    .filter((img) => !categoryIds?.length || isDefaultImageForCategories(img, categoryIds))
     .map((img) => {
       const rawUrl = img.publicUrl || img.originalUrl || "";
       if (!rawUrl) return null;

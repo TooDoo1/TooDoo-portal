@@ -47,6 +47,53 @@ export function isAiFlaggedImport(metadata: BusinessImportMetadata | null | unde
   return getAiImportMetadata(metadata)?.gate?.action === "flag";
 }
 
+const REGISTRY_TAG_LABELS: Record<string, string> = {
+  "org-nr-saknas": "Org.nr saknas",
+  "org-nr-ej-i-scb": "Org.nr ej i SCB",
+  "fel-org-nr": "Fel org.nr",
+  "org-nr-osaker": "Osäker org.nr",
+  "cfar-matchad": "CFAR matchad",
+  "cfar-ej-matchad": "CFAR ej matchad",
+  "scb-ej-tillganglig": "SCB ej tillgänglig",
+};
+
+export function getRegistryTagLabel(tag: string): string {
+  return REGISTRY_TAG_LABELS[tag] ?? tag;
+}
+
+export function getRegistryTags(metadata: BusinessImportMetadata | null | undefined): string[] {
+  const ai = getAiImportMetadata(metadata);
+  const fromRegistry = ai?.registry?.tags ?? [];
+  const fromSearch = ai?.searchMetadata?.tags ?? [];
+  const merged = [...fromRegistry, ...fromSearch].filter(
+    (tag): tag is string => Boolean(tag?.trim()),
+  );
+  return [...new Set(merged.filter((tag) => tag in REGISTRY_TAG_LABELS))];
+}
+
+export function formatRegistryStatus(status: string | null | undefined): string | null {
+  switch (status) {
+    case "verified":
+      return "Verifierad";
+    case "cfar_matched":
+      return "CFAR matchad";
+    case "missing_org_nr":
+      return "Org.nr saknas";
+    case "org_nr_not_in_scb":
+      return "Org.nr ej i SCB";
+    case "org_nr_mismatch":
+      return "Fel org.nr";
+    case "org_nr_uncertain":
+      return "Osäker org.nr";
+    case "cfar_unmatched":
+      return "CFAR ej matchad";
+    case "scb_unavailable":
+      return "SCB ej tillgänglig";
+    default:
+      return status?.trim() || null;
+  }
+}
+
 export function formatImportConfidence(value: number | null | undefined): string | null {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return `${Math.round(value * 100)}%`;

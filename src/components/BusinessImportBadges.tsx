@@ -4,6 +4,8 @@ import {
   getAiImportMetadata,
   getBusinessClaimLabel,
   getBusinessOriginLabel,
+  getRegistryTagLabel,
+  getRegistryTags,
   isAiFlaggedImport,
 } from "@/lib/businessImport";
 
@@ -19,6 +21,7 @@ export function BusinessImportBadges({ business, className }: BusinessImportBadg
   const claimLabel = getBusinessClaimLabel(business);
   const ai = getAiImportMetadata(business.importMetadata);
   const flagged = isAiFlaggedImport(business.importMetadata);
+  const registryTags = getRegistryTags(business.importMetadata);
 
   if (!isImported && !claimLabel && !ai) return null;
 
@@ -42,6 +45,15 @@ export function BusinessImportBadges({ business, className }: BusinessImportBadg
           AI-flaggad
         </Badge>
       ) : null}
+      {registryTags.map((tag) => (
+        <Badge
+          key={tag}
+          variant="outline"
+          className="border-destructive/30 bg-destructive/10 text-destructive text-[11px]"
+        >
+          {getRegistryTagLabel(tag)}
+        </Badge>
+      ))}
       {claimLabel ? (
         <Badge
           variant="outline"

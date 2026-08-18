@@ -20,8 +20,11 @@ import {
   listBusinessEvents,
   listBusinessImages,
   listCategories,
+  listDefaultImages,
   listOrders,
+  normalizeOrgNumber,
   resolveImageUrl,
+  isDefaultImageForCategories,
   updateBusiness,
   type Business,
   type BusinessEvent,
@@ -40,6 +43,7 @@ type CompanyForm = {
   address: string;
   city: string;
   description: string;
+  orgNr: string;
 };
 
 const emptyForm: CompanyForm = {
@@ -50,6 +54,7 @@ const emptyForm: CompanyForm = {
   address: "",
   city: "",
   description: "",
+  orgNr: "",
 };
 
 function businessToForm(business: Business): CompanyForm {
@@ -61,6 +66,7 @@ function businessToForm(business: Business): CompanyForm {
     address: business.address ?? "",
     city: business.city ?? "",
     description: business.description ?? "",
+    orgNr: business.orgNr ?? "",
   };
 }
 
@@ -145,16 +151,32 @@ export default function AdminCompanyEdit() {
     return () => URL.revokeObjectURL(filePreviewUrl);
   }, [filePreviewUrl]);
 
+  const visibleDefaultImages = useMemo(
+    () => defaultImages.filter((image) => isDefaultImageForCategories(image, categoryIds)),
+    [defaultImages, categoryIds],
+  );
+
+  const refreshGallery = useCallback(async () => {
+    if (!businessId) return;
+    const gallery = await listBusinessImages(businessId);
+    setBusinessImages(gallery.businessImages ?? []);
+    try {
+      const defaults = await listDefaultImages();
+      setDefaultImages(defaults.defaultImages ?? gallery.defaultImages ?? []);
+    } catch {
+      setDefaultImages(gallery.defaultImages ?? []);
+    }
+  }, [businessId]);
+
   const load = useCallback(async () => {
     if (!businessId) return;
     setLoading(true);
     try {
-      const [business, categories, orderRows, eventRows, gallery] = await Promise.all([
+      const [business, categories, orderRows, eventRows] = await Promise.all([
         getBusinessById(businessId, true),
         listCategories(),
         listOrders(undefined, businessId),
         listBusinessEvents({ businessId }),
-        listBusinessImages(businessId),
       ]);
 
       const resolvedCategoryIds = getBusinessCategoryIds(business);
@@ -166,17 +188,16 @@ export default function AdminCompanyEdit() {
       setCategoryOptions(categories.map((cat) => ({ id: cat.id, name: cat.name })));
       setOffers(orderRows);
       setEvents(eventRows);
-      setBusinessImages(gallery.businessImages ?? []);
-      setDefaultImages(gallery.defaultImages ?? []);
       setPrimaryImageAssetId(business.imageAsset?.id ?? null);
       setPrimaryImageUrl(getBusinessPrimaryImageUrl(business));
+      await refreshGallery();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte ladda företaget.";
       toast.error(message);
     } finally {
       setLoading(false);
     }
-  }, [businessId]);
+  }, [businessId, refreshGallery]);
 
   useEffect(() => {
     void load();
@@ -196,6 +217,7 @@ export default function AdminCompanyEdit() {
     const trimmedAddress = form.address.trim();
     const trimmedCity = form.city.trim();
     const trimmedDescription = form.description.trim();
+    const trimmedOrgNr = form.orgNr.trim();
 
     if (!trimmedName || !trimmedAddress || !trimmedCity || !trimmedDescription) {
       toast.error("Fyll i namn, adress, ort och beskrivning.");
@@ -216,6 +238,7 @@ export default function AdminCompanyEdit() {
         website: form.website.trim() ? form.website.trim() : null,
         address: trimmedAddress,
         city: trimmedCity,
+        ...(isImported ? { orgNr: trimmedOrgNr ? normalizeOrgNumber(trimmedOrgNr) : null } : {}),
         ...(JSON.stringify(categoryIds) !== JSON.stringify(originalCategoryIds) ? { categoryIds } : {}),
       });
       setForm(businessToForm(updated));
@@ -318,9 +341,18 @@ export default function AdminCompanyEdit() {
     if (!businessId) return;
     setIsSettingPrimary(image.id);
     try {
-      const updated = await updateBusiness(businessId, { imageAssetId: image.id });
+      const categoryChanged = JSON.stringify(categoryIds) !== JSON.stringify(originalCategoryIds);
+      const updated = await updateBusiness(businessId, {
+        imageAssetId: image.id,
+        ...(categoryChanged ? { categoryIds } : {}),
+      });
       setPrimaryImageAssetId(image.id);
       setPrimaryImageUrl(getBusinessPrimaryImageUrl(updated));
+      if (categoryChanged) {
+        const nextCategoryIds = getBusinessCategoryIds(updated);
+        setCategoryIds(nextCategoryIds);
+        setOriginalCategoryIds(nextCategoryIds);
+      }
       toast.success("Profilbild uppdaterad.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Kunde inte uppdatera profilbilden.";
@@ -488,6 +520,20 @@ export default function AdminCompanyEdit() {
                     <label className="text-sm font-medium text-foreground" htmlFor="company-city">Stad</label>
                     <Input id="company-city" value={form.city} onChange={(e) => updateField("city", e.target.value)} />
                   </div>
+                  {isImported ? (
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="text-sm font-medium text-foreground" htmlFor="company-orgnr">Org.nr</label>
+                      <Input
+                        id="company-orgnr"
+                        value={form.orgNr}
+                        onChange={(e) => updateField("orgNr", e.target.value)}
+                        placeholder="556012-5790"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Endast admin kan ändra org.nr för importerade företag. Lämna tomt för att rensa värdet.
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="space-y-2">
@@ -635,12 +681,12 @@ export default function AdminCompanyEdit() {
                   )}
                 </div>
 
-                {defaultImages.length > 0 && (
+                {visibleDefaultImages.length > 0 && (
                   <div className="space-y-3">
                     <p className="text-sm font-medium text-foreground">Standardbilder</p>
-                    <p className="text-xs text-muted-foreground">Kan användas som profilbild men tas inte bort härifrån.</p>
+                    <p className="text-xs text-muted-foreground">Kan användas som profilbild men tas inte bort härifrån. Listan följer valda kategorier.</p>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                      {defaultImages.map((image) => renderGalleryImage(image, { canDelete: false }))}
+                      {visibleDefaultImages.map((image) => renderGalleryImage(image, { canDelete: false }))}
                     </div>
                   </div>
                 )}

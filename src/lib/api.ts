@@ -390,6 +390,7 @@ export type UpdateBusinessRequest = {
   address?: string;
   city?: string;
   imageAssetId?: string;
+  orgNr?: string | null;
   openingHours?: Record<string, unknown>;
   categoryId?: string;
   categoryIds?: string[];
@@ -434,6 +435,19 @@ export type BusinessAiImportMetadata = {
   entityType?: "commercial" | "municipalPublic" | string | null;
   claimPath?: "in_app" | "email" | string | null;
   orgNrDisplay?: string | null;
+  registry?: {
+    status?: string | null;
+    aiOrgNr?: string | null;
+    scbOrgNr?: string | null;
+    scbCompanyName?: string | null;
+    cfarNr?: string | null;
+    sniCode?: string | null;
+    nameMatchScore?: number | null;
+    addressMatchScore?: number | null;
+    workplaceCount?: number | null;
+    tags?: string[] | null;
+    reason?: string | null;
+  } | null;
   gate?: {
     action?: "accept" | "flag" | "drop" | string;
     reason?: string;
@@ -1079,22 +1093,47 @@ export function getGalleryImageResolvedUrl(image: ImageGalleryItem): string {
   return rawUrl ? resolveImageUrl(rawUrl) : "";
 }
 
+export function isDefaultImageForCategories(image: ImageGalleryItem, categoryIds: string[]): boolean {
+  if (!image.categoryId) return true;
+  return categoryIds.includes(image.categoryId);
+}
+
 export type ImageGalleryResponse = {
   businessImages: ImageGalleryItem[];
   defaultImages: ImageGalleryItem[];
 };
 
-export async function listImages() {
+export type DefaultImagesResponse = {
+  defaultImages: ImageGalleryItem[];
+};
+
+function galleryQuery(categoryIds?: string[]) {
+  if (!categoryIds?.length) return "";
+  const params = new URLSearchParams();
+  params.set("categoryIds", categoryIds.filter((id) => id.trim()).join(","));
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+export async function listImages(categoryIds?: string[]) {
   return apiRequest<ImageGalleryResponse>(
-    "/images",
+    `/images${galleryQuery(categoryIds)}`,
     { method: "GET" },
     true,
   );
 }
 
-export async function listBusinessImages(businessId: string) {
+export async function listDefaultImages(categoryIds?: string[]) {
+  return apiRequest<DefaultImagesResponse>(
+    `/images/defaults${galleryQuery(categoryIds)}`,
+    { method: "GET" },
+    true,
+  );
+}
+
+export async function listBusinessImages(businessId: string, categoryIds?: string[]) {
   return apiRequest<ImageGalleryResponse>(
-    `/business/${encodeURIComponent(businessId)}/images`,
+    `/business/${encodeURIComponent(businessId)}/images${galleryQuery(categoryIds)}`,
     { method: "GET" },
     true,
   );
