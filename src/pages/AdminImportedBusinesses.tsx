@@ -29,6 +29,7 @@ import {
 import { buildDuplicateGroups, formatDuplicateWarning, getDuplicatePeers } from "@/lib/businessDuplicates";
 import { useRealtime } from "@/hooks/useRealtime";
 import { CategoryBadges } from "@/components/CategoryBadges";
+import { AdminStartImportPanel } from "@/components/AdminStartImportPanel";
 import { toast } from "sonner";
 
 type ActionType = "approve" | "deny";
@@ -203,6 +204,13 @@ export default function AdminImportedBusinesses() {
         </p>
       </div>
 
+      <AdminStartImportPanel
+        onCompleted={() => {
+          void load();
+          refreshAdminPendingCounts();
+        }}
+      />
+
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -238,7 +246,7 @@ export default function AdminImportedBusinesses() {
             <p className="text-sm text-center max-w-md">
               {search || category !== "Alla"
                 ? "Försök ändra dina sökkriterier"
-                : "Kör bulk-import i backend när du vill fylla på med SCB-data."}
+                : "Starta en import ovan, eller vänta på schemalagd körning."}
             </p>
           </CardContent>
         </Card>

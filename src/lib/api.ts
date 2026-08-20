@@ -1253,6 +1253,76 @@ export async function reviewBusinessClaimRequest(
   );
 }
 
+export type AdminImportRunStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+export type AdminImportRunPhase =
+  | "SCB_IMPORT"
+  | "AI_REFRESH"
+  | "SCB_VERIFY"
+  | "CLEANUP"
+  | "IMAGE_BACKFILL"
+  | "METADATA_BACKFILL"
+  | "DONE";
+
+export type AdminImportRun = {
+  id: string;
+  city: string;
+  municipalityCode: string;
+  status: AdminImportRunStatus;
+  phase: AdminImportRunPhase;
+  dryRun: boolean;
+  lastError: string | null;
+  summary: Record<string, unknown> | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+};
+
+export type AdminImportOptions = {
+  categories: string[];
+  knownCities: string[];
+};
+
+export type StartAdminImportRunRequest = {
+  city: string;
+  kommun?: string;
+  category?: string;
+  enrichWithAi?: boolean;
+  dryRun?: boolean;
+  importLimit?: number;
+  refreshLimit?: number;
+};
+
+export async function getAdminImportOptions() {
+  return apiRequest<AdminImportOptions>("/import/options", { method: "GET" }, true);
+}
+
+export async function startAdminImportRun(body: StartAdminImportRunRequest) {
+  return apiRequest<AdminImportRun>(
+    "/import/runs",
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+    true,
+  );
+}
+
+export async function getAdminImportRun(runId: string) {
+  return apiRequest<AdminImportRun>(
+    `/import/runs/${encodeURIComponent(runId)}`,
+    { method: "GET" },
+    true,
+  );
+}
+
+export async function listAdminImportRuns(limit = 10) {
+  return apiRequest<{ runs: AdminImportRun[] }>(
+    `/import/runs?limit=${encodeURIComponent(String(limit))}`,
+    { method: "GET" },
+    true,
+  );
+}
+
 export async function submitBusinessImageRequest(body: { imageSourceType: ImageSourceType; imageUrl?: string; imageFile?: File }) {
   const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
   if (!wantsUpload) {
