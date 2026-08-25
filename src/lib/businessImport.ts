@@ -116,6 +116,57 @@ export function formatImportConfidence(value: number | null | undefined): string
   return `${Math.round(value * 100)}%`;
 }
 
+/**
+ * Prefer confidence-gate score, then import-quality score, then search confidence.
+ * Returns 0–1, or null when unknown.
+ */
+export function getImportConfidenceScore(
+  metadata: BusinessImportMetadata | null | undefined,
+): number | null {
+  const ai = getAiImportMetadata(metadata);
+  const candidates = [
+    ai?.confidenceGate?.score,
+    ai?.importQuality?.score,
+    ai?.searchMetadata?.confidence,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return Math.min(1, Math.max(0, value));
+    }
+  }
+  return null;
+}
+
+/** Best timestamp for "when was this import last touched" (ISO string or null). */
+export function getImportActivityAt(
+  business: Pick<Business, "createdAt" | "updatedAt" | "importMetadata">,
+): string | null {
+  const metadata = business.importMetadata;
+  const ai = getAiImportMetadata(metadata);
+  const candidates = [
+    metadata?.importedAt,
+    ai?.confidenceGate?.evaluatedAt,
+    ai?.importQuality?.evaluatedAt,
+    business.updatedAt,
+    business.createdAt,
+  ];
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim() && !Number.isNaN(Date.parse(value))) {
+      return value;
+    }
+  }
+  return null;
+}
+
+export function getImportActivityMs(
+  business: Pick<Business, "createdAt" | "updatedAt" | "importMetadata">,
+): number {
+  const iso = getImportActivityAt(business);
+  if (!iso) return 0;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : 0;
+}
+
 export function formatAiEntityType(value: string | null | undefined): string | null {
   switch (value) {
     case "commercial":

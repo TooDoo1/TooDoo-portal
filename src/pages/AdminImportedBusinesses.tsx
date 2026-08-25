@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, X, Search, Filter, Eye, Download, Pencil } from "lucide-react";
+import { ArrowUpDown, Check, X, Search, Filter, Eye, Download, Pencil } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,7 +13,19 @@ import { BusinessImportBadges } from "@/components/BusinessImportBadges";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
-import { compareBusinessName } from "@/lib/sortBusinesses";
+import {
+  compareBusinessName,
+  IMPORTED_BUSINESS_SORT_OPTIONS,
+  type ImportedBusinessSort,
+} from "@/lib/sortBusinesses";
+import {
+  formatImportConfidence,
+  formatImportedAt,
+  getImportActivityAt,
+  getImportActivityMs,
+  getImportConfidenceScore,
+  isAiFlaggedImport,
+} from "@/lib/businessImport";
 import {
   listBusinesses,
   listCategories,
@@ -33,6 +45,7 @@ import { AdminStartImportPanel } from "@/components/AdminStartImportPanel";
 import { toast } from "sonner";
 
 type ActionType = "approve" | "deny";
+type QualityFilter = "all" | "high_confidence" | "flagged" | "missing_score";
 
 type ImportedCompany = {
   id: string;
@@ -47,9 +60,20 @@ type ImportedCompany = {
   description?: string;
   source: BusinessSource;
   importMetadata?: BusinessImportMetadata | null;
+  createdAt?: string;
+  updatedAt?: string;
   importedAt?: string;
   imageUrl?: string | null;
 };
+
+const HIGH_CONFIDENCE_THRESHOLD = 0.8;
+
+function confidenceBadgeClass(score: number | null): string {
+  if (score == null) return "border-border bg-muted/40 text-muted-foreground";
+  if (score >= HIGH_CONFIDENCE_THRESHOLD) return "border-success/40 bg-success/10 text-success";
+  if (score >= 0.55) return "border-amber-500/40 bg-amber-500/10 text-amber-700";
+  return "border-destructive/30 bg-destructive/10 text-destructive";
+}
 
 export default function AdminImportedBusinesses() {
   const navigate = useNavigate();
@@ -57,6 +81,8 @@ export default function AdminImportedBusinesses() {
   const [categories, setCategories] = useState<string[]>(["Alla"]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
+  const [sortBy, setSortBy] = useState<ImportedBusinessSort>("confidence_desc");
+  const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
   const [savingOrgNrId, setSavingOrgNrId] = useState<string | null>(null);
   const [dialogState, setDialogState] = useState<{ company: ImportedCompany; action: ActionType } | null>(null);
   const [detailTarget, setDetailTarget] = useState<ImportedCompany | null>(null);
@@ -82,7 +108,10 @@ export default function AdminImportedBusinesses() {
           description: business.description,
           source: business.source ?? "IMPORTED",
           importMetadata: business.importMetadata,
-          importedAt: business.createdAt || new Date().toISOString(),
+          createdAt: business.createdAt,
+          updatedAt: business.updatedAt,
+          importedAt:
+            getImportActivityAt(business) ?? business.createdAt ?? new Date().toISOString(),
           imageUrl:
             business.imageUrl?.trim() ||
             business.imageAsset?.publicUrl?.trim() ||
@@ -111,25 +140,66 @@ export default function AdminImportedBusinesses() {
 
   const duplicateGroups = useMemo(() => buildDuplicateGroups(companies), [companies]);
 
-  const filtered = useMemo(
-    () =>
-      companies.filter((company) => {
-        const haystack = [
-          company.name,
-          company.address,
-          company.city,
-          company.orgNr ?? "",
-          company.cfarNr ?? "",
-          company.sniCode ?? "",
-        ]
-          .join(" ")
-          .toLowerCase();
-        const matchSearch = haystack.includes(search.toLowerCase());
-        const matchCategory = category === "Alla" || matchesCategoryName(company.categoryNames, category);
-        return matchSearch && matchCategory;
-      }).sort(compareBusinessName),
-    [companies, search, category],
-  );
+  const filtered = useMemo(() => {
+    const rows = companies.filter((company) => {
+      const haystack = [
+        company.name,
+        company.address,
+        company.city,
+        company.orgNr ?? "",
+        company.cfarNr ?? "",
+        company.sniCode ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      const matchSearch = haystack.includes(search.toLowerCase());
+      const matchCategory = category === "Alla" || matchesCategoryName(company.categoryNames, category);
+      const score = getImportConfidenceScore(company.importMetadata);
+      const flagged = isAiFlaggedImport(company.importMetadata);
+      const matchQuality =
+        qualityFilter === "all" ||
+        (qualityFilter === "high_confidence" && score != null && score >= HIGH_CONFIDENCE_THRESHOLD) ||
+        (qualityFilter === "flagged" && flagged) ||
+        (qualityFilter === "missing_score" && score == null);
+      return matchSearch && matchCategory && matchQuality;
+    });
+
+    rows.sort((left, right) => {
+      switch (sortBy) {
+        case "confidence_desc":
+        case "confidence_asc": {
+          const leftScore = getImportConfidenceScore(left.importMetadata);
+          const rightScore = getImportConfidenceScore(right.importMetadata);
+          const leftValue = leftScore ?? -1;
+          const rightValue = rightScore ?? -1;
+          const diff =
+            sortBy === "confidence_desc" ? rightValue - leftValue : leftValue - rightValue;
+          if (diff !== 0) return diff;
+          return compareBusinessName(left, right);
+        }
+        case "newest":
+        case "oldest": {
+          const leftMs = getImportActivityMs(left);
+          const rightMs = getImportActivityMs(right);
+          const diff = sortBy === "newest" ? rightMs - leftMs : leftMs - rightMs;
+          if (diff !== 0) return diff;
+          return compareBusinessName(left, right);
+        }
+        case "name_desc":
+          return compareBusinessName(right, left);
+        case "name_asc":
+          return compareBusinessName(left, right);
+        default: {
+          const _exhaustive: never = sortBy;
+          return _exhaustive;
+        }
+      }
+    });
+
+    return rows;
+  }, [companies, search, category, sortBy, qualityFilter]);
+
+  const hasActiveFilters = Boolean(search) || category !== "Alla" || qualityFilter !== "all";
 
   const handleAction = async () => {
     if (!dialogState) return;
@@ -200,7 +270,7 @@ export default function AdminImportedBusinesses() {
       <div>
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Importerade företag</h1>
         <p className="text-muted-foreground mt-1">
-          Företag hämtade från SCB. Redigera uppgifter och bild innan du godkänner, eller neka om de inte hör hemma här.
+          Granska importkön. Sortera efter confidence eller datum för att snabbt hitta rader redo att godkännas.
         </p>
       </div>
 
@@ -211,7 +281,7 @@ export default function AdminImportedBusinesses() {
         }}
       />
 
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col gap-3 lg:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -222,7 +292,7 @@ export default function AdminImportedBusinesses() {
           />
         </div>
         <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-full sm:w-[180px] bg-card border-border text-foreground">
+          <SelectTrigger className="w-full lg:w-[180px] bg-card border-border text-foreground">
             <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
@@ -234,18 +304,48 @@ export default function AdminImportedBusinesses() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={sortBy} onValueChange={(value) => setSortBy(value as ImportedBusinessSort)}>
+          <SelectTrigger className="w-full lg:w-[220px] bg-card border-border text-foreground">
+            <ArrowUpDown className="mr-2 h-4 w-4 text-muted-foreground" />
+            <SelectValue placeholder="Sortering" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover border-border">
+            {IMPORTED_BUSINESS_SORT_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={qualityFilter} onValueChange={(value) => setQualityFilter(value as QualityFilter)}>
+          <SelectTrigger className="w-full lg:w-[200px] bg-card border-border text-foreground">
+            <SelectValue placeholder="Kvalitet" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover border-border">
+            <SelectItem value="all">Alla i kön</SelectItem>
+            <SelectItem value="high_confidence">Hög confidence (≥80%)</SelectItem>
+            <SelectItem value="flagged">AI-flaggade</SelectItem>
+            <SelectItem value="missing_score">Saknar score</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
+
+      {filtered.length > 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Visar {filtered.length} av {companies.length} väntande importer
+        </p>
+      ) : null}
 
       {filtered.length === 0 ? (
         <Card className="bg-card border-border">
           <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <Download className="h-12 w-12 mb-4 opacity-40" />
             <p className="text-lg font-medium">
-              {search || category !== "Alla" ? "Inga importerade företag hittades" : "Inga väntande importer"}
+              {hasActiveFilters ? "Inga importerade företag hittades" : "Inga väntande importer"}
             </p>
             <p className="text-sm text-center max-w-md">
-              {search || category !== "Alla"
-                ? "Försök ändra dina sökkriterier"
+              {hasActiveFilters
+                ? "Försök ändra sortering eller filter"
                 : "Starta en import ovan, eller vänta på schemalagd körning."}
             </p>
           </CardContent>
@@ -254,6 +354,9 @@ export default function AdminImportedBusinesses() {
         <div className="space-y-4">
           {filtered.map((company) => {
             const duplicatePeers = getDuplicatePeers(company, duplicateGroups);
+            const confidence = getImportConfidenceScore(company.importMetadata);
+            const confidenceLabel = formatImportConfidence(confidence);
+            const activityLabel = formatImportedAt(company.importedAt);
             return (
             <Card key={company.id} className="card-hover bg-card border-border">
               <CardContent className="p-5">
@@ -264,6 +367,17 @@ export default function AdminImportedBusinesses() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-foreground">{company.name}</p>
                         <StatusBadge status="pending" />
+                        {confidenceLabel ? (
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-xs font-medium ${confidenceBadgeClass(confidence)}`}
+                          >
+                            Confidence {confidenceLabel}
+                          </span>
+                        ) : (
+                          <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                            Ingen score
+                          </span>
+                        )}
                         {duplicatePeers.length > 0 ? (
                           <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700">
                             Dubblett ({duplicatePeers.length + 1})
@@ -307,7 +421,7 @@ export default function AdminImportedBusinesses() {
                         <p className="text-sm text-foreground/70 mt-2 leading-relaxed">{company.description}</p>
                       ) : null}
                       <p className="text-xs text-muted-foreground mt-2">
-                        Importerad: {new Date(company.importedAt!).toLocaleDateString("sv-SE")}
+                        {activityLabel ? `Senast uppdaterad: ${activityLabel}` : null}
                       </p>
                     </div>
                   </div>

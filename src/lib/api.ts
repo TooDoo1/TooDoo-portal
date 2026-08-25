@@ -579,6 +579,12 @@ export type BusinessAiImportMetadata = {
     score?: number;
     evaluatedAt?: string;
   } | null;
+  importQuality?: {
+    score?: number;
+    unsureFields?: string[];
+    missingOptionalFields?: string[];
+    evaluatedAt?: string;
+  } | null;
 };
 
 export type BusinessImportMetadata = {
