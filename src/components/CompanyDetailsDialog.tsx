@@ -19,16 +19,7 @@ import { ImportMetadataSection } from "@/components/ImportMetadataSection";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getBusinessById, listOrders, resolveImageUrl, type Business, type Order } from "@/lib/api";
 import { buildGoogleMapsUrl } from "@/lib/businessImport";
-
-const dayLabels: Record<string, string> = {
-  monday: "Måndag",
-  tuesday: "Tisdag",
-  wednesday: "Onsdag",
-  thursday: "Torsdag",
-  friday: "Fredag",
-  saturday: "Lördag",
-  sunday: "Söndag",
-};
+import { formatOpeningHoursLines } from "@/lib/openingHours";
 
 function getBusinessImageUrl(business: Business) {
   if (typeof business.imageUrl === "string" && business.imageUrl.trim()) return business.imageUrl.trim();
@@ -45,24 +36,6 @@ function getBusinessImageUrl(business: Business) {
     nestedImage?.originalUrl?.trim() ||
     "";
   return assetUrl;
-}
-
-function formatOpeningHours(openingHours: Business["openingHours"]) {
-  if (!openingHours || typeof openingHours !== "object") return null;
-
-  const lines = Object.entries(openingHours)
-    .map(([day, value]) => {
-      const label = dayLabels[day] ?? day;
-      if (!value || typeof value !== "object") return null;
-      const hours = value as { from?: unknown; to?: unknown };
-      const from = typeof hours.from === "string" ? hours.from : "";
-      const to = typeof hours.to === "string" ? hours.to : "";
-      if (!from || !to) return null;
-      return `${label}: ${from}–${to}`;
-    })
-    .filter((line): line is string => Boolean(line));
-
-  return lines.length > 0 ? lines : null;
 }
 
 function mapStatus(status: Business["status"]) {
@@ -264,7 +237,7 @@ export function CompanyDetailsDialog({
 
   const displayName = business?.name ?? companyName ?? "Företag";
   const categoryName = business ? getCategoryName(business, category) : category;
-  const openingHoursLines = business ? formatOpeningHours(business.openingHours) : null;
+  const openingHoursLines = business ? formatOpeningHoursLines(business.openingHours) : null;
   const imageUrl = business ? resolveImageUrl(getBusinessImageUrl(business)) : null;
   const mapsUrl = business ? buildGoogleMapsUrl(business) : null;
 
@@ -398,9 +371,12 @@ export function CompanyDetailsDialog({
 
                 {openingHoursLines && (
                   <DetailRow icon={Clock} label="Öppettider">
-                    <ul className="space-y-0.5">
+                    <ul className="space-y-1">
                       {openingHoursLines.map((line) => (
-                        <li key={line}>{line}</li>
+                        <li key={line.key}>
+                          <span className="block">{line.label}</span>
+                          <span className="block text-muted-foreground">{line.hours}</span>
+                        </li>
                       ))}
                     </ul>
                   </DetailRow>
