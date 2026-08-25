@@ -452,6 +452,12 @@ export type BusinessAiImportMetadata = {
     action?: "accept" | "flag" | "drop" | string;
     reason?: string;
   } | null;
+  confidenceGate?: {
+    decision?: "auto_approve" | "review" | string;
+    reasons?: string[];
+    score?: number;
+    evaluatedAt?: string;
+  } | null;
 };
 
 export type BusinessImportMetadata = {

@@ -7,6 +7,7 @@ import {
   getRegistryTagLabel,
   getRegistryTags,
   isAiFlaggedImport,
+  isAutoApprovedImport,
 } from "@/lib/businessImport";
 
 type BusinessImportBadgesProps = {
@@ -21,6 +22,7 @@ export function BusinessImportBadges({ business, className }: BusinessImportBadg
   const claimLabel = getBusinessClaimLabel(business);
   const ai = getAiImportMetadata(business.importMetadata);
   const flagged = isAiFlaggedImport(business.importMetadata);
+  const autoApproved = isAutoApprovedImport(business);
   const registryTags = getRegistryTags(business.importMetadata);
 
   if (!isImported && !claimLabel && !ai) return null;
@@ -38,6 +40,11 @@ export function BusinessImportBadges({ business, className }: BusinessImportBadg
       {ai ? (
         <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent text-[11px]">
           AI-import
+        </Badge>
+      ) : null}
+      {autoApproved ? (
+        <Badge variant="outline" className="border-success/40 bg-success/10 text-success text-[11px]">
+          Auto-godkänd
         </Badge>
       ) : null}
       {flagged ? (

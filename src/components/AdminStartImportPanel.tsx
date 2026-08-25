@@ -21,21 +21,26 @@ type Props = {
 
 function formatRunSummary(run: AdminImportRun): string {
   const summary = run.summary ?? {};
-  const scb = summary.scb as { created?: number; updated?: number; errors?: number } | undefined;
-  const ai = summary.ai as
-    | { updated?: number; queued?: number; skippedReason?: string; errors?: number }
+  const discovery = summary.discovery as
+    | { created?: number; updated?: number; dropped?: number; errors?: number }
+    | undefined;
+  const gapFill = summary.gapFill as
+    | { updated?: number; queued?: number; errors?: number; skipped?: boolean }
+    | undefined;
+  const scbBackfill = summary.scbBackfill as
+    | { updated?: number; scanned?: number; errors?: number }
     | undefined;
 
   const parts: string[] = [];
-  if (scb) {
-    parts.push(`SCB skapade ${scb.created ?? 0}, uppdaterade ${scb.updated ?? 0}`);
-    if ((scb.errors ?? 0) > 0) parts.push(`${scb.errors} SCB-fel`);
+  if (discovery) {
+    parts.push(`AI hittade ${discovery.created ?? 0} nya`);
+    if ((discovery.dropped ?? 0) > 0) parts.push(`hoppade över ${discovery.dropped}`);
   }
-  if (ai?.skippedReason) {
-    parts.push(`AI hoppades över (${ai.skippedReason})`);
-  } else if (ai) {
-    parts.push(`AI uppdaterade ${ai.updated ?? 0} av ${ai.queued ?? 0}`);
-    if ((ai.errors ?? 0) > 0) parts.push(`${ai.errors} AI-fel`);
+  if (scbBackfill) {
+    parts.push(`SCB verifierade ${scbBackfill.updated ?? 0}`);
+  }
+  if (gapFill && !gapFill.skipped) {
+    parts.push(`AI fyllde ${gapFill.updated ?? 0} fält`);
   }
   return parts.join(" · ") || "Klar";
 }
@@ -139,7 +144,7 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
         <div>
           <h2 className="text-lg font-semibold text-foreground">Starta import</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Kör SCB-import för en stad, med valfri AI-enrichment. Jobbet körs i bakgrunden.
+            AI hittar konsumentvänliga verksamheter, SCB verifierar org.nr/CFAR/adress, och AI fyller bara saknade fält.
           </p>
         </div>
 
@@ -194,7 +199,7 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="import-limit">Limit per shard (valfritt)</Label>
+            <Label htmlFor="import-limit">Max rader gap-fill (valfritt)</Label>
             <Input
               id="import-limit"
               inputMode="numeric"
@@ -214,7 +219,7 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
                 onCheckedChange={(value) => setEnrichWithAi(value === true)}
                 disabled={starting || isRunning}
               />
-              AI-enrichment
+              Fyll saknade fält (AI)
             </label>
             <label className="flex items-center gap-2 text-sm text-foreground">
               <Checkbox

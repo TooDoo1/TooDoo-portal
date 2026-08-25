@@ -47,6 +47,23 @@ export function isAiFlaggedImport(metadata: BusinessImportMetadata | null | unde
   return getAiImportMetadata(metadata)?.gate?.action === "flag";
 }
 
+export function getConfidenceGateDecision(
+  metadata: BusinessImportMetadata | null | undefined,
+): "auto_approve" | "review" | null {
+  const decision = getAiImportMetadata(metadata)?.confidenceGate?.decision;
+  if (decision === "auto_approve" || decision === "review") return decision;
+  return null;
+}
+
+export function isAutoApprovedImport(
+  business: Pick<Business, "source" | "importMetadata">,
+): boolean {
+  return (
+    business.source === "IMPORTED" &&
+    getConfidenceGateDecision(business.importMetadata) === "auto_approve"
+  );
+}
+
 const REGISTRY_TAG_LABELS: Record<string, string> = {
   "org-nr-saknas": "Org.nr saknas",
   "org-nr-ej-i-scb": "Org.nr ej i SCB",

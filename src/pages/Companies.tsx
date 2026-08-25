@@ -13,7 +13,8 @@ import { CategoryBadges } from "@/components/CategoryBadges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { ManagerInviteDialog } from "@/components/ManagerInviteDialog";
-import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness, type Business, type BusinessSource } from "@/lib/api";
+import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness, type Business, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
+import { isAutoApprovedImport } from "@/lib/businessImport";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
 import { compareBusinessName } from "@/lib/sortBusinesses";
@@ -33,9 +34,10 @@ type Company = {
   source?: BusinessSource;
   isClaimed?: boolean;
   cfarNr?: string | null;
+  importMetadata?: BusinessImportMetadata | null;
 };
 
-type SourceFilter = "all" | "imported" | "self_registered" | "unclaimed_imports";
+type SourceFilter = "all" | "imported" | "self_registered" | "unclaimed_imports" | "auto_approved";
 
 export default function Companies() {
   const navigate = useNavigate();
@@ -77,6 +79,7 @@ export default function Companies() {
             source: business.source,
             isClaimed: business.isClaimed,
             cfarNr: business.cfarNr,
+            importMetadata: business.importMetadata,
           })),
         );
         setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
@@ -99,7 +102,8 @@ export default function Companies() {
       sourceFilter === "all" ||
       (sourceFilter === "imported" && c.source === "IMPORTED") ||
       (sourceFilter === "self_registered" && c.source !== "IMPORTED") ||
-      (sourceFilter === "unclaimed_imports" && c.source === "IMPORTED" && !c.isClaimed);
+      (sourceFilter === "unclaimed_imports" && c.source === "IMPORTED" && !c.isClaimed) ||
+      (sourceFilter === "auto_approved" && isAutoApprovedImport(c));
     return matchSearch && matchCategory && matchSource;
   }).sort(compareBusinessName), [companies, search, category, sourceFilter]);
 
@@ -219,6 +223,7 @@ export default function Companies() {
             <SelectItem value="imported">Importerade</SelectItem>
             <SelectItem value="self_registered">Självregistrerade</SelectItem>
             <SelectItem value="unclaimed_imports">Ej ägda importer</SelectItem>
+            <SelectItem value="auto_approved">Auto-godkända</SelectItem>
           </SelectContent>
         </Select>
       </div>
