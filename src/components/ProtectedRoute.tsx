@@ -4,6 +4,7 @@ import {
   clearAuthStorage,
   ensureValidAuthSession,
   getAuthEmail,
+  getAuthRole,
   getAuthToken,
   getUserByEmail,
   setAuthRole,
@@ -32,8 +33,12 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
 
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionValid, setSessionValid] = useState(false);
-  const [checkedRole, setCheckedRole] = useState<string | null>(null);
-  const [verifyingRole, setVerifyingRole] = useState(false);
+  const [checkedRole, setCheckedRole] = useState<string | null>(() =>
+    needsRoleCheck ? getAuthRole() : null,
+  );
+  // Stay in loading until role is confirmed — avoids a one-frame flash to /login
+  // after login when session becomes ready before the role effect runs.
+  const [verifyingRole, setVerifyingRole] = useState(() => needsRoleCheck);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +48,9 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
       if (cancelled) return;
       setSessionValid(valid);
       setSessionReady(true);
+      if (!valid || !needsRoleCheck) {
+        setVerifyingRole(false);
+      }
     };
 
     void bootstrap();
@@ -50,19 +58,26 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [needsRoleCheck]);
 
   useEffect(() => {
     if (!sessionReady || !sessionValid || !needsRoleCheck) {
-      setVerifyingRole(false);
       return;
     }
 
     let cancelled = false;
-    setCheckedRole(null);
     setVerifyingRole(true);
 
     const resolveRole = async () => {
+      const storedRole = getAuthRole();
+      if (storedRole) {
+        if (!cancelled) {
+          setCheckedRole(storedRole);
+          setVerifyingRole(false);
+        }
+        return;
+      }
+
       const token = getAuthToken();
       const fromJwt = token ? decodeJwtRole(token) : null;
       if (fromJwt) {
