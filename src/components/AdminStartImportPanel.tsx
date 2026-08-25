@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Play } from "lucide-react";
+import { ChevronDown, Loader2, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,6 +14,7 @@ import {
   startAdminImportRun,
   type AdminImportRun,
 } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 type Props = {
@@ -46,6 +48,7 @@ function formatRunSummary(run: AdminImportRun): string {
 }
 
 export function AdminStartImportPanel({ onCompleted }: Props) {
+  const [open, setOpen] = useState(false);
   const [knownCities, setKnownCities] = useState<string[]>([]);
   const [importCategories, setImportCategories] = useState<string[]>([]);
   const [city, setCity] = useState("");
@@ -123,6 +126,7 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
         ...(limitValue && Number.isFinite(limitValue) ? { importLimit: limitValue } : {}),
       });
       setActiveRun(run);
+      setOpen(true);
       toast.message(`Import startad för ${run.city}`, {
         description: dryRun ? "Dry run — inga skrivningar" : "Körs i bakgrunden",
       });
@@ -139,15 +143,34 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
   const isRunning = activeRun?.status === "RUNNING" || activeRun?.status === "PENDING";
 
   return (
-    <Card className="bg-card border-border">
-      <CardContent className="p-5 space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Starta import</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            AI hittar konsumentvänliga verksamheter, SCB verifierar org.nr/CFAR/adress, och AI fyller bara saknade fält.
-          </p>
-        </div>
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <Card className="bg-card border-border">
+        <CardContent className="p-5 space-y-4">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-start justify-between gap-3 text-left rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-foreground">Starta import</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {open
+                    ? "AI hittar konsumentvänliga verksamheter, SCB verifierar org.nr/CFAR/adress, och AI fyller bara saknade fält."
+                    : isRunning
+                      ? `Import pågår för ${activeRun?.city ?? "…"}`
+                      : "Visa för att starta en ny AI-import"}
+                </p>
+              </div>
+              <ChevronDown
+                className={cn(
+                  "mt-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform",
+                  open && "rotate-180",
+                )}
+              />
+            </button>
+          </CollapsibleTrigger>
 
+          <CollapsibleContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="import-city">Stad</Label>
@@ -258,7 +281,9 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
               : null}
           </div>
         ) : null}
-      </CardContent>
-    </Card>
+          </CollapsibleContent>
+        </CardContent>
+      </Card>
+    </Collapsible>
   );
 }
