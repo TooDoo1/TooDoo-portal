@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import {
   clearAuthStorage,
+  ensureValidAuthSession,
   getAuthEmail,
   getAuthToken,
   getUserByEmail,
@@ -25,54 +26,50 @@ function decodeJwtRole(token: string): string | null {
   }
 }
 
-function isJwtExpired(token: string): boolean {
-  try {
-    const payload = token.split(".")[1];
-    if (!payload) return true;
-    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
-    const decoded = JSON.parse(atob(padded)) as { exp?: unknown };
-    if (typeof decoded.exp !== "number") return false;
-    return decoded.exp * 1000 <= Date.now();
-  } catch {
-    return true;
-  }
-}
-
 export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
   const location = useLocation();
-  const token = getAuthToken();
-
-  const tokenInvalid = useMemo(() => !token || isJwtExpired(token), [token]);
   const needsRoleCheck = Boolean(allowedRoles && allowedRoles.length > 0);
 
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionValid, setSessionValid] = useState(false);
   const [checkedRole, setCheckedRole] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(() => !tokenInvalid && needsRoleCheck);
+  const [verifyingRole, setVerifyingRole] = useState(false);
 
   useEffect(() => {
-    if (tokenInvalid) {
-      clearAuthStorage();
-      setCheckedRole(null);
-      setVerifying(false);
-      return;
-    }
+    let cancelled = false;
 
-    if (!needsRoleCheck) {
-      setVerifying(false);
+    const bootstrap = async () => {
+      const valid = await ensureValidAuthSession();
+      if (cancelled) return;
+      setSessionValid(valid);
+      setSessionReady(true);
+    };
+
+    void bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sessionReady || !sessionValid || !needsRoleCheck) {
+      setVerifyingRole(false);
       return;
     }
 
     let cancelled = false;
     setCheckedRole(null);
-    setVerifying(true);
+    setVerifyingRole(true);
 
     const resolveRole = async () => {
+      const token = getAuthToken();
       const fromJwt = token ? decodeJwtRole(token) : null;
       if (fromJwt) {
         if (cancelled) return;
         setAuthRole(fromJwt);
         setCheckedRole(fromJwt);
-        setVerifying(false);
+        setVerifyingRole(false);
         return;
       }
 
@@ -80,7 +77,7 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
       if (!email) {
         if (cancelled) return;
         setCheckedRole(null);
-        setVerifying(false);
+        setVerifyingRole(false);
         return;
       }
 
@@ -96,7 +93,7 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
       } catch {
         if (!cancelled) setCheckedRole(null);
       } finally {
-        if (!cancelled) setVerifying(false);
+        if (!cancelled) setVerifyingRole(false);
       }
     };
 
@@ -105,13 +102,9 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
     return () => {
       cancelled = true;
     };
-  }, [token, tokenInvalid, needsRoleCheck]);
+  }, [sessionReady, sessionValid, needsRoleCheck]);
 
-  if (tokenInvalid) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  if (verifying) {
+  if (!sessionReady || verifyingRole) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <div
@@ -121,6 +114,11 @@ export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
         />
       </div>
     );
+  }
+
+  if (!sessionValid) {
+    clearAuthStorage();
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (needsRoleCheck) {

@@ -13,7 +13,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "@/components/ui/dialog";
-import { getUserByEmail, loginPortal, requestPasswordResetLink, setAuthEmail, setAuthRole, setAuthToken, setBusinessId, clearBusinessId } from "@/lib/api";
+import { getUserByEmail, loginPortal, persistLoginTokens, requestPasswordResetLink, setAuthEmail, setAuthRole, setBusinessId, clearBusinessId } from "@/lib/api";
 import { toast } from "sonner";
 
 
@@ -53,7 +53,7 @@ export default function LoggIn() {
 		try {
 			const trimmedEmail = email.trim();
 			const response = await loginPortal({ email: trimmedEmail, password });
-			setAuthToken(response.token);
+			persistLoginTokens(response);
 			const user = await getUserByEmail(trimmedEmail);
 			const role = typeof user.role === "string" ? user.role : getJwtRole(response.token);
 			setAuthEmail(trimmedEmail);

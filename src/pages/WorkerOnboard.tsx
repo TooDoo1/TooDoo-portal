@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LoginArrowLabel } from "@/components/LoginArrowLabel";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
-import { loginUser, redeemWorkerInvite, registerUser, clearAuthStorage, setAuthEmail, setAuthRole, setAuthToken } from "@/lib/api";
+import { loginUser, persistLoginTokens, redeemWorkerInvite, registerUser, clearAuthStorage, setAuthEmail, setAuthRole } from "@/lib/api";
 import { toast } from "sonner";
 
 const INVITE_TOKEN_STORAGE_KEY = "toodoo_worker_invite_token";
@@ -135,7 +135,7 @@ export default function WorkerOnboard() {
       }
 
       const loginResponse = await loginUser({ email: trimmedEmail, password });
-      setAuthToken(loginResponse.token);
+      persistLoginTokens(loginResponse);
       setAuthEmail(trimmedEmail);
 
       try {

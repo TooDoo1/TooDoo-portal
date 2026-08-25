@@ -13,6 +13,7 @@ export function getApiBaseUrl() {
 }
 
 const TOKEN_STORAGE_KEY = "toodoo_jwt";
+const REFRESH_TOKEN_STORAGE_KEY = "toodoo_refresh_jwt";
 const USER_EMAIL_STORAGE_KEY = "toodoo_user_email";
 const USER_ROLE_STORAGE_KEY = "toodoo_user_role";
 const BUSINESS_ID_STORAGE_KEY = "toodoo_business_id";
@@ -84,9 +85,99 @@ function toApiError(payload: unknown, fallbackMessage: string): ApiError {
   return new ApiError(fallbackMessage);
 }
 
-async function apiRequest<T>(path: string, init: RequestInit = {}, withAuth = false): Promise<T> {
+let refreshInFlight: Promise<boolean> | null = null;
+
+function decodeJwtExpiryMs(token: string): number | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const decoded = JSON.parse(atob(padded)) as { exp?: unknown };
+    return typeof decoded.exp === "number" ? decoded.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isAccessTokenExpired(token: string, skewMs = 60_000): boolean {
+  const expiresAt = decodeJwtExpiryMs(token);
+  if (expiresAt == null) return false;
+  return expiresAt <= Date.now() + skewMs;
+}
+
+export function getRefreshToken() {
+  return localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+}
+
+export function setRefreshToken(token: string) {
+  localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, token);
+}
+
+export function clearRefreshToken() {
+  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+}
+
+export function persistLoginTokens(response: Pick<LoginResponse, "token" | "refreshToken">) {
+  setAuthToken(response.token);
+  if (response.refreshToken) {
+    setRefreshToken(response.refreshToken);
+  }
+}
+
+export async function refreshAuthTokens(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/user/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken }),
+        });
+        const contentType = response.headers.get("content-type") || "";
+        const payload = contentType.includes("application/json") ? await response.json() : null;
+        if (!response.ok) return false;
+        const data = payload as LoginResponse;
+        if (!data?.token) return false;
+        persistLoginTokens(data);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+  }
+
+  return refreshInFlight;
+}
+
+/** Renew access token when expired; returns false when the session is gone. */
+export async function ensureValidAuthSession(): Promise<boolean> {
+  const token = getAuthToken();
+  if (!token) return false;
+  if (!isAccessTokenExpired(token)) return true;
+  const refreshed = await refreshAuthTokens();
+  if (!refreshed) {
+    clearAuthStorage();
+    return false;
+  }
+  return Boolean(getAuthToken());
+}
+
+async function apiRequest<T>(
+  path: string,
+  init: RequestInit = {},
+  withAuth = false,
+  authRetried = false,
+): Promise<T> {
   const headers = new Headers(init.headers ?? {});
-  headers.set("Content-Type", "application/json");
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
 
   if (withAuth) {
     const token = getAuthToken();
@@ -105,6 +196,18 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, withAuth = fa
   const payload = contentType.includes("application/json") ? await response.json() : null;
 
   if (!response.ok) {
+    if (
+      response.status === 401 &&
+      withAuth &&
+      !authRetried &&
+      path !== "/user/refresh" &&
+      (await refreshAuthTokens())
+    ) {
+      return apiRequest(path, init, withAuth, true);
+    }
+    if (response.status === 401 && withAuth) {
+      clearAuthStorage();
+    }
     const apiError = toApiError(payload, `Request failed (${response.status})`);
     // Attach high-signal context to the message so UI errors are actionable.
     apiError.message = `${apiError.message} [${response.status} ${init.method ?? "GET"} ${path}]`;
@@ -114,7 +217,13 @@ async function apiRequest<T>(path: string, init: RequestInit = {}, withAuth = fa
   return payload as T;
 }
 
-async function apiRequestFormData<T>(path: string, form: FormData, withAuth = false, method: "POST" | "PUT" = "POST"): Promise<T> {
+async function apiRequestFormData<T>(
+  path: string,
+  form: FormData,
+  withAuth = false,
+  method: "POST" | "PUT" = "POST",
+  authRetried = false,
+): Promise<T> {
   const headers = new Headers();
 
   if (withAuth) {
@@ -135,6 +244,17 @@ async function apiRequestFormData<T>(path: string, form: FormData, withAuth = fa
   const payload = contentType.includes("application/json") ? await response.json() : null;
 
   if (!response.ok) {
+    if (
+      response.status === 401 &&
+      withAuth &&
+      !authRetried &&
+      (await refreshAuthTokens())
+    ) {
+      return apiRequestFormData(path, form, withAuth, method, true);
+    }
+    if (response.status === 401 && withAuth) {
+      clearAuthStorage();
+    }
     const apiError = toApiError(payload, `Request failed (${response.status})`);
     apiError.message = `${apiError.message} [${response.status} ${method} ${path}]`;
     throw apiError;
@@ -241,6 +361,7 @@ export function clearBusinessId() {
  */
 export function clearAuthStorage() {
   clearAuthToken();
+  clearRefreshToken();
   clearAuthIdentity();
   clearBusinessId();
   try {
@@ -998,6 +1119,13 @@ export async function loginPortal(body: LoginRequest) {
   return apiRequest<LoginResponse>("/user/login/portal", {
     method: "POST",
     body: JSON.stringify(body),
+  });
+}
+
+export async function refreshPortalAuth(refreshToken: string) {
+  return apiRequest<LoginResponse>("/user/refresh", {
+    method: "POST",
+    body: JSON.stringify({ refreshToken }),
   });
 }
 

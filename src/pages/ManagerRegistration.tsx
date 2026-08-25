@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { LoginArrowLabel } from "@/components/LoginArrowLabel";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
-import { getUserByEmail, loginPortal, redeemManagerInvite, registerManager, setAuthEmail, setAuthRole, setAuthToken, setBusinessId } from "@/lib/api";
+import { getUserByEmail, loginPortal, persistLoginTokens, redeemManagerInvite, registerManager, setAuthEmail, setAuthRole, setBusinessId } from "@/lib/api";
 import { toast } from "sonner";
 import { TermsAcceptance } from "@/components/TermsAcceptance";
 
@@ -103,7 +103,7 @@ export default function ManagerRegistration() {
 
       const finishLogin = async (successMessage: string) => {
         const loginResponse = await loginPortal({ email: trimmedEmail, password });
-        setAuthToken(loginResponse.token);
+        persistLoginTokens(loginResponse);
         setAuthEmail(trimmedEmail);
 
         const user = await getUserByEmail(trimmedEmail);
