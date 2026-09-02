@@ -590,6 +590,15 @@ export type BusinessAiImportMetadata = {
 export type BusinessImportMetadata = {
   scb?: Record<string, unknown>;
   importedAt?: string;
+  linkedAt?: string;
+  linkedToExisting?: boolean;
+  scbImport?: {
+    pipelineVersion?: string;
+    handledAt?: string;
+    action?: "created" | "updated" | "merged";
+    linkedToExisting?: boolean;
+    placesEnriched?: boolean;
+  };
   ai?: BusinessAiImportMetadata;
   google?: {
     placeId?: string;

@@ -21,9 +21,11 @@ import {
 import {
   formatImportConfidence,
   formatImportedAt,
+  formatScbImportHandledAt,
   getImportActivityAt,
   getImportActivityMs,
   getImportConfidenceScore,
+  hasScbBulkImport,
   isAiFlaggedImport,
 } from "@/lib/businessImport";
 import {
@@ -45,7 +47,7 @@ import { AdminStartImportPanel } from "@/components/AdminStartImportPanel";
 import { toast } from "sonner";
 
 type ActionType = "approve" | "deny";
-type QualityFilter = "all" | "high_confidence" | "flagged" | "missing_score";
+type QualityFilter = "all" | "high_confidence" | "flagged" | "missing_score" | "scb_import";
 
 type ImportedCompany = {
   id: string;
@@ -160,7 +162,8 @@ export default function AdminImportedBusinesses() {
         qualityFilter === "all" ||
         (qualityFilter === "high_confidence" && score != null && score >= HIGH_CONFIDENCE_THRESHOLD) ||
         (qualityFilter === "flagged" && flagged) ||
-        (qualityFilter === "missing_score" && score == null);
+        (qualityFilter === "missing_score" && score == null) ||
+        (qualityFilter === "scb_import" && hasScbBulkImport(company.importMetadata));
       return matchSearch && matchCategory && matchQuality;
     });
 
@@ -326,6 +329,7 @@ export default function AdminImportedBusinesses() {
             <SelectItem value="high_confidence">Hög confidence (≥80%)</SelectItem>
             <SelectItem value="flagged">AI-flaggade</SelectItem>
             <SelectItem value="missing_score">Saknar score</SelectItem>
+            <SelectItem value="scb_import">SCB bulk-import</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -357,6 +361,7 @@ export default function AdminImportedBusinesses() {
             const confidence = getImportConfidenceScore(company.importMetadata);
             const confidenceLabel = formatImportConfidence(confidence);
             const activityLabel = formatImportedAt(company.importedAt);
+            const scbHandledLabel = formatScbImportHandledAt(company.importMetadata);
             return (
             <Card key={company.id} className="card-hover bg-card border-border">
               <CardContent className="p-5">
@@ -422,6 +427,7 @@ export default function AdminImportedBusinesses() {
                       ) : null}
                       <p className="text-xs text-muted-foreground mt-2">
                         {activityLabel ? `Senast uppdaterad: ${activityLabel}` : null}
+                        {scbHandledLabel ? ` · SCB-import: ${scbHandledLabel}` : null}
                       </p>
                     </div>
                   </div>

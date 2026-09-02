@@ -245,5 +245,5 @@ Set `VITE_API_URL` (and optionally `VITE_PORTAL_URL`) in the host's environment 
 
 - Backend API details (auth rules, `businessId` for admin create endpoints, image gallery routes, import/claim endpoints, CLI import pipeline, personalized feeds): [TooDoo-Backend/README.md](../TooDoo-Backend/README.md)
 - Bulk import revamp (SCB → `PENDING` → admin review; no Google in pipeline): [TooDoo-Backend/docs/bulk-import-revamp.md](../TooDoo-Backend/docs/bulk-import-revamp.md)
+- Import strategy and Places cost model: [TooDoo-Backend/docs/bulk-import-improvement-strategy.md](../TooDoo-Backend/docs/bulk-import-improvement-strategy.md)
 - Portal import-audit UX: [docs/bulk-import-revamp.md](./docs/bulk-import-revamp.md)
-- Older enrich/cleanup design notes: [TooDoo-Backend/docs/business-bulk-import-implementation.md](../TooDoo-Backend/docs/business-bulk-import-implementation.md)

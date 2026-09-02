@@ -43,6 +43,34 @@ export function getAiImportMetadata(
   return ai;
 }
 
+export function hasScbBulkImport(metadata: BusinessImportMetadata | null | undefined): boolean {
+  if (!metadata || typeof metadata !== "object") return false;
+  if (metadata.scbImport && typeof metadata.scbImport === "object") return true;
+  return Boolean(metadata.scb);
+}
+
+export function getScbImportActionLabel(
+  metadata: BusinessImportMetadata | null | undefined,
+): string | null {
+  const action = metadata?.scbImport?.action;
+  switch (action) {
+    case "created":
+      return "Skapad";
+    case "updated":
+      return "Uppdaterad";
+    case "merged":
+      return "Kopplad";
+    default:
+      return metadata?.linkedToExisting ? "Kopplad" : null;
+  }
+}
+
+export function formatScbImportHandledAt(
+  metadata: BusinessImportMetadata | null | undefined,
+): string | null {
+  return formatImportedAt(metadata?.scbImport?.handledAt ?? metadata?.importedAt ?? metadata?.linkedAt);
+}
+
 export function isAiFlaggedImport(metadata: BusinessImportMetadata | null | undefined): boolean {
   return getAiImportMetadata(metadata)?.gate?.action === "flag";
 }
@@ -144,7 +172,9 @@ export function getImportActivityAt(
   const metadata = business.importMetadata;
   const ai = getAiImportMetadata(metadata);
   const candidates = [
+    metadata?.scbImport?.handledAt,
     metadata?.importedAt,
+    metadata?.linkedAt,
     ai?.confidenceGate?.evaluatedAt,
     ai?.importQuality?.evaluatedAt,
     business.updatedAt,

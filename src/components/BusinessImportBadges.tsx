@@ -6,6 +6,8 @@ import {
   getBusinessOriginLabel,
   getRegistryTagLabel,
   getRegistryTags,
+  getScbImportActionLabel,
+  hasScbBulkImport,
   isAiFlaggedImport,
   isAutoApprovedImport,
 } from "@/lib/businessImport";
@@ -23,9 +25,11 @@ export function BusinessImportBadges({ business, className }: BusinessImportBadg
   const ai = getAiImportMetadata(business.importMetadata);
   const flagged = isAiFlaggedImport(business.importMetadata);
   const autoApproved = isAutoApprovedImport(business);
+  const scbBulkImport = hasScbBulkImport(business.importMetadata);
+  const scbActionLabel = getScbImportActionLabel(business.importMetadata);
   const registryTags = getRegistryTags(business.importMetadata);
 
-  if (!isImported && !claimLabel && !ai) return null;
+  if (!isImported && !claimLabel && !ai && !scbBulkImport) return null;
 
   const isOwned =
     typeof business.hasManager === "boolean" ? business.hasManager : Boolean(business.isClaimed);
@@ -35,6 +39,15 @@ export function BusinessImportBadges({ business, className }: BusinessImportBadg
       {isImported ? (
         <Badge variant="outline" className="border-border text-[11px]">
           {getBusinessOriginLabel(business.source)}
+        </Badge>
+      ) : null}
+      {scbBulkImport ? (
+        <Badge
+          variant="outline"
+          className="border-sky-500/40 bg-sky-500/10 text-sky-700 text-[11px]"
+          title={scbActionLabel ? `SCB bulk-import (${scbActionLabel})` : "SCB bulk-import"}
+        >
+          SCB-import{scbActionLabel ? ` · ${scbActionLabel}` : ""}
         </Badge>
       ) : null}
       {ai ? (
