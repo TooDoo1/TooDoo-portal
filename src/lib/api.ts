@@ -598,6 +598,11 @@ export type BusinessImportMetadata = {
     action?: "created" | "updated" | "merged";
     linkedToExisting?: boolean;
     placesEnriched?: boolean;
+    orgNr?: string | null;
+    cfarNr?: string | null;
+    sniCode?: string | null;
+    companyName?: string | null;
+    workplaceName?: string | null;
   };
   ai?: BusinessAiImportMetadata;
   google?: {

@@ -49,7 +49,7 @@ export function hasScbBulkImport(metadata: BusinessImportMetadata | null | undef
   return Boolean(metadata.scb);
 }
 
-export function getScbImportActionLabel(
+export function formatScbImportActionLabel(
   metadata: BusinessImportMetadata | null | undefined,
 ): string | null {
   const action = metadata?.scbImport?.action;
@@ -63,6 +63,29 @@ export function getScbImportActionLabel(
     default:
       return metadata?.linkedToExisting ? "Kopplad" : null;
   }
+}
+
+export const getScbImportActionLabel = formatScbImportActionLabel;
+
+export function getScbImportOrgNrDisplay(
+  metadata: BusinessImportMetadata | null | undefined,
+): string | null {
+  const stamp = metadata?.scbImport?.orgNr?.trim();
+  if (stamp) {
+    const digits = stamp.replace(/\D/g, "");
+    if (digits.length === 10) return `${digits.slice(0, 6)}-${digits.slice(6)}`;
+    return stamp;
+  }
+  const scb = metadata?.scb;
+  if (scb && typeof scb === "object" && !Array.isArray(scb)) {
+    const raw = (scb as Record<string, unknown>).orgNr;
+    if (typeof raw === "string" && raw.trim()) {
+      const digits = raw.replace(/\D/g, "");
+      if (digits.length === 10) return `${digits.slice(0, 6)}-${digits.slice(6)}`;
+      return raw.trim();
+    }
+  }
+  return null;
 }
 
 export function formatScbImportHandledAt(

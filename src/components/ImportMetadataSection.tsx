@@ -11,7 +11,11 @@ import {
   formatImportConfidence,
   formatImportedAt,
   formatRegistryStatus,
+  formatScbImportActionLabel,
+  formatScbImportHandledAt,
   getAiImportMetadata,
+  getScbImportOrgNrDisplay,
+  hasScbBulkImport,
   isAiFlaggedImport,
 } from "@/lib/businessImport";
 import { cn } from "@/lib/utils";
@@ -62,7 +66,15 @@ export function ImportMetadataSection({ business }: ImportMetadataSectionProps) 
     Boolean(value?.trim()),
   );
   const google = metadata?.google;
+  const scbImport = metadata?.scbImport;
+  const scbBulkImport = hasScbBulkImport(metadata);
+  const scbHandledAt = formatScbImportHandledAt(metadata);
+  const scbActionLabel = formatScbImportActionLabel(metadata);
+  const scbOrgNrDisplay = getScbImportOrgNrDisplay(metadata);
   const registryStatus = formatRegistryStatus(ai?.registry?.status);
+  const showAiRegistry =
+    Boolean(registryStatus || ai?.registry?.scbCompanyName || ai?.registry?.reason) &&
+    !scbBulkImport;
   const hasRegistry =
     Boolean(business.cfarNr) || Boolean(business.orgNr) || Boolean(business.sniCode) || Boolean(ai?.orgNrDisplay);
   const hasContent =
@@ -88,6 +100,11 @@ export function ImportMetadataSection({ business }: ImportMetadataSectionProps) 
               AI-import
             </Badge>
           ) : null}
+          {scbBulkImport ? (
+            <Badge variant="outline" className="border-sky-500/40 bg-sky-500/10 text-sky-700 text-[11px]">
+              SCB bulk-import
+            </Badge>
+          ) : null}
           {flagged ? (
             <Badge variant="outline" className="border-warning/40 bg-warning/10 text-warning text-[11px]">
               Flaggad
@@ -110,18 +127,34 @@ export function ImportMetadataSection({ business }: ImportMetadataSectionProps) 
         <div className="border-t border-border/60 px-4 pb-4 pt-3">
           <div className="grid gap-2 text-muted-foreground">
             {importedAt ? <MetaRow label="Importerad">{importedAt}</MetaRow> : null}
+            {scbBulkImport ? (
+              <>
+                {scbHandledAt ? <MetaRow label="SCB bulk-import">{scbHandledAt}</MetaRow> : null}
+                {scbActionLabel ? <MetaRow label="SCB åtgärd">{scbActionLabel}</MetaRow> : null}
+                {(scbImport?.companyName || scbImport?.workplaceName) ? (
+                  <MetaRow label="SCB bolagsnamn">
+                    {scbImport?.companyName ?? scbImport?.workplaceName}
+                  </MetaRow>
+                ) : null}
+              </>
+            ) : null}
             {business.cfarNr ? <MetaRow label="CFAR">{business.cfarNr}</MetaRow> : null}
             {business.orgNr ? <MetaRow label="Org.nr">{business.orgNr}</MetaRow> : null}
-            {!business.orgNr && ai?.orgNrDisplay ? (
+            {!business.orgNr && scbOrgNrDisplay ? (
+              <MetaRow label="Org.nr (SCB)">{scbOrgNrDisplay}</MetaRow>
+            ) : null}
+            {!business.orgNr && !scbOrgNrDisplay && ai?.orgNrDisplay ? (
               <MetaRow label="Org.nr (AI)">{ai.orgNrDisplay}</MetaRow>
             ) : null}
             {business.sniCode ? <MetaRow label="SNI">{business.sniCode}</MetaRow> : null}
-            {registryStatus ? <MetaRow label="SCB-status">{registryStatus}</MetaRow> : null}
-            {ai?.registry?.scbCompanyName ? (
-              <MetaRow label="SCB bolagsnamn">{ai.registry.scbCompanyName}</MetaRow>
+            {showAiRegistry && registryStatus ? (
+              <MetaRow label="SCB-status (AI)">{registryStatus}</MetaRow>
             ) : null}
-            {ai?.registry?.reason ? (
-              <MetaRow label="SCB-notering">{ai.registry.reason}</MetaRow>
+            {showAiRegistry && ai?.registry?.scbCompanyName ? (
+              <MetaRow label="SCB bolagsnamn (AI)">{ai.registry.scbCompanyName}</MetaRow>
+            ) : null}
+            {showAiRegistry && ai?.registry?.reason ? (
+              <MetaRow label="SCB-notering (AI)">{ai.registry.reason}</MetaRow>
             ) : null}
             {business.googlePlaceId ? <MetaRow label="Google Place ID">{business.googlePlaceId}</MetaRow> : null}
           </div>
