@@ -24,7 +24,21 @@ type ApiErrorShape = {
   details?: Array<{ field?: string; message?: string }>;
   ok?: boolean;
   reason?: string;
+  code?: string;
   duplicates?: BusinessDuplicateMatch[];
+  runningRun?: {
+    id: string;
+    city: string;
+    municipalityCode: string;
+    status: string;
+    phase: string;
+    dryRun: boolean;
+    lastError: string | null;
+    summary: Record<string, unknown> | null;
+    startedAt: string | null;
+    finishedAt: string | null;
+    createdAt: string;
+  };
 };
 
 export type BusinessDuplicateMatch = {
@@ -50,6 +64,9 @@ export class ApiError extends Error {
   details?: Array<{ field?: string; message?: string }>;
   reason?: string;
   duplicates?: BusinessDuplicateMatch[];
+  code?: string;
+  status?: number;
+  runningRun?: AdminImportRun | ApiErrorShape["runningRun"];
 
   constructor(
     message: string,
@@ -57,6 +74,9 @@ export class ApiError extends Error {
       details?: Array<{ field?: string; message?: string }>;
       reason?: string;
       duplicates?: BusinessDuplicateMatch[];
+      code?: string;
+      status?: number;
+      runningRun?: AdminImportRun | ApiErrorShape["runningRun"];
     },
   ) {
     super(message);
@@ -64,25 +84,43 @@ export class ApiError extends Error {
     this.details = options?.details;
     this.reason = options?.reason;
     this.duplicates = options?.duplicates;
+    this.code = options?.code;
+    this.status = options?.status;
+    this.runningRun = options?.runningRun;
   }
 }
 
-function toApiError(payload: unknown, fallbackMessage: string): ApiError {
+function toApiError(payload: unknown, fallbackMessage: string, status?: number): ApiError {
   const value = (payload ?? {}) as ApiErrorShape;
 
   if (value.ok === false && value.reason) {
-    return new ApiError(value.reason, { reason: value.reason });
+    return new ApiError(value.reason, {
+      reason: value.reason,
+      code: value.code,
+      status,
+      runningRun: value.runningRun,
+    });
   }
 
   if (value.error === "Validation Error") {
-    return new ApiError(value.error, { details: value.details ?? [] });
+    return new ApiError(value.error, {
+      details: value.details ?? [],
+      code: value.code,
+      status,
+    });
   }
 
   if (value.error) {
-    return new ApiError(value.error, { details: value.details ?? [], duplicates: value.duplicates });
+    return new ApiError(value.error, {
+      details: value.details ?? [],
+      duplicates: value.duplicates,
+      code: value.code,
+      status,
+      runningRun: value.runningRun,
+    });
   }
 
-  return new ApiError(fallbackMessage);
+  return new ApiError(fallbackMessage, { status, code: value.code, runningRun: value.runningRun });
 }
 
 let refreshInFlight: Promise<boolean> | null = null;
@@ -208,7 +246,7 @@ async function apiRequest<T>(
     if (response.status === 401 && withAuth) {
       clearAuthStorage();
     }
-    const apiError = toApiError(payload, `Request failed (${response.status})`);
+    const apiError = toApiError(payload, `Request failed (${response.status})`, response.status);
     // Attach high-signal context to the message so UI errors are actionable.
     apiError.message = `${apiError.message} [${response.status} ${init.method ?? "GET"} ${path}]`;
     throw apiError;
@@ -255,7 +293,7 @@ async function apiRequestFormData<T>(
     if (response.status === 401 && withAuth) {
       clearAuthStorage();
     }
-    const apiError = toApiError(payload, `Request failed (${response.status})`);
+    const apiError = toApiError(payload, `Request failed (${response.status})`, response.status);
     apiError.message = `${apiError.message} [${response.status} ${method} ${path}]`;
     throw apiError;
   }
@@ -1446,6 +1484,17 @@ export type StartAdminImportRunRequest = {
   refreshLimit?: number;
 };
 
+export type AdminImportToolMode = "scb_enrich" | "confidence_rescore";
+
+export type StartAdminImportToolRequest = {
+  mode: AdminImportToolMode;
+  city?: string;
+  dryRun?: boolean;
+  force?: boolean;
+  applyAutoApprove?: boolean;
+  limit?: number;
+};
+
 export async function getAdminImportOptions() {
   return apiRequest<AdminImportOptions>("/import/options", { method: "GET" }, true);
 }
@@ -1453,6 +1502,17 @@ export async function getAdminImportOptions() {
 export async function startAdminImportRun(body: StartAdminImportRunRequest) {
   return apiRequest<AdminImportRun>(
     "/import/runs",
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+    true,
+  );
+}
+
+export async function startAdminImportToolRun(body: StartAdminImportToolRequest) {
+  return apiRequest<AdminImportRun>(
+    "/import/tools",
     {
       method: "POST",
       body: JSON.stringify(body),
