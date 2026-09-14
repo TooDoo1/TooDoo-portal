@@ -407,10 +407,12 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
     setToolStarting(mode);
     try {
       const limitValue = importLimit.trim() ? Number.parseInt(importLimit.trim(), 10) : undefined;
+      // Rematch targets the whole PENDING approval queue; city is only for SCB→AI import.
+      const cityForTool = mode === "rematch_defaults" ? undefined : city.trim() || undefined;
       const run = await attachOrStart(() =>
         startAdminImportToolRun({
           mode,
-          ...(city.trim() ? { city: city.trim() } : {}),
+          ...(cityForTool ? { city: cityForTool } : {}),
           dryRun,
           ...(mode === "scb_enrich" ? { force: forceScbEnrich } : {}),
           ...(mode === "confidence_rescore" ? { applyAutoApprove } : {}),
@@ -420,9 +422,12 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
       toast.message(`${modeLabel(mode)} startad`, {
         description: dryRun
           ? "Dry run — rapport utan skrivningar"
-          : city.trim()
-            ? `Stad: ${city.trim()}`
-            : "Alla städer i kön",
+          : mode === "rematch_defaults"
+            ? "Alla PENDING med delad standardbild" +
+              (limitValue && Number.isFinite(limitValue) ? ` · max ${limitValue}` : "")
+            : cityForTool
+              ? `Stad: ${cityForTool}`
+              : "Alla städer i kön",
       });
       void run;
     } catch (error) {
@@ -615,8 +620,9 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
               <div>
                 <h3 className="text-sm font-semibold text-foreground">2. Efterimport (samma som konsolen)</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Använd när kön sitter fast på adresser utan SCB-besöksadress, när confidence-reglerna uppdaterats,
-                  eller när standardbilderna behöver spridas om. Respekterar stad + max rader + dry run ovan.
+                  Använd när kön sitter fast på adresser utan SCB-besöksadress, när confidence-reglerna
+                  uppdaterats, eller när standardbilderna behöver spridas om. SCB/confidence respekterar
+                  stad ovan; bildomatchning kör alla PENDING. Max rader + dry run gäller alla.
                 </p>
               </div>
 
@@ -702,8 +708,8 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Omfördela standardbilder kör om temamatchning för PENDING-importer med delad DEFAULT-bild
-                (sprider bort från generiska bilder).
+                Omfördela standardbilder kör om temamatchning för alla PENDING-importer med delad
+                DEFAULT-bild (oavsett stad i fältet ovan). Max rader och dry run gäller fortfarande.
               </p>
             </section>
 
