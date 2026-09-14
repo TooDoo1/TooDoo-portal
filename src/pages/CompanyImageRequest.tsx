@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { BusinessImageAppPreview } from "@/components/BusinessImageAppPreview";
 import { getBusinessById, resolveBusinessId, resolveImageUrl, submitBusinessImageRequest, type Business } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -62,6 +64,7 @@ export default function CompanyImageRequest() {
   const [mode, setMode] = useState<RequestMode>("upload");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState("");
+  const [shareWithOrgNr, setShareWithOrgNr] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingBusiness, setIsLoadingBusiness] = useState(true);
   const [business, setBusiness] = useState<Business | null>(null);
@@ -112,6 +115,7 @@ export default function CompanyImageRequest() {
   const resetForm = () => {
     setImageFile(null);
     setImageUrl("");
+    setShareWithOrgNr(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -126,7 +130,11 @@ export default function CompanyImageRequest() {
           return;
         }
 
-        await submitBusinessImageRequest({ imageSourceType: "UPLOADED", imageFile });
+        await submitBusinessImageRequest({
+          imageSourceType: "UPLOADED",
+          imageFile,
+          shareWithOrgNr,
+        });
       } else {
         let normalizedUrl: string;
         try {
@@ -136,7 +144,11 @@ export default function CompanyImageRequest() {
           return;
         }
 
-        await submitBusinessImageRequest({ imageSourceType: "EXTERNAL_URL", imageUrl: normalizedUrl });
+        await submitBusinessImageRequest({
+          imageSourceType: "EXTERNAL_URL",
+          imageUrl: normalizedUrl,
+          shareWithOrgNr,
+        });
       }
 
       toast.success("Bildförfrågan skickad till admin för granskning.");
@@ -249,6 +261,23 @@ export default function CompanyImageRequest() {
                   />
                 </div>
               )}
+
+              <div className="flex items-start gap-3 rounded-xl border border-border bg-background/30 p-3">
+                <Checkbox
+                  id="share-with-org-request"
+                  checked={shareWithOrgNr}
+                  disabled={isSubmitting}
+                  onCheckedChange={(checked) => setShareWithOrgNr(checked === true)}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="share-with-org-request" className="text-sm font-medium text-foreground">
+                    Tillgänglig för alla ställen med samma org.nr
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Om admin godkänner kan andra lokaler i kedjan använda samma bild. Kräver att företaget har org.nr.
+                  </p>
+                </div>
+              </div>
 
               <div className="rounded-xl border border-border bg-background/30 p-3 text-xs text-muted-foreground">
                 Bilden syns inte direkt i appen. Admin behöver först godkänna förfrågan.

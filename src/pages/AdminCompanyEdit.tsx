@@ -26,6 +26,7 @@ import {
   resolveImageUrl,
   isDefaultImageForCategories,
   updateBusiness,
+  updateBusinessImageShare,
   type Business,
   type BusinessEvent,
   type BusinessStatus,
@@ -34,6 +35,8 @@ import {
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { getBusinessCategoryIds } from "@/lib/businessCategories";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 type CompanyForm = {
   name: string;
@@ -136,7 +139,9 @@ export default function AdminCompanyEdit() {
   const [imageMode, setImageMode] = useState<ImageMode>("upload");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState("");
+  const [shareWithOrgNr, setShareWithOrgNr] = useState(false);
   const [isAddingImage, setIsAddingImage] = useState(false);
+  const [sharingImageId, setSharingImageId] = useState<string | null>(null);
   const [isSettingPrimary, setIsSettingPrimary] = useState<string | null>(null);
   const [deleteImageTarget, setDeleteImageTarget] = useState<ImageGalleryItem | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -288,6 +293,7 @@ export default function AdminCompanyEdit() {
   const resetImageForm = () => {
     setImageFile(null);
     setImageUrl("");
+    setShareWithOrgNr(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -303,7 +309,11 @@ export default function AdminCompanyEdit() {
           toast.error("Välj en bildfil först.");
           return;
         }
-        created = await addBusinessImage(businessId, { imageSourceType: "UPLOADED", imageFile });
+        created = await addBusinessImage(businessId, {
+          imageSourceType: "UPLOADED",
+          imageFile,
+          shareWithOrgNr,
+        });
       } else {
         let normalizedUrl: string;
         try {
@@ -315,6 +325,7 @@ export default function AdminCompanyEdit() {
         created = await addBusinessImage(businessId, {
           imageSourceType: "EXTERNAL_URL",
           imageUrl: normalizedUrl,
+          shareWithOrgNr,
         });
       }
 
@@ -326,7 +337,11 @@ export default function AdminCompanyEdit() {
         setPrimaryImageUrl(getBusinessPrimaryImageUrl(updated));
         toast.success("Bilden har lagts till och satts som profilbild.");
       } else {
-        toast.success("Bilden har lagts till i företagets galleri.");
+        toast.success(
+          shareWithOrgNr
+            ? "Bilden har lagts till och delats med kedjan (samma org.nr)."
+            : "Bilden har lagts till i företagets galleri.",
+        );
       }
       resetImageForm();
     } catch (error) {
@@ -380,10 +395,31 @@ export default function AdminCompanyEdit() {
     }
   };
 
-  const renderGalleryImage = (image: ImageGalleryItem, options: { canDelete: boolean }) => {
+  const handleToggleImageShare = async (image: ImageGalleryItem, nextShare: boolean) => {
+    if (!businessId || image.businessId !== businessId) return;
+    setSharingImageId(image.id);
+    try {
+      const updated = await updateBusinessImageShare(businessId, image.id, nextShare);
+      setBusinessImages((prev) => prev.map((item) => (item.id === image.id ? { ...item, ...updated } : item)));
+      toast.success(
+        nextShare
+          ? "Bilden är nu tillgänglig för alla ställen med samma org.nr."
+          : "Bilden är endast tillgänglig för detta ställe.",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte uppdatera delning.";
+      toast.error(message);
+    } finally {
+      setSharingImageId(null);
+    }
+  };
+
+  const renderGalleryImage = (image: ImageGalleryItem, options: { canDelete: boolean; canToggleShare?: boolean }) => {
     const url = getGalleryImageUrl(image);
     if (!url) return null;
     const isPrimary = primaryImageAssetId === image.id;
+    const isShared = Boolean(image.sharedOrgNr);
+    const isOwnedHere = image.businessId === businessId;
 
     return (
       <div
@@ -394,39 +430,58 @@ export default function AdminCompanyEdit() {
         )}
       >
         <img src={url} alt="" className="aspect-square w-full object-cover" />
-        {isPrimary && (
-          <span className="absolute left-2 top-2 rounded-md bg-accent px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
-            Profilbild
-          </span>
-        )}
-        <div className="absolute inset-x-0 bottom-0 flex gap-1 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="h-7 flex-1 text-xs"
-            disabled={isPrimary || isSettingPrimary === image.id}
-            onClick={() => void handleSetPrimaryImage(image)}
-          >
-            {isSettingPrimary === image.id ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <>
-                <Star className="mr-1 h-3 w-3" />
-                Profilbild
-              </>
-            )}
-          </Button>
-          {options.canDelete && (
+        <div className="absolute left-2 top-2 flex flex-col gap-1">
+          {isPrimary && (
+            <span className="rounded-md bg-accent px-2 py-0.5 text-[10px] font-semibold text-accent-foreground">
+              Profilbild
+            </span>
+          )}
+          {isShared && (
+            <span className="rounded-md bg-background/90 px-2 py-0.5 text-[10px] font-semibold text-foreground">
+              {isOwnedHere ? "Delad kedja" : "Från kedjan"}
+            </span>
+          )}
+        </div>
+        <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/80 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="flex gap-1">
             <Button
               type="button"
               size="sm"
-              variant="destructive"
-              className="h-7 px-2"
-              onClick={() => setDeleteImageTarget(image)}
+              variant="secondary"
+              className="h-7 flex-1 text-xs"
+              disabled={isPrimary || isSettingPrimary === image.id}
+              onClick={() => void handleSetPrimaryImage(image)}
             >
-              <Trash2 className="h-3 w-3" />
+              {isSettingPrimary === image.id ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <>
+                  <Star className="mr-1 h-3 w-3" />
+                  Profilbild
+                </>
+              )}
             </Button>
+            {options.canDelete && (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                className="h-7 px-2"
+                onClick={() => setDeleteImageTarget(image)}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+          {options.canToggleShare && isOwnedHere && (
+            <label className="flex cursor-pointer items-center gap-2 rounded-md bg-background/90 px-2 py-1 text-[10px] text-foreground">
+              <Checkbox
+                checked={isShared}
+                disabled={sharingImageId === image.id || (!isShared && !form.orgNr.trim())}
+                onCheckedChange={(checked) => void handleToggleImageShare(image, checked === true)}
+              />
+              {sharingImageId === image.id ? "Sparar…" : "Dela med kedjan (org.nr)"}
+            </label>
           )}
         </div>
       </div>
@@ -652,6 +707,25 @@ export default function AdminCompanyEdit() {
                     </div>
                   )}
 
+                  <div className="flex items-start gap-3 rounded-xl border border-border bg-background/30 p-3">
+                    <Checkbox
+                      id="share-with-org"
+                      checked={shareWithOrgNr}
+                      disabled={isAddingImage || !form.orgNr.trim()}
+                      onCheckedChange={(checked) => setShareWithOrgNr(checked === true)}
+                    />
+                    <div className="space-y-1">
+                      <Label htmlFor="share-with-org" className="text-sm font-medium text-foreground">
+                        Tillgänglig för alla ställen med samma org.nr
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {form.orgNr.trim()
+                          ? "Andra lokaler i kedjan kan välja bilden som profilbild utan ny uppladdning."
+                          : "Lägg till org.nr på företaget för att kunna dela bilden med kedjan."}
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" onClick={resetImageForm} disabled={isAddingImage}>
                       Rensa
@@ -676,7 +750,12 @@ export default function AdminCompanyEdit() {
                     <p className="text-sm text-muted-foreground">Inga uppladdade bilder ännu.</p>
                   ) : (
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                      {businessImages.map((image) => renderGalleryImage(image, { canDelete: true }))}
+                      {businessImages.map((image) =>
+                        renderGalleryImage(image, {
+                          canDelete: image.businessId === businessId,
+                          canToggleShare: image.businessId === businessId,
+                        }),
+                      )}
                     </div>
                   )}
                 </div>

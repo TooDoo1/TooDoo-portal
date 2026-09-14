@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Circle,
+  ImageIcon,
   Loader2,
   Play,
   RefreshCw,
@@ -53,6 +54,8 @@ function modeLabel(mode: string): string {
       return "SCB omverifiering";
     case "confidence_rescore":
       return "Confidence-omvärdering";
+    case "rematch_defaults":
+      return "Omfördela standardbilder";
     case "scb_then_ai_refresh":
       return "SCB → AI-import";
     default:
@@ -66,6 +69,9 @@ function phaseLabel(phase: AdminImportRun["phase"], mode: string): string {
   }
   if (mode === "confidence_rescore") {
     return phase === "DONE" ? "Klar" : "Omvärderar confidence…";
+  }
+  if (mode === "rematch_defaults") {
+    return phase === "DONE" ? "Klar" : "Matchar om standardbilder…";
   }
   switch (phase) {
     case "SCB_IMPORT":
@@ -139,6 +145,15 @@ export function formatRunSummary(run: AdminImportRun): string {
       parts.push(`oförändrade ${rescore.unchanged ?? 0}`);
     }
     return parts.join(" · ") || "Omvärdering klar";
+  }
+
+  if (mode === "rematch_defaults") {
+    const rematch = asRecord(summary.rematchDefaults);
+    if (rematch) {
+      parts.push(`scannade ${rematch.scanned ?? 0}`);
+      parts.push(`uppdaterade ${rematch.updated ?? 0}`);
+    }
+    return parts.join(" · ") || "Bildomatchning klar";
   }
 
   const scb = asRecord(summary.scb);
@@ -600,8 +615,8 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
               <div>
                 <h3 className="text-sm font-semibold text-foreground">2. Efterimport (samma som konsolen)</h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Använd när kön sitter fast på adresser utan SCB-besöksadress, eller när confidence-reglerna uppdaterats.
-                  Respekterar stad + max rader + dry run ovan.
+                  Använd när kön sitter fast på adresser utan SCB-besöksadress, när confidence-reglerna uppdaterats,
+                  eller när standardbilderna behöver spridas om. Respekterar stad + max rader + dry run ovan.
                 </p>
               </div>
 
@@ -650,6 +665,18 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
                   Omvärdera confidence
                 </Button>
                 <Button
+                  variant="outline"
+                  onClick={() => void handleTool("rematch_defaults")}
+                  disabled={busy}
+                >
+                  {toolStarting === "rematch_defaults" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <ImageIcon className="mr-2 h-4 w-4" />
+                  )}
+                  Omfördela standardbilder
+                </Button>
+                <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
@@ -674,6 +701,10 @@ export function AdminStartImportPanel({ onCompleted }: Props) {
                   Uppdatera status
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Omfördela standardbilder kör om temamatchning för PENDING-importer med delad DEFAULT-bild
+                (sprider bort från generiska bilder).
+              </p>
             </section>
 
             {history.length > 0 ? (

@@ -534,6 +534,7 @@ export type BusinessImageRequest = {
   sourceType?: ImageSourceType;
   imageSourceType?: ImageSourceType;
   imageUrl?: string | null;
+  shareWithOrgNr?: boolean;
   status?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -1276,6 +1277,8 @@ export type ImageGalleryItem = {
   storageKey?: string;
   publicUrl?: string;
   mimeType?: string;
+  /** Digits-only org.nr when this asset is shared across the chain. */
+  sharedOrgNr?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -1333,7 +1336,12 @@ export async function listBusinessImages(businessId: string, categoryIds?: strin
 
 export async function addBusinessImage(
   businessId: string,
-  body: { imageSourceType: ImageSourceType; imageUrl?: string; imageFile?: File },
+  body: {
+    imageSourceType: ImageSourceType;
+    imageUrl?: string;
+    imageFile?: File;
+    shareWithOrgNr?: boolean;
+  },
 ) {
   const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
   if (!wantsUpload) {
@@ -1341,7 +1349,11 @@ export async function addBusinessImage(
       `/business/${encodeURIComponent(businessId)}/images`,
       {
         method: "POST",
-        body: JSON.stringify({ imageSourceType: body.imageSourceType, imageUrl: body.imageUrl }),
+        body: JSON.stringify({
+          imageSourceType: body.imageSourceType,
+          imageUrl: body.imageUrl,
+          ...(body.shareWithOrgNr ? { shareWithOrgNr: true } : {}),
+        }),
       },
       true,
     );
@@ -1350,11 +1362,29 @@ export async function addBusinessImage(
   const form = new FormData();
   appendFormValue(form, "imageSourceType", "UPLOADED");
   appendFormValue(form, "image", body.imageFile);
+  if (body.shareWithOrgNr) {
+    appendFormValue(form, "shareWithOrgNr", "true");
+  }
   return apiRequestFormData<ImageGalleryItem>(
     `/business/${encodeURIComponent(businessId)}/images`,
     form,
     true,
     "POST",
+  );
+}
+
+export async function updateBusinessImageShare(
+  businessId: string,
+  imageAssetId: string,
+  shareWithOrgNr: boolean,
+) {
+  return apiRequest<ImageGalleryItem>(
+    `/business/${encodeURIComponent(businessId)}/images/${encodeURIComponent(imageAssetId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ shareWithOrgNr }),
+    },
+    true,
   );
 }
 
@@ -1484,7 +1514,7 @@ export type StartAdminImportRunRequest = {
   refreshLimit?: number;
 };
 
-export type AdminImportToolMode = "scb_enrich" | "confidence_rescore";
+export type AdminImportToolMode = "scb_enrich" | "confidence_rescore" | "rematch_defaults";
 
 export type StartAdminImportToolRequest = {
   mode: AdminImportToolMode;
@@ -1537,14 +1567,23 @@ export async function listAdminImportRuns(limit = 10) {
   );
 }
 
-export async function submitBusinessImageRequest(body: { imageSourceType: ImageSourceType; imageUrl?: string; imageFile?: File }) {
+export async function submitBusinessImageRequest(body: {
+  imageSourceType: ImageSourceType;
+  imageUrl?: string;
+  imageFile?: File;
+  shareWithOrgNr?: boolean;
+}) {
   const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
   if (!wantsUpload) {
     return apiRequest<BusinessImageRequest>(
       "/business/image-requests",
       {
         method: "POST",
-        body: JSON.stringify({ imageSourceType: body.imageSourceType, imageUrl: body.imageUrl }),
+        body: JSON.stringify({
+          imageSourceType: body.imageSourceType,
+          imageUrl: body.imageUrl,
+          ...(body.shareWithOrgNr ? { shareWithOrgNr: true } : {}),
+        }),
       },
       true,
     );
@@ -1553,6 +1592,9 @@ export async function submitBusinessImageRequest(body: { imageSourceType: ImageS
   const form = new FormData();
   appendFormValue(form, "imageSourceType", "UPLOADED");
   appendFormValue(form, "image", body.imageFile);
+  if (body.shareWithOrgNr) {
+    appendFormValue(form, "shareWithOrgNr", "true");
+  }
   return apiRequestFormData<BusinessImageRequest>("/business/image-requests", form, true, "POST");
 }
 

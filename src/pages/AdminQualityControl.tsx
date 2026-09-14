@@ -179,6 +179,11 @@ export default function AdminQualityControl() {
                       <span className="rounded-full border border-border bg-background px-2 py-1">
                         {(request.sourceType ?? request.imageSourceType) === "UPLOADED" ? "Uppladdad" : "Länk"}
                       </span>
+                      {request.shareWithOrgNr && (
+                        <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-1 text-foreground">
+                          Dela med kedjan (org.nr)
+                        </span>
+                      )}
                       {request.createdAt && (
                         <span className="rounded-full border border-border bg-background px-2 py-1">
                           {new Date(request.createdAt).toLocaleString("sv-SE")}
