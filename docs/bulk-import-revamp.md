@@ -1,8 +1,9 @@
 # Bulk Import Revamp (Portal / Admin)
 
-> **Purpose:** Spec for admin UX after the backend stops Google-enriching imports and lands SCB imports as `PENDING`.  
+> **Purpose:** Spec for admin UX for SCB imports landing as `PENDING` (separate from self-registration).  
 > **Audience:** Engineers / agents implementing portal changes.  
-> **Backend counterpart:** `TooDoo-Backend/docs/bulk-import-revamp.md`.
+> **Backend counterpart:** `TooDoo-Backend/docs/bulk-import-revamp.md` (Places enrichment is optional when a Google key is set; not required for the core queue).  
+> **Importstudio:** `AdminStartImportPanel` on `/admin/imported` → `POST /import/runs` and `POST /import/tools` (`rematch_defaults`, `scb_enrich`, `confidence_rescore`).
 
 ---
 

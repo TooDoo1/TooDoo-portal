@@ -1622,11 +1622,13 @@ export async function listBusinesses(
   withAuth = false,
   categoryName?: string,
   source?: BusinessSource,
+  city?: string,
 ) {
   const params = new URLSearchParams();
   if (status) params.set("status", status);
   if (categoryName?.trim()) params.set("categoryName", categoryName.trim());
   if (source) params.set("source", source);
+  if (city?.trim()) params.set("city", city.trim());
   const query = params.toString() ? `?${params.toString()}` : "";
   return apiRequest<Business[]>(`/business${query}`, { method: "GET" }, withAuth);
 }

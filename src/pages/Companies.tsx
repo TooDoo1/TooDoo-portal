@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Filter, Eye, Trash2, Mail, Pencil, Plus } from "lucide-react";
+import { Search, Filter, Eye, Trash2, Mail, Pencil, Plus, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +24,7 @@ type Company = {
   id: string;
   name: string;
   email: string;
+  city: string;
   logo?: string;
   status: "active";
   joinedAt: string;
@@ -51,6 +52,7 @@ export default function Companies() {
   const [categories, setCategories] = useState<string[]>(["Alla"]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
+  const [cityFilter, setCityFilter] = useState("Alla");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
   const [detailTarget, setDetailTarget] = useState<Company | null>(null);
@@ -70,6 +72,7 @@ export default function Companies() {
             id: business.id,
             name: business.name,
             email: business.contactEmail ?? "",
+            city: business.city ?? "",
             logo:
               business.imageUrl?.trim() ||
               business.imageAsset?.publicUrl?.trim() ||
@@ -98,12 +101,26 @@ export default function Companies() {
     void load();
   }, []);
 
+  const cities = useMemo(() => {
+    const unique = [
+      ...new Set(
+        companies
+          .map((company) => company.city.trim())
+          .filter(Boolean),
+      ),
+    ];
+    unique.sort((a, b) => a.localeCompare(b, "sv"));
+    return unique;
+  }, [companies]);
+
   const filtered = useMemo(() => companies.filter((c) => {
     const q = search.toLowerCase();
     const matchSearch =
       c.name.toLowerCase().includes(q) ||
-      (c.email ?? "").toLowerCase().includes(q);
+      (c.email ?? "").toLowerCase().includes(q) ||
+      c.city.toLowerCase().includes(q);
     const matchCategory = category === "Alla" || matchesCategoryName(c.categoryNames, category);
+    const matchCity = cityFilter === "Alla" || c.city.trim().toLowerCase() === cityFilter.toLowerCase();
     const matchSource =
       sourceFilter === "all" ||
       (sourceFilter === "imported" && c.source === "IMPORTED") ||
@@ -111,8 +128,8 @@ export default function Companies() {
       (sourceFilter === "unclaimed_imports" && c.source === "IMPORTED" && !c.isClaimed) ||
       (sourceFilter === "auto_approved" && isAutoApprovedImport(c)) ||
       (sourceFilter === "scb_import" && hasScbBulkImport(c.importMetadata));
-    return matchSearch && matchCategory && matchSource;
-  }).sort(compareBusinessName), [companies, search, category, sourceFilter]);
+    return matchSearch && matchCategory && matchCity && matchSource;
+  }).sort(compareBusinessName), [companies, search, category, cityFilter, sourceFilter]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -221,6 +238,18 @@ export default function Companies() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={cityFilter} onValueChange={setCityFilter}>
+          <SelectTrigger className="w-full sm:w-[180px] bg-card border-border text-foreground">
+            <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />
+            <SelectValue placeholder="Stad" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover border-border">
+            <SelectItem value="Alla">Alla städer</SelectItem>
+            {cities.map((city) => (
+              <SelectItem key={city} value={city}>{city}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={sourceFilter} onValueChange={(value) => setSourceFilter(value as SourceFilter)}>
           <SelectTrigger className="w-full sm:w-[220px] bg-card border-border text-foreground">
             <SelectValue placeholder="Ursprung" />
@@ -255,6 +284,9 @@ export default function Companies() {
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-foreground truncate" title={company.name}>{company.name}</p>
                       <p className="text-sm text-muted-foreground truncate" title={company.email}>{company.email}</p>
+                      {company.city ? (
+                        <p className="text-sm text-muted-foreground truncate" title={company.city}>{company.city}</p>
+                      ) : null}
                       <BusinessImportBadges business={company} className="mt-2" />
                     </div>
                   </div>

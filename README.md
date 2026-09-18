@@ -143,7 +143,7 @@ Authenticated requests attach `Authorization: Bearer <token>`. On logout or inva
 - `apiRequest` / `apiRequestFormData` — typed fetch wrappers that set headers, attach auth, parse JSON, and normalize errors.
 - `ApiError` — error type carrying `details` (validation field errors) and `reason` codes; messages are suffixed with `[status method path]` for actionable UI errors.
 - `resolveImageUrl` — resolves relative backend image paths against `VITE_API_URL` (passes through absolute/`data:`/`blob:` URLs).
-- Endpoint functions and DTO types for users, businesses (including `listBusinesses(..., source?)` for admin queues), orders/offers, business events, order presets, invoices, images, categories, logs, claims/redemptions, SCB company/workplace lookups, and **import ownership claims** (`lookupClaimableImport`, `submitBusinessClaimRequest`, `listBusinessClaimRequests`, `reviewBusinessClaimRequest`).
+- Endpoint functions and DTO types for users, businesses (including `listBusinesses(..., source?, city?)` for admin queues and city-scoped approved lists), orders/offers, business events, order presets, invoices, images, categories, logs, claims/redemptions, SCB company/workplace lookups, and **import ownership claims** (`lookupClaimableImport`, `submitBusinessClaimRequest`, `listBusinessClaimRequests`, `reviewBusinessClaimRequest`).
 
 ## Feature areas
 
@@ -170,11 +170,11 @@ From **Företag** (`/companies`), admins can:
 
 - **Create** a company at `/companies/new` — SCB org.nr lookup (same as public registration), then fill details; status is **APPROVED** immediately; optional profile image (upload or URL) is set as primary; `orgNr`/`cfarNr` are stored when selected from SCB
 - View company details with **import badges** (imported vs self-registered, claimed vs unclaimed)
-- Filter the list by origin (`imported` / `self-registered`) and claim state (`unclaimed` imports)
+- Filter the list by **city**, origin (`imported` / `self-registered`), and claim state (`unclaimed` imports)
 - Open **import metadata** in the company details dialog (`orgNr`, `cfarNr`, Maps link)
 - **Edit** a company at `/companies/:businessId/edit`
   - **Uppgifter** — update name, contact info, address, description, categories (email/phone optional for imports)
-  - **Bilder** — upload or link images directly to the company gallery, set profile image, remove uploaded images (first upload becomes primary when none is set)
+  - **Bilder** — upload or link images, optional **share with same org.nr** (chain logo), set profile image, remove owned uploads (first upload becomes primary when none is set)
   - **Erbjudanden** — list, create (`/companies/:businessId/offers/new`), and delete offers
   - **Event** — list, create (`/companies/:businessId/events/new`), and delete events
 - Invite a manager (when none is assigned)
@@ -184,12 +184,13 @@ Pending **self-registrations** are reviewed at **Väntande** (`/pending`) — `s
 
 Pending **SCB imports** are reviewed at **Importerade** (`/admin/imported`) — `status = PENDING` and `source = IMPORTED`:
 
-- View details, **edit** info/images (`/companies/:id/edit?from=imported`), then **approve** (becomes live in the app, no manager invite) or **reject**
+- **Importstudio** panel: start SCB→AI runs, SCB re-verify, confidence rescore, and **Omfördela standardbilder** (`POST /import/tools` `rematch_defaults`)
+- View details, **edit** info/images (`/companies/:id/edit?from=imported`), then **approve** (live in the app) or **reject**
 - Search/filter by name, city, category, org.nr, CFAR, SNI
 
 **Imported ownership claims** are reviewed at **Ägarskap** (`/admin/claim-requests`): approve applies the applicant's proposed contact/profile fields, marks the business claimed, and triggers the manager invite email; reject leaves the import unclaimed. The admin sidebar shows pending-count badges for Väntande, Importerade, and Ägarskap.
 
-Admins also have logs (`/admin/logs`), invoices (`/admin/invoices`), and quality control (`/admin/quality-control`).
+Admins also have logs (`/admin/logs`), invoices (`/admin/invoices`), and quality control (`/admin/quality-control`) for manager image requests (including optional chain-share flag).
 
 ### Manager company portal
 
@@ -243,7 +244,7 @@ Set `VITE_API_URL` (and optionally `VITE_PORTAL_URL`) in the host's environment 
 
 ## Related docs
 
-- Backend API details (auth rules, `businessId` for admin create endpoints, image gallery routes, import/claim endpoints, CLI import pipeline, personalized feeds): [TooDoo-Backend/README.md](../TooDoo-Backend/README.md)
-- Bulk import revamp (SCB → `PENDING` → admin review; no Google in pipeline): [TooDoo-Backend/docs/bulk-import-revamp.md](../TooDoo-Backend/docs/bulk-import-revamp.md)
-- Import strategy and Places cost model: [TooDoo-Backend/docs/bulk-import-improvement-strategy.md](../TooDoo-Backend/docs/bulk-import-improvement-strategy.md)
+- Backend API (auth, search/events, images/`shareWithOrgNr`, `/import/*`, feeds): [TooDoo-Backend/README.md](../TooDoo-Backend/README.md) — see **Frontend quick reference**
+- Bulk import (SCB → PENDING → admin review): [TooDoo-Backend/docs/bulk-import-revamp.md](../TooDoo-Backend/docs/bulk-import-revamp.md)
+- Import strategy / Places cost model: [TooDoo-Backend/docs/bulk-import-improvement-strategy.md](../TooDoo-Backend/docs/bulk-import-improvement-strategy.md)
 - Portal import-audit UX: [docs/bulk-import-revamp.md](./docs/bulk-import-revamp.md)
