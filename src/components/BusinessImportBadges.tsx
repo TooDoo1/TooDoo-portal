@@ -17,9 +17,11 @@ type BusinessImportBadgesProps = {
     hasManager?: boolean;
   };
   className?: string;
+  /** Light text on a dark chip so badges stay readable over a photo. */
+  onPhoto?: boolean;
 };
 
-export function BusinessImportBadges({ business, className }: BusinessImportBadgesProps) {
+export function BusinessImportBadges({ business, className, onPhoto = false }: BusinessImportBadgesProps) {
   const isImported = business.source === "IMPORTED";
   const claimLabel = getBusinessClaimLabel(business);
   const ai = getAiImportMetadata(business.importMetadata);
@@ -37,21 +39,35 @@ export function BusinessImportBadges({ business, className }: BusinessImportBadg
   return (
     <div className={className ?? "flex flex-wrap gap-1.5"}>
       {isImported ? (
-        <Badge variant="outline" className="border-border text-[11px]">
+        <Badge
+          variant="outline"
+          className={onPhoto ? "border-white/20 bg-black/60 text-foreground text-[11px]" : "border-border text-[11px]"}
+        >
           {getBusinessOriginLabel(business.source)}
         </Badge>
       ) : null}
       {scbBulkImport ? (
         <Badge
           variant="outline"
-          className="border-sky-500/40 bg-sky-500/10 text-sky-700 text-[11px]"
+          className={
+            onPhoto
+              ? "border-sky-300/30 bg-sky-950/80 text-sky-100 text-[11px]"
+              : "border-sky-500/40 bg-sky-500/10 text-sky-700 text-[11px]"
+          }
           title={scbActionLabel ? `SCB bulk-import (${scbActionLabel})` : "SCB bulk-import"}
         >
           SCB-import{scbActionLabel ? ` · ${scbActionLabel}` : ""}
         </Badge>
       ) : null}
       {ai ? (
-        <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent text-[11px]">
+        <Badge
+          variant="outline"
+          className={
+            onPhoto
+              ? "border-blue-300/30 bg-blue-950/80 text-blue-100 text-[11px]"
+              : "border-accent/40 bg-accent/10 text-accent text-[11px]"
+          }
+        >
           AI-import
         </Badge>
       ) : null}
@@ -78,9 +94,13 @@ export function BusinessImportBadges({ business, className }: BusinessImportBadg
         <Badge
           variant="outline"
           className={
-            isOwned
-              ? "border-success/40 bg-success/10 text-success text-[11px]"
-              : "border-warning/40 bg-warning/10 text-warning text-[11px]"
+            onPhoto
+              ? isOwned
+                ? "border-emerald-300/30 bg-emerald-950/80 text-emerald-100 text-[11px]"
+                : "border-amber-300/40 bg-amber-950/80 text-amber-100 text-[11px]"
+              : isOwned
+                ? "border-success/40 bg-success/10 text-success text-[11px]"
+                : "border-warning/40 bg-warning/10 text-warning text-[11px]"
           }
         >
           {claimLabel}

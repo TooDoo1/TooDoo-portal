@@ -139,22 +139,30 @@
   .admin-company-card-scrim {
     background: linear-gradient(
       180deg,
-      rgb(0 0 0 / 0.45) 0%,
-      rgb(0 0 0 / 0.48) 40%,
-      hsl(var(--card) / 0.72) 64%,
-      hsl(var(--card)) 82%,
+      rgb(0 0 0 / 0.74) 0%,
+      rgb(0 0 0 / 0.7) 52%,
+      hsl(var(--card) / 0.92) 74%,
+      hsl(var(--card)) 86%,
       hsl(var(--card)) 100%
     );
+  }
+
+  .admin-company-card-copy {
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.75);
   }
 
   :root.toodoo-monochrome .admin-company-card-scrim {
     background: linear-gradient(
       180deg,
-      hsl(var(--card) / 0.72) 0%,
-      hsl(var(--card) / 0.78) 46%,
-      hsl(var(--card) / 0.94) 72%,
+      hsl(var(--card) / 0.9) 0%,
+      hsl(var(--card) / 0.88) 52%,
+      hsl(var(--card) / 0.96) 74%,
       hsl(var(--card)) 100%
     );
+  }
+
+  :root.toodoo-monochrome .admin-company-card-copy {
+    text-shadow: none;
   }
 
   .glass-card {

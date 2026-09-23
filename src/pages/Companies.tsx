@@ -46,6 +46,50 @@ type SourceFilter =
   | "auto_approved"
   | "scb_import";
 
+type VariantFile = { publicUrl?: string; width?: number };
+
+/** Card backgrounds only need a small crop. Prefer a stored webp variant, otherwise shrink Unsplash. */
+function cardBackdropSrc(business: Business): string | undefined {
+  const asset = business.imageAsset;
+  const variants = asset?.imageVariants;
+  if (variants && typeof variants === "object") {
+    const files: Array<{ url: string; width: number }> = [];
+    for (const variant of Object.values(variants as Record<string, unknown>)) {
+      if (!variant || typeof variant !== "object") continue;
+      const webp = (variant as { webp?: VariantFile }).webp;
+      const url = webp?.publicUrl?.trim();
+      if (!url) continue;
+      files.push({ url, width: typeof webp?.width === "number" ? webp.width : 0 });
+    }
+    const sized = files.filter((file) => file.width >= 240 && file.width <= 720);
+    const pick = (sized.length > 0 ? sized : files).sort((a, b) => b.width - a.width)[0];
+    if (pick) return resolveImageUrl(pick.url);
+  }
+
+  const raw =
+    business.imageUrl?.trim() ||
+    asset?.publicUrl?.trim() ||
+    asset?.url?.trim() ||
+    (business as Business & { image?: { publicUrl?: string } }).image?.publicUrl?.trim() ||
+    "";
+  if (!raw) return undefined;
+
+  const resolved = resolveImageUrl(raw);
+  try {
+    const url = new URL(resolved);
+    if (url.hostname === "images.unsplash.com") {
+      url.searchParams.set("auto", "format");
+      url.searchParams.set("fit", "crop");
+      url.searchParams.set("w", "480");
+      url.searchParams.set("q", "45");
+      return url.toString();
+    }
+  } catch {
+    return resolved;
+  }
+  return resolved;
+}
+
 export default function Companies() {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -58,6 +102,7 @@ export default function Companies() {
   const [detailTarget, setDetailTarget] = useState<Company | null>(null);
   const [inviteTarget, setInviteTarget] = useState<Company | null>(null);
   const [invitingCompanyId, setInvitingCompanyId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
@@ -73,12 +118,7 @@ export default function Companies() {
             name: business.name,
             email: business.contactEmail ?? "",
             city: business.city ?? "",
-            logo:
-              business.imageUrl?.trim() ||
-              business.imageAsset?.publicUrl?.trim() ||
-              business.imageAsset?.url?.trim() ||
-              (business as Business & { image?: { publicUrl?: string } }).image?.publicUrl?.trim() ||
-              undefined,
+            logo: cardBackdropSrc(business),
             status: "active",
             joinedAt: business.createdAt || new Date().toISOString(),
             categoryNames: getBusinessCategoryNames(business),
@@ -95,6 +135,8 @@ export default function Companies() {
       } catch {
         setCompanies([]);
         setCategories(["Alla"]);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -265,7 +307,17 @@ export default function Companies() {
         </Select>
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }, (_, index) => (
+            <Card key={index} className="bg-card border-border">
+              <CardContent className="p-5">
+                <div className="h-24 animate-pulse rounded-md bg-muted/60" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <Card className="bg-card border-border">
           <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
             <EmptyIcon className="h-12 w-12 mb-4 opacity-40" />
@@ -275,29 +327,29 @@ export default function Companies() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((company) => (
+          {filtered.map((company, index) => (
             <Card key={company.id} className="card-hover relative overflow-hidden bg-card border-border">
-              <CompanyCardBackdrop src={company.logo} />
+              <CompanyCardBackdrop src={company.logo} eager={index < 6} />
               <CardContent className="relative z-10 p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <CompanyAvatar name={company.name} imageUrl={company.logo} />
-                    <div className="min-w-0 flex-1">
+                    <div className={`min-w-0 flex-1 ${company.logo ? "admin-company-card-copy" : ""}`}>
                       <p className="font-semibold text-foreground truncate" title={company.name}>{company.name}</p>
-                      <p className="text-sm text-muted-foreground truncate" title={company.email}>{company.email}</p>
+                      <p className={`text-sm truncate ${company.logo ? "text-foreground/90" : "text-muted-foreground"}`} title={company.email}>{company.email}</p>
                       {company.city ? (
-                        <p className="text-sm text-muted-foreground truncate" title={company.city}>{company.city}</p>
+                        <p className={`text-sm truncate ${company.logo ? "text-foreground/90" : "text-muted-foreground"}`} title={company.city}>{company.city}</p>
                       ) : null}
-                      <BusinessImportBadges business={company} className="mt-2" />
+                      <BusinessImportBadges business={company} className="mt-2" onPhoto={Boolean(company.logo)} />
                     </div>
                   </div>
                   <div className="shrink-0">
                     <StatusBadge status={company.status} />
                   </div>
                 </div>
-                <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground">
+                <div className={`mt-4 flex flex-col gap-2 text-sm ${company.logo ? "admin-company-card-copy text-foreground/90" : "text-muted-foreground"}`}>
                   <span>Gick med: {new Date(company.joinedAt).toLocaleDateString("sv-SE")}</span>
-                  <CategoryBadges names={company.categoryNames} linkToCategory />
+                  <CategoryBadges names={company.categoryNames} linkToCategory onPhoto={Boolean(company.logo)} />
                 </div>
                 <div className="mt-4 flex gap-2">
                   <Button
@@ -387,7 +439,7 @@ export default function Companies() {
   );
 }
 
-function CompanyCardBackdrop({ src }: { src?: string }) {
+function CompanyCardBackdrop({ src, eager }: { src?: string; eager?: boolean }) {
   const [failed, setFailed] = useState(false);
   const resolved = resolveImageUrl(src);
 
@@ -398,6 +450,9 @@ function CompanyCardBackdrop({ src }: { src?: string }) {
       <img
         src={resolved}
         alt=""
+        loading={eager ? "eager" : "lazy"}
+        decoding={eager ? "sync" : "async"}
+        fetchPriority={eager ? "high" : "low"}
         className="h-full w-full object-cover"
         onError={() => setFailed(true)}
       />
