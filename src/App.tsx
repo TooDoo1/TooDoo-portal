@@ -26,6 +26,7 @@ const AdminImportedBusinesses = lazy(() => import("./pages/AdminImportedBusiness
 const AdminLogs = lazy(() => import("./pages/AdminLogs"));
 const AdminInvoices = lazy(() => import("./pages/AdminInvoices"));
 const AdminQualityControl = lazy(() => import("./pages/AdminQualityControl"));
+const AdminImageBank = lazy(() => import("./pages/AdminImageBank"));
 const CategoryPage = lazy(() => import("./pages/CategoryPage"));
 const LoggIn = lazy(() => import("./pages/LoggIn"));
 const Registration = lazy(() => import("./pages/Registration"));
@@ -133,6 +134,7 @@ const App = () => {
                   <Route path="/admin/logs" element={<AdminLogs />} />
                   <Route path="/admin/invoices" element={<AdminInvoices />} />
                   <Route path="/admin/quality-control" element={<AdminQualityControl />} />
+                  <Route path="/admin/image-bank" element={<AdminImageBank />} />
                   <Route path="/companies" element={<Companies />} />
                   <Route path="/companies/new" element={<AdminCompanyNew />} />
                   <Route path="/companies/:businessId/edit" element={<AdminCompanyEdit />} />

@@ -1279,6 +1279,10 @@ export type ImageGalleryItem = {
   mimeType?: string;
   /** Digits-only org.nr when this asset is shared across the chain. */
   sharedOrgNr?: string | null;
+  description?: string | null;
+  themeId?: string | null;
+  themeSlot?: number | null;
+  category?: { id?: string; name?: string | null } | null;
   createdAt?: string;
   updatedAt?: string;
 };
