@@ -1330,6 +1330,14 @@ export async function listDefaultImages(categoryIds?: string[]) {
   );
 }
 
+export async function removeDefaultImage(imageId: string) {
+  return apiRequest<{ id: string; reassigned: number }>(
+    `/images/defaults/${encodeURIComponent(imageId)}`,
+    { method: "DELETE" },
+    true,
+  );
+}
+
 export async function listBusinessImages(businessId: string, categoryIds?: string[]) {
   return apiRequest<ImageGalleryResponse>(
     `/business/${encodeURIComponent(businessId)}/images${galleryQuery(categoryIds)}`,

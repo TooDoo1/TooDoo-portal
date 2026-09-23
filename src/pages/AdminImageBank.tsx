@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { ImageOff, Images } from "lucide-react";
+import { ImageOff, Images, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   listCategories,
   listDefaultImages,
+  removeDefaultImage,
   resolveImageUrl,
   type Category,
   type ImageGalleryItem,
@@ -51,6 +54,8 @@ export default function AdminImageBank() {
   const [categoryId, setCategoryId] = useState(ALL);
   const [themeId, setThemeId] = useState(ALL);
   const [search, setSearch] = useState("");
+  const [removeTarget, setRemoveTarget] = useState<ImageGalleryItem | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -111,7 +116,7 @@ export default function AdminImageBank() {
       <div>
         <h1 className="text-2xl font-bold text-foreground tracking-tight">Bildbank</h1>
         <p className="text-muted-foreground mt-1">
-          Alla standardbilder, grupperade så att fel tema eller fel kategori syns direkt.
+          Alla standardbilder. Ta bort en bild som inte hör hemma så används den inte igen.
         </p>
       </div>
 
@@ -180,15 +185,43 @@ export default function AdminImageBank() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {filtered.map((image) => (
-            <ImageBankCard key={image.id} image={image} />
+            <ImageBankCard key={image.id} image={image} onRemove={() => setRemoveTarget(image)} />
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={(open) => {
+          if (!open && !removing) setRemoveTarget(null);
+        }}
+        title="Ta bort bild"
+        description="Bilden tas bort från bildbanken och används inte vid nya importer. Företag som visar den får en annan standardbild."
+        confirmLabel={removing ? "Tar bort..." : "Ta bort"}
+        onConfirm={() => void handleRemove()}
+        variant="destructive"
+      />
     </div>
   );
+
+  async function handleRemove() {
+    if (!removeTarget || removing) return;
+    setRemoving(true);
+    try {
+      await removeDefaultImage(removeTarget.id);
+      setImages((current) => current.filter((image) => image.id !== removeTarget.id));
+      toast.success("Bilden togs bort från bildbanken");
+      setRemoveTarget(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte ta bort bilden.";
+      toast.error(message);
+    } finally {
+      setRemoving(false);
+    }
+  }
 }
 
-function ImageBankCard({ image }: { image: ImageGalleryItem }) {
+function ImageBankCard({ image, onRemove }: { image: ImageGalleryItem; onRemove: () => void }) {
   const [failed, setFailed] = useState(false);
   const src = previewUrl(image.publicUrl);
   const missing = !src || failed || isPendingImage(image.publicUrl);
@@ -213,6 +246,16 @@ function ImageBankCard({ image }: { image: ImageGalleryItem }) {
             onError={() => setFailed(true)}
           />
         )}
+        <Button
+          type="button"
+          size="icon"
+          variant="destructive"
+          className="absolute right-2 top-2 h-8 w-8"
+          onClick={onRemove}
+          aria-label="Ta bort bild"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </div>
       <CardContent className="space-y-1 p-3">
         <p className="text-xs font-medium text-accent">{category}</p>
