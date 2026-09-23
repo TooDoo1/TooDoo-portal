@@ -135,6 +135,28 @@
     @apply transition-all duration-200 ease-in-out hover:shadow-[0_8px_30px_-4px_rgba(0,0,0,0.5)] hover:-translate-y-0.5 hover:border-border/80;
   }
 
+  /* Dim a business photo behind admin card text, then fade it out at the buttons. */
+  .admin-company-card-scrim {
+    background: linear-gradient(
+      180deg,
+      rgb(0 0 0 / 0.45) 0%,
+      rgb(0 0 0 / 0.48) 40%,
+      hsl(var(--card) / 0.72) 64%,
+      hsl(var(--card)) 82%,
+      hsl(var(--card)) 100%
+    );
+  }
+
+  :root.toodoo-monochrome .admin-company-card-scrim {
+    background: linear-gradient(
+      180deg,
+      hsl(var(--card) / 0.72) 0%,
+      hsl(var(--card) / 0.78) 46%,
+      hsl(var(--card) / 0.94) 72%,
+      hsl(var(--card)) 100%
+    );
+  }
+
   .glass-card {
     @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl;
   }

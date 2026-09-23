@@ -13,7 +13,7 @@ import { CategoryBadges } from "@/components/CategoryBadges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { ManagerInviteDialog } from "@/components/ManagerInviteDialog";
-import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness, type Business, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
+import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness, resolveImageUrl, type Business, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
 import { hasScbBulkImport, isAutoApprovedImport } from "@/lib/businessImport";
 import { hasAdminAccess } from "@/lib/adminAccess";
 import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
@@ -276,8 +276,9 @@ export default function Companies() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((company) => (
-            <Card key={company.id} className="card-hover bg-card border-border">
-              <CardContent className="p-5">
+            <Card key={company.id} className="card-hover relative overflow-hidden bg-card border-border">
+              <CompanyCardBackdrop src={company.logo} />
+              <CardContent className="relative z-10 p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <CompanyAvatar name={company.name} imageUrl={company.logo} />
@@ -382,6 +383,25 @@ export default function Companies() {
         onConfirm={handleDelete}
         variant="destructive"
       />
+    </div>
+  );
+}
+
+function CompanyCardBackdrop({ src }: { src?: string }) {
+  const [failed, setFailed] = useState(false);
+  const resolved = resolveImageUrl(src);
+
+  if (!resolved || failed) return null;
+
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0">
+      <img
+        src={resolved}
+        alt=""
+        className="h-full w-full object-cover"
+        onError={() => setFailed(true)}
+      />
+      <div className="admin-company-card-scrim absolute inset-0" />
     </div>
   );
 }
