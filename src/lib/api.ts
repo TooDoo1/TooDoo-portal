@@ -255,6 +255,22 @@ async function apiRequest<T>(
   return payload as T;
 }
 
+/** Walk skip/take pages so a default server cap of 100 still returns the full list. */
+async function listAllPages<T>(path: string, params: URLSearchParams, withAuth: boolean): Promise<T[]> {
+  const pageSize = 100;
+  const all: T[] = [];
+  let skip = 0;
+  for (;;) {
+    const pageParams = new URLSearchParams(params);
+    pageParams.set("take", String(pageSize));
+    pageParams.set("skip", String(skip));
+    const page = await apiRequest<T[]>(`${path}?${pageParams.toString()}`, { method: "GET" }, withAuth);
+    all.push(...page);
+    if (page.length < pageSize) return all;
+    skip += pageSize;
+  }
+}
+
 async function apiRequestFormData<T>(
   path: string,
   form: FormData,
@@ -1469,8 +1485,9 @@ export async function submitBusinessClaimRequest(businessId: string, body: Submi
 }
 
 export async function listBusinessClaimRequests(status?: "PENDING" | "APPROVED" | "REJECTED") {
-  const query = status ? `?status=${encodeURIComponent(status)}` : "";
-  return apiRequest<BusinessClaimRequest[]>(`/business/claim-requests${query}`, { method: "GET" }, true);
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  return listAllPages<BusinessClaimRequest>("/business/claim-requests", params, true);
 }
 
 export async function reviewBusinessClaimRequest(
@@ -1614,8 +1631,7 @@ export async function listBusinessImageRequests(params: { status?: string; busin
   const query = new URLSearchParams();
   if (params.status) query.set("status", params.status);
   if (params.businessId) query.set("businessId", params.businessId);
-  const qs = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<BusinessImageRequest[]>(`/business/image-requests${qs}`, { method: "GET" }, true);
+  return listAllPages<BusinessImageRequest>("/business/image-requests", query, true);
 }
 
 export async function reviewBusinessImageRequest(requestId: string, status: "APPROVED" | "DECLINED") {
@@ -1641,8 +1657,24 @@ export async function listBusinesses(
   if (categoryName?.trim()) params.set("categoryName", categoryName.trim());
   if (source) params.set("source", source);
   if (city?.trim()) params.set("city", city.trim());
-  const query = params.toString() ? `?${params.toString()}` : "";
-  return apiRequest<Business[]>(`/business${query}`, { method: "GET" }, withAuth);
+  if (withAuth) {
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return apiRequest<Business[]>(`/business${query}`, { method: "GET" }, true);
+  }
+
+  // Public list is paged (max 100). Walk pages so category views still get the full approved set.
+  const pageSize = 100;
+  const all: Business[] = [];
+  let skip = 0;
+  for (;;) {
+    const pageParams = new URLSearchParams(params);
+    pageParams.set("take", String(pageSize));
+    pageParams.set("skip", String(skip));
+    const page = await apiRequest<Business[]>(`/business?${pageParams.toString()}`, { method: "GET" });
+    all.push(...page);
+    if (page.length < pageSize) return all;
+    skip += pageSize;
+  }
 }
 
 export async function getBusinessById(id: string, withAuth = false) {
@@ -1742,12 +1774,11 @@ export async function listBusinessEvents(params: { businessId?: string; category
   if (params.businessId) query.set("businessId", params.businessId);
   if (params.categoryName) query.set("categoryName", params.categoryName);
   if (params.city) query.set("city", params.city);
-  const qs = query.toString() ? `?${query.toString()}` : "";
-  return apiRequest<BusinessEvent[]>(`/business-events${qs}`, { method: "GET" }, Boolean(params.businessId));
+  return listAllPages<BusinessEvent>("/business-events", query, Boolean(params.businessId));
 }
 
 export async function listManagerBusinessEvents() {
-  return apiRequest<BusinessEvent[]>("/business-events/manager", { method: "GET" }, true);
+  return listAllPages<BusinessEvent>("/business-events/manager", new URLSearchParams(), true);
 }
 
 export async function getBusinessEventById(eventId: string) {
@@ -1838,9 +1869,9 @@ export async function getBusinessDailySummary(businessId: string) {
 }
 
 export async function getBusinessRedemptions(businessId: string) {
-  return apiRequest<Redemption[]>(
+  return listAllPages<Redemption>(
     `/business/${encodeURIComponent(businessId)}/redemptions`,
-    { method: "GET" },
+    new URLSearchParams(),
     true,
   );
 }
