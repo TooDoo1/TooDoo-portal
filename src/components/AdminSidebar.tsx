@@ -22,6 +22,45 @@ import { cn } from "@/lib/utils";
 import { useMonochrome } from "@/hooks/useMonochrome";
 import { useRealtime } from "@/hooks/useRealtime";
 
+const GOOGLE_PLAY_TEST_URL = "https://play.google.com/apps/internaltest/4701530101464179284";
+
+function GooglePlayTestLink({ collapsed }: { collapsed: boolean }) {
+  if (collapsed) {
+    return (
+      <a
+        href={GOOGLE_PLAY_TEST_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Google Play-test"
+        title="Google Play-test"
+        className="flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-card transition-all hover:-translate-y-0.5 hover:border-border/80 hover:bg-secondary"
+      >
+        <img src="/Google_Play_2022_icon.svg" alt="" className="h-[18px] w-[18px] object-contain" />
+      </a>
+    );
+  }
+
+  return (
+    <a
+      href={GOOGLE_PLAY_TEST_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group flex w-full items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5 transition-all hover:-translate-y-0.5 hover:border-border/80 hover:bg-secondary"
+    >
+      <img
+        src="/Google_Play_2022_icon.svg"
+        alt=""
+        aria-hidden
+        className="h-[22px] w-[22px] shrink-0 object-contain"
+      />
+      <div className="min-w-0 text-left leading-none">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Testversion</div>
+        <div className="mt-1 truncate text-sm font-bold text-foreground">Google Play</div>
+      </div>
+    </a>
+  );
+}
+
 type MenuGroup = {
   label: string;
   items: Array<{ title: string; url: string; icon: typeof LayoutDashboard; count?: number }>;
@@ -251,6 +290,7 @@ export function AdminSidebar() {
                 </p>
               </div>
             </div>
+            <GooglePlayTestLink collapsed={false} />
             <button
               type="button"
               onClick={handleLogout}
@@ -272,6 +312,7 @@ export function AdminSidebar() {
                 {getInitials(email)}
               </AvatarFallback>
             </Avatar>
+            <GooglePlayTestLink collapsed />
             <button
               type="button"
               onClick={handleLogout}
