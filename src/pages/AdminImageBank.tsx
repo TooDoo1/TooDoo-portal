@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { ImageOff, Images, Trash2 } from "lucide-react";
+import { ImageOff, Images, Plus, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  addDefaultImage,
   listCategories,
   listDefaultImages,
   removeDefaultImage,
@@ -120,6 +122,17 @@ export default function AdminImageBank() {
         </p>
       </div>
 
+      <AddDefaultImageForm
+        categories={categories}
+        images={images}
+        onAdded={(image) => {
+          setImages((current) => [image, ...current.filter((row) => row.id !== image.id)]);
+          setCategoryId(image.categoryId ?? image.category?.id ?? ALL);
+          setThemeId(ALL);
+          setSearch("");
+        }}
+      />
+
       <div className="flex flex-col gap-3 lg:flex-row">
         <Select
           value={categoryId}
@@ -219,6 +232,139 @@ export default function AdminImageBank() {
       setRemoving(false);
     }
   }
+}
+
+function AddDefaultImageForm({
+  categories,
+  images,
+  onAdded,
+}: {
+  categories: Category[];
+  images: ImageGalleryItem[];
+  onAdded: (image: ImageGalleryItem) => void;
+}) {
+  const [publicUrl, setPublicUrl] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [themeId, setThemeId] = useState("");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const themes = useMemo(() => {
+    const ids = images
+      .filter((image) => (image.categoryId ?? image.category?.id) === categoryId)
+      .map((image) => image.themeId?.trim() || "")
+      .filter((id) => id.length > 0);
+    return [...new Set(ids)].sort((a, b) => a.localeCompare(b, "sv"));
+  }, [images, categoryId]);
+
+  const canSave = publicUrl.trim().startsWith("https://") && categoryId && themeId && !saving;
+
+  async function handleAdd() {
+    if (!canSave) return;
+    setSaving(true);
+    try {
+      const created = await addDefaultImage({
+        publicUrl: publicUrl.trim(),
+        categoryId,
+        themeId,
+        ...(description.trim() ? { description: description.trim() } : {}),
+      });
+      onAdded(created);
+      setPublicUrl("");
+      setDescription("");
+      toast.success("Bilden lades till i bildbanken");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Kunde inte lägga till bilden.";
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card className="bg-card border-border">
+      <CardContent className="space-y-4 p-5">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Lägg till standardbild</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Klistra in en https-adress. Bilden läggs som nästa plats i ett tema som redan finns i kategorin.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-2 sm:col-span-2 lg:col-span-2">
+            <Label htmlFor="default-image-url">Bildadress</Label>
+            <Input
+              id="default-image-url"
+              value={publicUrl}
+              onChange={(event) => setPublicUrl(event.target.value)}
+              placeholder="https://images.unsplash.com/..."
+              disabled={saving}
+              className="bg-background border-border"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Kategori</Label>
+            <Select
+              value={categoryId || undefined}
+              onValueChange={(value) => {
+                setCategoryId(value);
+                setThemeId("");
+              }}
+              disabled={saving}
+            >
+              <SelectTrigger className="bg-background border-border">
+                <SelectValue placeholder="Välj kategori" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover border-border">
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Tema</Label>
+            <Select
+              value={themeId || undefined}
+              onValueChange={setThemeId}
+              disabled={saving || !categoryId || themes.length === 0}
+            >
+              <SelectTrigger className="bg-background border-border">
+                <SelectValue placeholder={categoryId ? "Välj tema" : "Välj kategori först"} />
+              </SelectTrigger>
+              <SelectContent className="bg-popover border-border">
+                {themes.map((theme) => (
+                  <SelectItem key={theme} value={theme}>{theme}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2 sm:col-span-2 lg:col-span-3">
+            <Label htmlFor="default-image-description">Beskrivning (valfritt)</Label>
+            <Input
+              id="default-image-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Vad bilden visar"
+              disabled={saving}
+              className="bg-background border-border"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            onClick={() => void handleAdd()}
+            disabled={!canSave}
+            className="bg-accent hover:bg-accent/90 text-accent-foreground"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {saving ? "Lägger till..." : "Lägg till"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 function ImageBankCard({ image, onRemove }: { image: ImageGalleryItem; onRemove: () => void }) {

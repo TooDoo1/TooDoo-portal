@@ -1354,6 +1354,19 @@ export async function removeDefaultImage(imageId: string) {
   );
 }
 
+export async function addDefaultImage(input: {
+  publicUrl: string;
+  categoryId: string;
+  themeId: string;
+  description?: string;
+}) {
+  return apiRequest<ImageGalleryItem>(
+    "/images/defaults",
+    { method: "POST", body: JSON.stringify(input) },
+    true,
+  );
+}
+
 export async function listBusinessImages(businessId: string, categoryIds?: string[]) {
   return apiRequest<ImageGalleryResponse>(
     `/business/${encodeURIComponent(businessId)}/images${galleryQuery(categoryIds)}`,
