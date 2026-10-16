@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { CompanySidebar } from "@/components/CompanySidebar";
@@ -9,6 +9,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useLocation } from "react-router-dom";
 import { getAuthEmail } from "@/lib/api";
 import { useMonochrome } from "@/hooks/useMonochrome";
+import { scrollRestoreTarget } from "@/lib/scrollRestore";
+
+const scrollPositions = new Map<string, number>();
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -55,6 +58,11 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   const sidebarOpen = state === "expanded";
   const location = useLocation();
   const isCompanyRoute = location.pathname.startsWith("/company");
+  const mainRef = useRef<HTMLElement>(null);
+  const ignoreScrollRef = useRef(false);
+  const scrollKey = `${location.pathname}${location.search}`;
+  const activeScrollKey = useRef(scrollKey);
+  if (activeScrollKey.current !== scrollKey) activeScrollKey.current = scrollKey;
   const monochrome = useMonochrome();
   const [notificationsOn, setNotificationsOn] = useState(true);
   const [email, setEmail] = useState<string | null>(null);
@@ -62,6 +70,67 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
   useEffect(() => {
     setEmail(getAuthEmail());
   }, []);
+
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    const key = scrollKey;
+    const onScroll = () => {
+      if (activeScrollKey.current !== key || ignoreScrollRef.current) return;
+      scrollPositions.set(key, main.scrollTop);
+    };
+    main.addEventListener("scroll", onScroll, { passive: true });
+    return () => main.removeEventListener("scroll", onScroll);
+  }, [scrollKey]);
+
+  useLayoutEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    const key = scrollKey;
+    const started = performance.now();
+    let settled = false;
+
+    const apply = () => {
+      if (settled || activeScrollKey.current !== key) return;
+      const target = scrollRestoreTarget(
+        scrollPositions.get(key),
+        main.scrollHeight,
+        main.clientHeight,
+        performance.now() - started,
+      );
+      if (target == null) return;
+      settled = true;
+      if (Math.abs(main.scrollTop - target) > 1) {
+        ignoreScrollRef.current = true;
+        main.scrollTop = target;
+        queueMicrotask(() => {
+          ignoreScrollRef.current = false;
+        });
+      }
+      observer.disconnect();
+    };
+
+    const observer = new ResizeObserver(() => apply());
+    observer.observe(main);
+    if (main.firstElementChild) observer.observe(main.firstElementChild);
+    apply();
+
+    const giveUp = window.setTimeout(apply, 4000);
+    const stopForUser = () => {
+      settled = true;
+      observer.disconnect();
+    };
+    main.addEventListener("wheel", stopForUser, { passive: true });
+    main.addEventListener("touchmove", stopForUser, { passive: true });
+
+    return () => {
+      settled = true;
+      observer.disconnect();
+      window.clearTimeout(giveUp);
+      main.removeEventListener("wheel", stopForUser);
+      main.removeEventListener("touchmove", stopForUser);
+    };
+  }, [scrollKey]);
 
   const managerDigestEnabled = isCompanyRoute || notificationsOn;
   const notificationHelpText = isCompanyRoute
@@ -122,7 +191,7 @@ function AdminLayoutContent({ children }: AdminLayoutProps) {
           </Avatar>
         </div>
       </header>
-      <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      <main ref={mainRef} className="flex-1 overflow-y-auto p-6">{children}</main>
     </div>
   );
 }
