@@ -14,10 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { BackArrowLabel } from "@/components/BackArrowLabel";
 import { BusinessImportBadges } from "@/components/BusinessImportBadges";
+import { CategoryBadges } from "@/components/CategoryBadges";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { ImportMetadataSection } from "@/components/ImportMetadataSection";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getBusinessById, listOrders, resolveImageUrl, type Business, type Order } from "@/lib/api";
+import { getBusinessCategoryNames, getBusinessDisplayCategoryNames } from "@/lib/businessCategories";
 import { buildGoogleMapsUrl } from "@/lib/businessImport";
 import { formatOpeningHoursLines } from "@/lib/openingHours";
 
@@ -42,10 +44,6 @@ function mapStatus(status: Business["status"]) {
   if (status === "APPROVED") return "active" as const;
   if (status === "REJECTED") return "inactive" as const;
   return "pending" as const;
-}
-
-function getCategoryName(business: Business, fallback?: string) {
-  return business.categoryName?.trim() || business.category?.name?.trim() || fallback || "Okategoriserad";
 }
 
 type OfferStatus = "active" | "draft" | "archived";
@@ -236,7 +234,8 @@ export function CompanyDetailsDialog({
   }, [open, companyId, initialBusiness]);
 
   const displayName = business?.name ?? companyName ?? "Företag";
-  const categoryName = business ? getCategoryName(business, category) : category;
+  const displayCategoryNames = business ? getBusinessDisplayCategoryNames(business) : category ? [category] : [];
+  const parentCategoryNames = business ? getBusinessCategoryNames(business) : [];
   const openingHoursLines = business ? formatOpeningHoursLines(business.openingHours) : null;
   const imageUrl = business ? resolveImageUrl(getBusinessImageUrl(business)) : null;
   const mapsUrl = business ? buildGoogleMapsUrl(business) : null;
@@ -321,15 +320,9 @@ export function CompanyDetailsDialog({
                   </DetailRow>
                 )}
 
-                {categoryName && (
+                {displayCategoryNames.length > 0 && (
                   <DetailRow icon={Tag} label="Kategori">
-                    <Link
-                      to={`/category/${encodeURIComponent(categoryName)}`}
-                      className="text-accent hover:underline"
-                      onClick={() => onOpenChange(false)}
-                    >
-                      {categoryName}
-                    </Link>
+                    <CategoryBadges names={displayCategoryNames} linkToCategory linkNames={parentCategoryNames} />
                   </DetailRow>
                 )}
 

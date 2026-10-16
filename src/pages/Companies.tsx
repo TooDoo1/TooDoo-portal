@@ -16,7 +16,7 @@ import { ManagerInviteDialog } from "@/components/ManagerInviteDialog";
 import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness, resolveImageUrl, type Business, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
 import { hasScbBulkImport, isAutoApprovedImport } from "@/lib/businessImport";
 import { hasAdminAccess } from "@/lib/adminAccess";
-import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
+import { getBusinessCategoryNames, getBusinessDisplayCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
 import { compareBusinessName } from "@/lib/sortBusinesses";
 import { toast } from "sonner";
 
@@ -30,6 +30,7 @@ type Company = {
   joinedAt: string;
   category: string;
   categoryNames: string[];
+  displayCategoryNames: string[];
   hasManager: boolean;
   managerEmail?: string;
   source?: BusinessSource;
@@ -122,6 +123,7 @@ export default function Companies() {
             status: "active",
             joinedAt: business.createdAt || new Date().toISOString(),
             categoryNames: getBusinessCategoryNames(business),
+            displayCategoryNames: getBusinessDisplayCategoryNames(business),
             category: getPrimaryCategoryName(business),
             hasManager: Boolean(business.manager),
             managerEmail: business.manager?.email ?? undefined,
@@ -349,7 +351,12 @@ export default function Companies() {
                 </div>
                 <div className={`mt-4 flex flex-col gap-2 text-sm ${company.logo ? "admin-company-card-copy text-foreground/90" : "text-muted-foreground"}`}>
                   <span>Gick med: {new Date(company.joinedAt).toLocaleDateString("sv-SE")}</span>
-                  <CategoryBadges names={company.categoryNames} linkToCategory onPhoto={Boolean(company.logo)} />
+                  <CategoryBadges
+                    names={company.displayCategoryNames}
+                    linkToCategory
+                    linkNames={company.categoryNames}
+                    onPhoto={Boolean(company.logo)}
+                  />
                 </div>
                 <div className="mt-4 flex gap-2">
                   <Button

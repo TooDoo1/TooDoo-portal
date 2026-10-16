@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { hasAdminAccess } from "@/lib/adminAccess";
-import { getBusinessCategoryNames, matchesCategoryName } from "@/lib/businessCategories";
+import { getBusinessCategoryNames, getBusinessDisplayCategoryNames, matchesCategoryName } from "@/lib/businessCategories";
 import { compareBusinessName } from "@/lib/sortBusinesses";
 import { inviteManagerToBusiness, listBusinesses, listCategories, updateBusinessStatus, ApiError, formatApprovedDuplicateError, type Business } from "@/lib/api";
 import { buildDuplicateGroups, formatDuplicateWarning, getDuplicatePeers } from "@/lib/businessDuplicates";
@@ -26,6 +26,7 @@ type Company = {
   city: string;
   email: string;
   categoryNames: string[];
+  displayCategoryNames: string[];
   status: "pending" | "active" | "inactive";
   description?: string;
   appliedAt?: string;
@@ -61,6 +62,7 @@ export default function Pending() {
           city: business.city,
           email: business.contactEmail ?? "",
           categoryNames: getBusinessCategoryNames(business),
+          displayCategoryNames: getBusinessDisplayCategoryNames(business),
           status: mapBusinessStatusToBadge(business.status),
           description: business.description,
           appliedAt: business.createdAt || new Date().toISOString(),
@@ -198,7 +200,7 @@ export default function Pending() {
                             Dubblett ({duplicatePeers.length + 1})
                           </span>
                         ) : null}
-                        <CategoryBadges names={company.categoryNames} />
+                        <CategoryBadges names={company.displayCategoryNames} />
                       </div>
                       <p className="text-sm text-muted-foreground mt-0.5">{company.email}</p>
                       <p className="text-sm text-foreground/70 mt-2 leading-relaxed">{company.description}</p>

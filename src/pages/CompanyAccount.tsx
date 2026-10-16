@@ -29,6 +29,7 @@ import {
 import {
   formatCategoryNames,
   getBusinessCategoryIds,
+  getBusinessDisplayCategoryNames,
 } from "@/lib/businessCategories";
 import { toast } from "sonner";
 
@@ -177,6 +178,7 @@ export default function CompanyAccount() {
   const [originalCategoryIds, setOriginalCategoryIds] = useState<string[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [status, setStatus] = useState<BusinessStatus | undefined>(undefined);
+  const [savedBusiness, setSavedBusiness] = useState<Business | null>(null);
   const monochrome = useMonochrome();
   const formRef = useRef<HTMLFormElement | null>(null);
 
@@ -220,6 +222,7 @@ export default function CompanyAccount() {
       setCategoryIds(resolvedCategoryIds);
       setOriginalCategoryIds(resolvedCategoryIds);
       setStatus(business.status);
+      setSavedBusiness(business);
       setForm(nextForm);
       setOriginalForm(nextForm);
       setOpeningHours(nextOpeningHours);
@@ -393,6 +396,16 @@ export default function CompanyAccount() {
     () => categoryOptions.filter((option) => categoryIds.includes(option.id)).map((option) => option.name),
     [categoryIds, categoryOptions],
   );
+  const visibleCategoryNames = useMemo(() => {
+    const selectionUnchanged =
+      categoryIds.length === originalCategoryIds.length &&
+      categoryIds.every((id) => originalCategoryIds.includes(id));
+    if (selectionUnchanged && savedBusiness) {
+      const displayNames = getBusinessDisplayCategoryNames(savedBusiness);
+      if (displayNames.length > 0) return displayNames;
+    }
+    return selectedCategoryNames;
+  }, [categoryIds, originalCategoryIds, savedBusiness, selectedCategoryNames]);
 
   const isDirty =
     JSON.stringify(form) !== JSON.stringify(originalForm) ||
@@ -410,7 +423,7 @@ export default function CompanyAccount() {
         </div>
         <div className="flex items-center gap-2 text-sm">
           {status && <StatusBadge status={mapStatusToBadge(status)} />}
-          <CategoryBadges names={selectedCategoryNames} />
+          <CategoryBadges names={visibleCategoryNames} />
         </div>
       </div>
 
@@ -799,7 +812,7 @@ export default function CompanyAccount() {
 
                 <BusinessAppPreviewCard
                   companyName={form.name.trim() || originalForm.name || "Ditt företag"}
-                  categoryName={formatCategoryNames(selectedCategoryNames)}
+                  categoryName={formatCategoryNames(visibleCategoryNames)}
                   imageUrl={form.imageUrl.trim() || undefined}
                 />
               </div>

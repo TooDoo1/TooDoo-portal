@@ -47,6 +47,38 @@ export function businessMatchesCategoryName(business: Business, categoryName: st
   return matchesCategoryName(getBusinessCategoryNames(business), categoryName);
 }
 
+function addUniqueName(names: string[], seen: Set<string>, value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return;
+  const key = normalizeCategoryName(trimmed);
+  if (seen.has(key)) return;
+  seen.add(key);
+  names.push(trimmed);
+}
+
+/** Subcategory labels when a business has them, otherwise the parent categories. */
+export function getBusinessDisplayCategoryNames(business: Business): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const categories = business.categories ?? [];
+
+  if (categories.length > 0) {
+    for (const category of categories) {
+      const children = (category.subcategories ?? [])
+        .map((subcategory) => subcategory.name?.trim())
+        .filter((name): name is string => Boolean(name));
+      if (children.length > 0) {
+        for (const child of children) addUniqueName(names, seen, child);
+      } else {
+        addUniqueName(names, seen, category.name);
+      }
+    }
+    if (names.length > 0) return names;
+  }
+
+  return getBusinessCategoryNames(business);
+}
+
 export function getPrimaryCategoryName(business: Business): string {
   return business.categoryName ?? business.category?.name ?? business.categories?.[0]?.name ?? "Okategoriserad";
 }

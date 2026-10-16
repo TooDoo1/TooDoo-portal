@@ -7,7 +7,7 @@ import { BusinessImageAppPreview } from "@/components/BusinessImageAppPreview";
 import { toast } from "sonner";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { listBusinessImageRequests, reviewBusinessImageRequest, getBusinessById, resolveImageUrl, type BusinessImageRequest, type Business } from "@/lib/api";
-import { formatCategoryNames, getBusinessCategoryNames } from "@/lib/businessCategories";
+import { formatCategoryNames, getBusinessDisplayCategoryNames } from "@/lib/businessCategories";
 import { useRealtime } from "@/hooks/useRealtime";
 
 interface RequestWithBusiness extends BusinessImageRequest {
@@ -15,7 +15,7 @@ interface RequestWithBusiness extends BusinessImageRequest {
 }
 
 function getBusinessCategoryName(business?: Business) {
-  const names = business ? getBusinessCategoryNames(business) : [];
+  const names = business ? getBusinessDisplayCategoryNames(business) : [];
   return names.length > 0 ? formatCategoryNames(names) : "Kategori saknas";
 }
 

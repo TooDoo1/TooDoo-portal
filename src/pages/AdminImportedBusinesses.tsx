@@ -12,7 +12,7 @@ import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { BusinessImportBadges } from "@/components/BusinessImportBadges";
 import { refreshAdminPendingCounts } from "@/lib/adminPendingCounts";
 import { hasAdminAccess } from "@/lib/adminAccess";
-import { getBusinessCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
+import { getBusinessCategoryNames, getBusinessDisplayCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
 import {
   compareBusinessName,
   IMPORTED_BUSINESS_SORT_OPTIONS,
@@ -55,6 +55,7 @@ type ImportedCompany = {
   address: string;
   city: string;
   categoryNames: string[];
+  displayCategoryNames: string[];
   category: string;
   orgNr?: string | null;
   cfarNr?: string | null;
@@ -103,6 +104,7 @@ export default function AdminImportedBusinesses() {
           address: business.address,
           city: business.city,
           categoryNames: getBusinessCategoryNames(business),
+          displayCategoryNames: getBusinessDisplayCategoryNames(business),
           category: getPrimaryCategoryName(business),
           orgNr: business.orgNr,
           cfarNr: business.cfarNr,
@@ -388,7 +390,7 @@ export default function AdminImportedBusinesses() {
                             Dubblett ({duplicatePeers.length + 1})
                           </span>
                         ) : null}
-                        <CategoryBadges names={company.categoryNames} />
+                        <CategoryBadges names={company.displayCategoryNames} />
                         <BusinessImportBadges business={company} />
                       </div>
                       <p className="text-sm text-muted-foreground mt-0.5">

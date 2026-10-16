@@ -751,7 +751,12 @@ export type Business = {
   categoryName?: string;
   categoryNames?: string[];
   category?: { id?: string; name?: string | null; icon?: string | null } | null;
-  categories?: Array<{ id?: string; name?: string | null; icon?: string | null }>;
+  categories?: Array<{
+    id?: string;
+    name?: string | null;
+    icon?: string | null;
+    subcategories?: Array<{ id?: string; name?: string | null }>;
+  }>;
   manager?: BusinessManager | null;
   status?: BusinessStatus;
   source?: BusinessSource;

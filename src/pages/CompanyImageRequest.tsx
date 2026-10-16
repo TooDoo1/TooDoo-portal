@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { BusinessImageAppPreview } from "@/components/BusinessImageAppPreview";
 import { getBusinessById, resolveBusinessId, resolveImageUrl, submitBusinessImageRequest, type Business } from "@/lib/api";
+import { formatCategoryNames, getBusinessDisplayCategoryNames } from "@/lib/businessCategories";
 import { cn } from "@/lib/utils";
 import { useRealtime } from "@/hooks/useRealtime";
 
@@ -304,7 +305,7 @@ export default function CompanyImageRequest() {
           <CardContent>
             <BusinessImageAppPreview
               companyName={business?.name || "Ditt företag"}
-              categoryName={business?.category?.name ?? business?.categoryName ?? ""}
+              categoryName={business ? formatCategoryNames(getBusinessDisplayCategoryNames(business)) : ""}
               imageUrl={previewImageUrl || undefined}
               address={business?.address}
               city={business?.city}
