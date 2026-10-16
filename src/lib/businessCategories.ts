@@ -83,6 +83,26 @@ export function getPrimaryCategoryName(business: Business): string {
   return business.categoryName ?? business.category?.name ?? business.categories?.[0]?.name ?? "Okategoriserad";
 }
 
+export type CategorySelection = {
+  categoryId: string;
+  subcategoryIds: string[];
+};
+
+export function getBusinessCategorySelections(business: Business): CategorySelection[] {
+  const categories = business.categories ?? [];
+  const rows = categories
+    .filter((category): category is typeof category & { id: string } => Boolean(category.id))
+    .map((category) => ({
+      categoryId: category.id,
+      subcategoryIds: (category.subcategories ?? [])
+        .map((subcategory) => subcategory.id)
+        .filter((id): id is string => Boolean(id)),
+    }));
+  if (rows.length > 0) return rows;
+  if (business.categoryId) return [{ categoryId: business.categoryId, subcategoryIds: [] }];
+  return [];
+}
+
 export function formatCategoryNames(names: string[]): string {
   const unique = [...new Set(names.filter(Boolean))];
   return unique.join(", ");

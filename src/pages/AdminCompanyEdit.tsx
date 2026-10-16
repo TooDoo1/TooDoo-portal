@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { CategoryMultiSelect } from "@/components/CategoryMultiSelect";
+import { CategoryRowPicker } from "@/components/CategoryRowPicker";
 import { CompanyAvatar } from "@/components/CompanyAvatar";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
@@ -34,7 +34,7 @@ import {
   type Order,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { getBusinessCategoryIds } from "@/lib/businessCategories";
+import { getBusinessCategorySelections, type CategorySelection } from "@/lib/businessCategories";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
@@ -71,6 +71,10 @@ function businessToForm(business: Business): CompanyForm {
     description: business.description ?? "",
     orgNr: business.orgNr ?? "",
   };
+}
+
+function categorySelectionChanged(current: CategorySelection[], original: CategorySelection[]) {
+  return JSON.stringify(current) !== JSON.stringify(original);
 }
 
 function mapStatus(status: BusinessStatus | undefined) {
@@ -121,8 +125,12 @@ export default function AdminCompanyEdit() {
   const [searchParams] = useSearchParams();
   const backPath = searchParams.get("from") === "imported" ? "/admin/imported" : "/companies";
   const [form, setForm] = useState<CompanyForm>(emptyForm);
-  const [categoryIds, setCategoryIds] = useState<string[]>([]);
-  const [originalCategoryIds, setOriginalCategoryIds] = useState<string[]>([]);
+  const [categorySelections, setCategorySelections] = useState<CategorySelection[]>([]);
+  const [originalCategorySelections, setOriginalCategorySelections] = useState<CategorySelection[]>([]);
+  const categoryIds = useMemo(
+    () => categorySelections.map((selection) => selection.categoryId),
+    [categorySelections],
+  );
   const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [status, setStatus] = useState<BusinessStatus | undefined>();
   const [isImported, setIsImported] = useState(false);
@@ -184,12 +192,12 @@ export default function AdminCompanyEdit() {
         listBusinessEvents({ businessId }),
       ]);
 
-      const resolvedCategoryIds = getBusinessCategoryIds(business);
+      const resolvedCategories = getBusinessCategorySelections(business);
       setForm(businessToForm(business));
       setStatus(business.status);
       setIsImported(business.source === "IMPORTED");
-      setCategoryIds(resolvedCategoryIds);
-      setOriginalCategoryIds(resolvedCategoryIds);
+      setCategorySelections(resolvedCategories);
+      setOriginalCategorySelections(resolvedCategories);
       setCategoryOptions(categories.map((cat) => ({ id: cat.id, name: cat.name })));
       setOffers(orderRows);
       setEvents(eventRows);
@@ -244,12 +252,17 @@ export default function AdminCompanyEdit() {
         address: trimmedAddress,
         city: trimmedCity,
         ...(isImported ? { orgNr: trimmedOrgNr ? normalizeOrgNumber(trimmedOrgNr) : null } : {}),
-        ...(JSON.stringify(categoryIds) !== JSON.stringify(originalCategoryIds) ? { categoryIds } : {}),
+        ...(categorySelectionChanged(categorySelections, originalCategorySelections)
+          ? {
+              categoryIds: categorySelections.map((selection) => selection.categoryId),
+              subcategoryIds: categorySelections.flatMap((selection) => selection.subcategoryIds),
+            }
+          : {}),
       });
       setForm(businessToForm(updated));
-      const nextCategoryIds = getBusinessCategoryIds(updated);
-      setCategoryIds(nextCategoryIds);
-      setOriginalCategoryIds(nextCategoryIds);
+      const nextCategories = getBusinessCategorySelections(updated);
+      setCategorySelections(nextCategories);
+      setOriginalCategorySelections(nextCategories);
       if (updated.status) setStatus(updated.status);
       setPrimaryImageAssetId(updated.imageAsset?.id ?? null);
       setPrimaryImageUrl(getBusinessPrimaryImageUrl(updated));
@@ -356,17 +369,22 @@ export default function AdminCompanyEdit() {
     if (!businessId) return;
     setIsSettingPrimary(image.id);
     try {
-      const categoryChanged = JSON.stringify(categoryIds) !== JSON.stringify(originalCategoryIds);
+      const categoryChanged = categorySelectionChanged(categorySelections, originalCategorySelections);
       const updated = await updateBusiness(businessId, {
         imageAssetId: image.id,
-        ...(categoryChanged ? { categoryIds } : {}),
+        ...(categoryChanged
+          ? {
+              categoryIds: categorySelections.map((selection) => selection.categoryId),
+              subcategoryIds: categorySelections.flatMap((selection) => selection.subcategoryIds),
+            }
+          : {}),
       });
       setPrimaryImageAssetId(image.id);
       setPrimaryImageUrl(getBusinessPrimaryImageUrl(updated));
       if (categoryChanged) {
-        const nextCategoryIds = getBusinessCategoryIds(updated);
-        setCategoryIds(nextCategoryIds);
-        setOriginalCategoryIds(nextCategoryIds);
+        const nextCategories = getBusinessCategorySelections(updated);
+        setCategorySelections(nextCategories);
+        setOriginalCategorySelections(nextCategories);
       }
       toast.success("Profilbild uppdaterad.");
     } catch (error) {
@@ -606,10 +624,11 @@ export default function AdminCompanyEdit() {
                     <Tag className="h-4 w-4" />
                     Kategorier
                   </div>
-                  <CategoryMultiSelect
+                  <CategoryRowPicker
                     options={categoryOptions}
-                    selectedIds={categoryIds}
-                    onChange={setCategoryIds}
+                    value={categorySelections}
+                    onChange={setCategorySelections}
+                    disabled={saving}
                   />
                 </div>
 

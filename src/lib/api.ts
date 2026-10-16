@@ -454,6 +454,13 @@ export async function resolveBusinessId() {
 export type HealthResponse = { ok?: boolean; status?: string; [key: string]: unknown };
 export type Category = { id: string; name: string; icon?: string | null };
 
+export type Subcategory = {
+  id: string;
+  name: string;
+  slug?: string | null;
+  sortOrder?: number | null;
+};
+
 export type RegisterRequest = {
   email: string;
   password: string;
@@ -570,6 +577,7 @@ export type UpdateBusinessRequest = {
   openingHours?: Record<string, unknown>;
   categoryId?: string;
   categoryIds?: string[];
+  subcategoryIds?: string[];
 };
 
 export type BusinessStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -1461,6 +1469,13 @@ export async function changeMyPassword(body: ChangeMyPasswordRequest) {
 export async function listCategories(name?: string) {
   const query = name ? `?name=${encodeURIComponent(name)}` : "";
   return apiRequest<Category[]>(`/category${query}`, { method: "GET" });
+}
+
+export async function listCategorySubcategories(categoryId: string) {
+  return apiRequest<Subcategory[]>(
+    `/category/${encodeURIComponent(categoryId)}/subcategories`,
+    { method: "GET" },
+  );
 }
 
 export async function createCategory(body: CreateCategoryRequest) {

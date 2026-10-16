@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Business } from "@/lib/api";
-import { getBusinessDisplayCategoryNames } from "@/lib/businessCategories";
+import { getBusinessCategorySelections, getBusinessDisplayCategoryNames } from "@/lib/businessCategories";
 
 function business(categories: Business["categories"], categoryName = "Mat"): Business {
   return {
@@ -57,5 +57,21 @@ describe("getBusinessDisplayCategoryNames", () => {
         ]),
       ),
     ).toEqual(["Mat", "Shopping"]);
+  });
+});
+
+describe("getBusinessCategorySelections", () => {
+  it("keeps each parent with its own subcategories", () => {
+    expect(
+      getBusinessCategorySelections(
+        business([
+          { id: "c1", name: "Mat", subcategories: [{ id: "s1", name: "Pizza" }] },
+          { id: "c2", name: "Shopping", subcategories: [] },
+        ]),
+      ),
+    ).toEqual([
+      { categoryId: "c1", subcategoryIds: ["s1"] },
+      { categoryId: "c2", subcategoryIds: [] },
+    ]);
   });
 });
