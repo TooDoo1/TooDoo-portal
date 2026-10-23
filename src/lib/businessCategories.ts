@@ -47,6 +47,27 @@ export function businessMatchesCategoryName(business: Business, categoryName: st
   return matchesCategoryName(getBusinessCategoryNames(business), categoryName);
 }
 
+export function getBusinessSubcategoryIds(business: Business): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const category of business.categories ?? []) {
+    for (const subcategory of category.subcategories ?? []) {
+      const id = subcategory.id?.trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
+/** Empty selection matches every business. Any selected subcategory is enough. */
+export function matchesAnySubcategory(ids: string[], selectedIds: string[]): boolean {
+  if (selectedIds.length === 0) return true;
+  const owned = new Set(ids);
+  return selectedIds.some((id) => owned.has(id));
+}
+
 function addUniqueName(names: string[], seen: Set<string>, value: string | null | undefined) {
   const trimmed = value?.trim();
   if (!trimmed) return;

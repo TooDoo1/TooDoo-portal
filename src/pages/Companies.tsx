@@ -13,10 +13,11 @@ import { CategoryBadges } from "@/components/CategoryBadges";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CompanyDetailsDialog } from "@/components/CompanyDetailsDialog";
 import { ManagerInviteDialog } from "@/components/ManagerInviteDialog";
-import { inviteManagerToBusiness, listBusinesses, listCategories, deleteBusiness, resolveImageUrl, type Business, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
+import { SubcategoryFilter, type SubcategoryFilterOption } from "@/components/SubcategoryFilter";
+import { inviteManagerToBusiness, listBusinesses, listCategories, listCategorySubcategories, deleteBusiness, resolveImageUrl, type Business, type BusinessImportMetadata, type BusinessSource } from "@/lib/api";
 import { hasScbBulkImport, isAutoApprovedImport } from "@/lib/businessImport";
 import { hasAdminAccess } from "@/lib/adminAccess";
-import { getBusinessCategoryNames, getBusinessDisplayCategoryNames, getPrimaryCategoryName, matchesCategoryName } from "@/lib/businessCategories";
+import { getBusinessCategoryNames, getBusinessDisplayCategoryNames, getBusinessSubcategoryIds, getPrimaryCategoryName, matchesAnySubcategory, matchesCategoryName } from "@/lib/businessCategories";
 import { compareBusinessName } from "@/lib/sortBusinesses";
 import { toast } from "sonner";
 
@@ -31,6 +32,7 @@ type Company = {
   category: string;
   categoryNames: string[];
   displayCategoryNames: string[];
+  subcategoryIds: string[];
   hasManager: boolean;
   managerEmail?: string;
   source?: BusinessSource;
@@ -95,8 +97,10 @@ export default function Companies() {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [categories, setCategories] = useState<string[]>(["Alla"]);
+  const [subcategoryOptions, setSubcategoryOptions] = useState<SubcategoryFilterOption[]>([]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
+  const [selectedSubcategoryIds, setSelectedSubcategoryIds] = useState<string[]>([]);
   const [cityFilter, setCityFilter] = useState("Alla");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null);
@@ -106,12 +110,15 @@ export default function Companies() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
     const load = async () => {
       try {
         const [businessRows, categoryRows] = await Promise.all([
           listBusinesses("APPROVED", true),
           listCategories(),
         ]);
+        if (cancelled) return;
 
         setCompanies(
           businessRows.map((business) => ({
@@ -124,6 +131,7 @@ export default function Companies() {
             joinedAt: business.createdAt || new Date().toISOString(),
             categoryNames: getBusinessCategoryNames(business),
             displayCategoryNames: getBusinessDisplayCategoryNames(business),
+            subcategoryIds: getBusinessSubcategoryIds(business),
             category: getPrimaryCategoryName(business),
             hasManager: Boolean(business.manager),
             managerEmail: business.manager?.email ?? undefined,
@@ -134,15 +142,38 @@ export default function Companies() {
           })),
         );
         setCategories(["Alla", ...categoryRows.map((row) => row.name)]);
-      } catch {
-        setCompanies([]);
-        setCategories(["Alla"]);
-      } finally {
         setLoading(false);
+
+        const grouped = await Promise.all(
+          categoryRows.map(async (row) => {
+            try {
+              const children = await listCategorySubcategories(row.id);
+              return children.map((child) => ({
+                id: child.id,
+                name: child.name,
+                categoryName: row.name,
+              }));
+            } catch {
+              return [];
+            }
+          }),
+        );
+        if (!cancelled) setSubcategoryOptions(grouped.flat());
+      } catch {
+        if (!cancelled) {
+          setCompanies([]);
+          setCategories(["Alla"]);
+          setSubcategoryOptions([]);
+          setLoading(false);
+        }
       }
     };
 
     void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const cities = useMemo(() => {
@@ -157,6 +188,22 @@ export default function Companies() {
     return unique;
   }, [companies]);
 
+  const visibleSubcategories = useMemo(() => {
+    if (category === "Alla") return subcategoryOptions;
+    return subcategoryOptions.filter((option) => matchesCategoryName([option.categoryName], category));
+  }, [category, subcategoryOptions]);
+
+  const applyCategory = (value: string) => {
+    setCategory(value);
+    const allowed = new Set(
+      (value === "Alla"
+        ? subcategoryOptions
+        : subcategoryOptions.filter((option) => matchesCategoryName([option.categoryName], value))
+      ).map((option) => option.id),
+    );
+    setSelectedSubcategoryIds((current) => current.filter((id) => allowed.has(id)));
+  };
+
   const filtered = useMemo(() => companies.filter((c) => {
     const q = search.toLowerCase();
     const matchSearch =
@@ -164,6 +211,7 @@ export default function Companies() {
       (c.email ?? "").toLowerCase().includes(q) ||
       c.city.toLowerCase().includes(q);
     const matchCategory = category === "Alla" || matchesCategoryName(c.categoryNames, category);
+    const matchSubcategory = matchesAnySubcategory(c.subcategoryIds, selectedSubcategoryIds);
     const matchCity = cityFilter === "Alla" || c.city.trim().toLowerCase() === cityFilter.toLowerCase();
     const matchSource =
       sourceFilter === "all" ||
@@ -172,8 +220,8 @@ export default function Companies() {
       (sourceFilter === "unclaimed_imports" && c.source === "IMPORTED" && !c.isClaimed) ||
       (sourceFilter === "auto_approved" && isAutoApprovedImport(c)) ||
       (sourceFilter === "scb_import" && hasScbBulkImport(c.importMetadata));
-    return matchSearch && matchCategory && matchCity && matchSource;
-  }).sort(compareBusinessName), [companies, search, category, cityFilter, sourceFilter]);
+    return matchSearch && matchCategory && matchSubcategory && matchCity && matchSource;
+  }).sort(compareBusinessName), [companies, search, category, selectedSubcategoryIds, cityFilter, sourceFilter]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -261,8 +309,8 @@ export default function Companies() {
         </Button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <div className="relative min-w-[16rem] flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Sök företag..."
@@ -271,7 +319,7 @@ export default function Companies() {
             className="pl-9 bg-card border-border text-foreground placeholder:text-muted-foreground"
           />
         </div>
-        <Select value={category} onValueChange={setCategory}>
+        <Select value={category} onValueChange={applyCategory}>
           <SelectTrigger className="w-full sm:w-[180px] bg-card border-border text-foreground">
             <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
             <SelectValue />
@@ -282,6 +330,11 @@ export default function Companies() {
             ))}
           </SelectContent>
         </Select>
+        <SubcategoryFilter
+          options={visibleSubcategories}
+          selectedIds={selectedSubcategoryIds}
+          onChange={setSelectedSubcategoryIds}
+        />
         <Select value={cityFilter} onValueChange={setCityFilter}>
           <SelectTrigger className="w-full sm:w-[180px] bg-card border-border text-foreground">
             <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />

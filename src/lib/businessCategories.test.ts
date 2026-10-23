@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { Business } from "@/lib/api";
-import { getBusinessCategorySelections, getBusinessDisplayCategoryNames } from "@/lib/businessCategories";
+import {
+  getBusinessCategorySelections,
+  getBusinessDisplayCategoryNames,
+  getBusinessSubcategoryIds,
+  matchesAnySubcategory,
+} from "@/lib/businessCategories";
 
 function business(categories: Business["categories"], categoryName = "Mat"): Business {
   return {
@@ -73,5 +78,30 @@ describe("getBusinessCategorySelections", () => {
       { categoryId: "c1", subcategoryIds: ["s1"] },
       { categoryId: "c2", subcategoryIds: [] },
     ]);
+  });
+});
+
+describe("matchesAnySubcategory", () => {
+  const cafeAndBurger = business([
+    {
+      id: "c1",
+      name: "Mat",
+      subcategories: [
+        { id: "cafe", name: "Café" },
+        { id: "burger", name: "Hamburgare" },
+      ],
+    },
+  ]);
+
+  it("collects the subcategory ids on a business", () => {
+    expect(getBusinessSubcategoryIds(cafeAndBurger)).toEqual(["cafe", "burger"]);
+  });
+
+  it("matches when any selected subcategory is on the business", () => {
+    const ids = getBusinessSubcategoryIds(cafeAndBurger);
+    expect(matchesAnySubcategory(ids, [])).toBe(true);
+    expect(matchesAnySubcategory(ids, ["cafe"])).toBe(true);
+    expect(matchesAnySubcategory(ids, ["cafe", "pizza"])).toBe(true);
+    expect(matchesAnySubcategory(ids, ["pizza"])).toBe(false);
   });
 });
