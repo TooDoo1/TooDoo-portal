@@ -21,7 +21,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { getBusinessById, listOrders, resolveImageUrl, type Business, type Order } from "@/lib/api";
 import { getBusinessCategoryNames, getBusinessDisplayCategoryNames } from "@/lib/businessCategories";
 import { buildGoogleMapsUrl } from "@/lib/businessImport";
-import { formatOpeningHoursLines } from "@/lib/openingHours";
+import { formatOpeningHoursLines, groupOpeningHoursRanges } from "@/lib/openingHours";
 
 function getBusinessImageUrl(business: Business) {
   if (typeof business.imageUrl === "string" && business.imageUrl.trim()) return business.imageUrl.trim();
@@ -152,12 +152,12 @@ function DetailRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="h-4 w-4 shrink-0" />
-        <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
-      </div>
-      <div className="pl-6 text-sm text-foreground/90">{children}</div>
+    <div className="flex items-start gap-2 text-sm leading-5">
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <span className="w-24 shrink-0 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      <div className="min-w-0 flex-1 text-foreground/90">{children}</div>
     </div>
   );
 }
@@ -237,8 +237,27 @@ export function CompanyDetailsDialog({
   const displayCategoryNames = business ? getBusinessDisplayCategoryNames(business) : category ? [category] : [];
   const parentCategoryNames = business ? getBusinessCategoryNames(business) : [];
   const openingHoursLines = business ? formatOpeningHoursLines(business.openingHours) : null;
+  const openingHoursRanges = openingHoursLines ? groupOpeningHoursRanges(openingHoursLines) : [];
   const imageUrl = business ? resolveImageUrl(getBusinessImageUrl(business)) : null;
   const mapsUrl = business ? buildGoogleMapsUrl(business) : null;
+  const addressLine = business
+    ? [business.address, business.city]
+        .map((part) => part?.trim())
+        .filter(Boolean)
+        .join(", ")
+    : "";
+  const description = business?.description?.trim() ?? "";
+  const website = business?.website?.trim() ?? "";
+  const websiteHref = website ? (website.startsWith("http") ? website : `https://${website}`) : "";
+  const hasFacts = Boolean(
+    business?.contactEmail?.trim() ||
+      business?.contactPhone?.trim() ||
+      displayCategoryNames.length > 0 ||
+      addressLine ||
+      website ||
+      business?.createdAt ||
+      openingHoursRanges.length > 0,
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -302,20 +321,21 @@ export function CompanyDetailsDialog({
 
             <Separator className="bg-border/50" />
 
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                {business?.contactEmail && (
+            <div className={`grid gap-6 ${hasFacts ? "md:grid-cols-2" : ""}`}>
+              {hasFacts ? (
+              <div className="space-y-2">
+                {business?.contactEmail?.trim() && (
                   <DetailRow icon={Mail} label="E-post">
-                    <a href={`mailto:${business.contactEmail}`} className="hover:text-accent transition-colors">
-                      {business.contactEmail}
+                    <a href={`mailto:${business.contactEmail.trim()}`} className="hover:text-accent transition-colors break-words">
+                      {business.contactEmail.trim()}
                     </a>
                   </DetailRow>
                 )}
 
-                {business?.contactPhone && (
+                {business?.contactPhone?.trim() && (
                   <DetailRow icon={Phone} label="Telefon">
-                    <a href={`tel:${business.contactPhone}`} className="hover:text-accent transition-colors">
-                      {business.contactPhone}
+                    <a href={`tel:${business.contactPhone.trim()}`} className="hover:text-accent transition-colors">
+                      {business.contactPhone.trim()}
                     </a>
                   </DetailRow>
                 )}
@@ -326,28 +346,36 @@ export function CompanyDetailsDialog({
                   </DetailRow>
                 )}
 
-                {(business?.address || business?.city) && (
+                {addressLine && (
                   <DetailRow icon={MapPin} label="Adress">
-                    <div className="space-y-1">
-                      <p>{[business.address, business.city].filter(Boolean).join(", ")}</p>
+                    <span className="inline">
+                      {addressLine}
                       {mapsUrl ? (
-                        <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                          Öppna i Google Maps
-                        </a>
+                        <>
+                          {" "}
+                          <a
+                            href={mapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="whitespace-nowrap text-accent hover:underline"
+                          >
+                            Öppna i Google Maps
+                          </a>
+                        </>
                       ) : null}
-                    </div>
+                    </span>
                   </DetailRow>
                 )}
 
-                {business?.website && (
+                {website && (
                   <DetailRow icon={Globe} label="Webbplats">
                     <a
-                      href={business.website.startsWith("http") ? business.website : `https://${business.website}`}
+                      href={websiteHref}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hover:text-accent transition-colors break-all"
+                      className="hover:text-accent transition-colors break-words"
                     >
-                      {business.website}
+                      {website}
                     </a>
                   </DetailRow>
                 )}
@@ -362,31 +390,22 @@ export function CompanyDetailsDialog({
                   </DetailRow>
                 )}
 
-                {openingHoursLines && (
+                {openingHoursRanges.length > 0 && (
                   <DetailRow icon={Clock} label="Öppettider">
-                    <ul className="space-y-1">
-                      {openingHoursLines.map((line) => (
-                        <li key={line.key}>
-                          <span className="block">{line.label}</span>
-                          <span className="block text-muted-foreground">{line.hours}</span>
+                    <ul className="space-y-0.5">
+                      {openingHoursRanges.map((range) => (
+                        <li key={range.key} className="flex flex-wrap items-baseline gap-x-3 md:grid md:grid-cols-[9rem_auto]">
+                          <span>{range.label}</span>
+                          <span className="whitespace-nowrap tabular-nums text-muted-foreground">{range.hours}</span>
                         </li>
                       ))}
                     </ul>
                   </DetailRow>
                 )}
-
-                {business?.description?.trim() && (
-                  <>
-                    <Separator className="bg-border/50" />
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Beskrivning</p>
-                      <p className="text-sm text-foreground/90 whitespace-pre-wrap">{business.description.trim()}</p>
-                    </div>
-                  </>
-                )}
               </div>
+              ) : null}
 
-              <div className="space-y-3 md:border-l md:border-border/50 md:pl-6">
+              <div className={`space-y-3 ${hasFacts ? "md:border-l md:border-border/50 md:pl-6" : ""}`}>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Tags className="h-4 w-4 shrink-0" />
                   <p className="text-xs font-medium uppercase tracking-wide">
@@ -442,6 +461,13 @@ export function CompanyDetailsDialog({
                 )}
               </div>
             </div>
+
+            {description ? (
+              <div className="space-y-1">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Beskrivning</p>
+                <p className="text-sm leading-5 text-foreground/90 whitespace-pre-wrap">{description}</p>
+              </div>
+            ) : null}
           </div>
         )}
       </DialogContent>

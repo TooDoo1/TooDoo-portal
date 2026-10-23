@@ -47,3 +47,35 @@ export function formatOpeningHoursLines(
 
   return lines.length > 0 ? lines : null;
 }
+
+export type OpeningHoursRange = {
+  key: string;
+  label: string;
+  hours: string;
+};
+
+/** Fold neighboring days that share the same hours. A gap stays split, so a missing day is not shown as open. */
+export function groupOpeningHoursRanges(lines: OpeningHoursLine[]): OpeningHoursRange[] {
+  const ranges: Array<{ start: OpeningHoursDayKey; end: OpeningHoursDayKey; hours: string }> = [];
+
+  for (const line of lines) {
+    const currentIndex = OPENING_HOURS_DAY_KEYS.indexOf(line.key);
+    const previous = ranges[ranges.length - 1];
+    const previousIndex = previous ? OPENING_HOURS_DAY_KEYS.indexOf(previous.end) : -2;
+    if (previous && previous.hours === line.hours && currentIndex === previousIndex + 1) {
+      previous.end = line.key;
+      continue;
+    }
+    ranges.push({ start: line.key, end: line.key, hours: line.hours });
+  }
+
+  return ranges.map((range) => {
+    const startLabel = OPENING_HOURS_DAY_LABELS[range.start];
+    const endLabel = OPENING_HOURS_DAY_LABELS[range.end];
+    const label =
+      range.start === range.end
+        ? startLabel
+        : `${startLabel}–${endLabel.toLocaleLowerCase("sv-SE")}`;
+    return { key: `${range.start}-${range.end}`, label, hours: range.hours };
+  });
+}
