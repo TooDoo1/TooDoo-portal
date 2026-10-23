@@ -1485,6 +1485,21 @@ export async function createCategory(body: CreateCategoryRequest) {
   }, true);
 }
 
+export async function createSubcategory(categoryId: string, name: string) {
+  return apiRequest<Subcategory>(
+    `/category/${encodeURIComponent(categoryId)}/subcategories`,
+    {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    },
+    true,
+  );
+}
+
+export async function deleteCategory(id: string) {
+  await apiRequest<null>(`/category/${encodeURIComponent(id)}`, { method: "DELETE" }, true);
+}
+
 export async function createBusiness(body: CreateBusinessRequest) {
   return apiRequest<Record<string, unknown>>("/business", {
     method: "POST",
