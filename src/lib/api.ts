@@ -1380,6 +1380,75 @@ export async function addDefaultImage(input: {
   );
 }
 
+export type CityImage = {
+  id: string;
+  city: string;
+  cityKey: string;
+  sourceType: "UPLOADED" | "EXTERNAL_URL" | string;
+  publicUrl: string;
+  storageKey?: string | null;
+  mimeType?: string | null;
+  width?: number | null;
+  height?: number | null;
+  sizeBytes?: number | null;
+  description?: string | null;
+  sortOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export async function listCityImages(city: string) {
+  const query = new URLSearchParams({ city });
+  return apiRequest<{ images: CityImage[] }>(
+    `/city-images?${query.toString()}`,
+    { method: "GET" },
+    true,
+  );
+}
+
+export async function addCityImage(body: {
+  city: string;
+  imageSourceType: ImageSourceType;
+  imageUrl?: string;
+  imageFile?: File;
+  description?: string;
+  sortOrder?: number;
+}) {
+  const wantsUpload = body.imageSourceType === "UPLOADED" || Boolean(body.imageFile);
+  if (!wantsUpload) {
+    return apiRequest<CityImage>(
+      "/city-images",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          city: body.city,
+          imageSourceType: "EXTERNAL_URL",
+          imageUrl: body.imageUrl,
+          ...(body.description ? { description: body.description } : {}),
+          ...(typeof body.sortOrder === "number" ? { sortOrder: body.sortOrder } : {}),
+        }),
+      },
+      true,
+    );
+  }
+
+  const form = new FormData();
+  appendFormValue(form, "city", body.city);
+  appendFormValue(form, "imageSourceType", "UPLOADED");
+  appendFormValue(form, "image", body.imageFile);
+  if (body.description) appendFormValue(form, "description", body.description);
+  if (typeof body.sortOrder === "number") appendFormValue(form, "sortOrder", String(body.sortOrder));
+  return apiRequestFormData<CityImage>("/city-images", form, true, "POST");
+}
+
+export async function deleteCityImage(id: string) {
+  return apiRequest<CityImage>(
+    `/city-images/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+    true,
+  );
+}
+
 export async function listBusinessImages(businessId: string, categoryIds?: string[]) {
   return apiRequest<ImageGalleryResponse>(
     `/business/${encodeURIComponent(businessId)}/images${galleryQuery(categoryIds)}`,

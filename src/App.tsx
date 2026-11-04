@@ -27,6 +27,7 @@ const AdminLogs = lazy(() => import("./pages/AdminLogs"));
 const AdminInvoices = lazy(() => import("./pages/AdminInvoices"));
 const AdminQualityControl = lazy(() => import("./pages/AdminQualityControl"));
 const AdminImageBank = lazy(() => import("./pages/AdminImageBank"));
+const AdminCityImages = lazy(() => import("./pages/AdminCityImages"));
 const AdminCategories = lazy(() => import("./pages/AdminCategories"));
 const CategoryPage = lazy(() => import("./pages/CategoryPage"));
 const LoggIn = lazy(() => import("./pages/LoggIn"));
@@ -136,6 +137,7 @@ const App = () => {
                   <Route path="/admin/invoices" element={<AdminInvoices />} />
                   <Route path="/admin/quality-control" element={<AdminQualityControl />} />
                   <Route path="/admin/image-bank" element={<AdminImageBank />} />
+                  <Route path="/admin/city-images" element={<AdminCityImages />} />
                   <Route path="/admin/categories" element={<AdminCategories />} />
                   <Route path="/companies" element={<Companies />} />
                   <Route path="/companies/new" element={<AdminCompanyNew />} />

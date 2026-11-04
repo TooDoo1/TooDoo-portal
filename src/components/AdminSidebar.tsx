@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, ClipboardList, Download, Images, LayoutDashboard, LogOut, ReceiptText, ScrollText, ShieldCheck, Tags, Image as ImageIcon, UserCheck } from "lucide-react";
+import { Building2, ClipboardList, Download, Images, LayoutDashboard, LogOut, MapPinned, ReceiptText, ScrollText, ShieldCheck, Tags, Image as ImageIcon, UserCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ADMIN_PENDING_COUNTS_REFRESH } from "@/lib/adminPendingCounts";
@@ -82,6 +82,7 @@ const menuGroups: MenuGroup[] = [
       { title: "Ägarskap", url: "/admin/claim-requests", icon: UserCheck },
       { title: "Kvalitets kontroll", url: "/admin/quality-control", icon: ImageIcon },
       { title: "Bildbank", url: "/admin/image-bank", icon: Images },
+      { title: "Stadbilder", url: "/admin/city-images", icon: MapPinned },
       { title: "Fakturor", url: "/admin/invoices", icon: ReceiptText },
       { title: "Kategorier", url: "/admin/categories", icon: Tags },
     ],
