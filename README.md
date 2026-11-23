@@ -246,5 +246,4 @@ Set `VITE_API_URL` (and optionally `VITE_PORTAL_URL`) in the host's environment 
 
 - Backend API (auth, search/events, images/`shareWithOrgNr`, `/import/*`, feeds): [TooDoo-Backend/README.md](../TooDoo-Backend/README.md) — see **Frontend quick reference**
 - Bulk import (SCB → PENDING → admin review): [TooDoo-Backend/docs/bulk-import-revamp.md](../TooDoo-Backend/docs/bulk-import-revamp.md)
-- Import strategy / Places cost model: [TooDoo-Backend/docs/bulk-import-improvement-strategy.md](../TooDoo-Backend/docs/bulk-import-improvement-strategy.md)
 - Portal import-audit UX: [docs/bulk-import-revamp.md](./docs/bulk-import-revamp.md)

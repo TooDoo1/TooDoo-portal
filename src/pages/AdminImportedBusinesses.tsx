@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowUpDown, Check, X, Search, Filter, Eye, Download, Pencil } from "lucide-react";
+import { ArrowUpDown, Check, X, Search, Filter, Eye, Download, Pencil, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -84,6 +84,7 @@ export default function AdminImportedBusinesses() {
   const [categories, setCategories] = useState<string[]>(["Alla"]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("Alla");
+  const [city, setCity] = useState("Alla");
   const [sortBy, setSortBy] = useState<ImportedBusinessSort>("confidence_desc");
   const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
   const [savingOrgNrId, setSavingOrgNrId] = useState<string | null>(null);
@@ -144,6 +145,25 @@ export default function AdminImportedBusinesses() {
 
   const duplicateGroups = useMemo(() => buildDuplicateGroups(companies), [companies]);
 
+  const cityOptions = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const company of companies) {
+      const trimmed = company.city?.trim();
+      if (!trimmed) continue;
+      const key = trimmed.toLocaleLowerCase("sv-SE");
+      if (!byKey.has(key)) byKey.set(key, trimmed);
+    }
+    return [...byKey.values()].sort((left, right) => left.localeCompare(right, "sv"));
+  }, [companies]);
+
+  useEffect(() => {
+    if (city === "Alla") return;
+    const stillExists = cityOptions.some(
+      (option) => option.localeCompare(city, "sv", { sensitivity: "base" }) === 0,
+    );
+    if (!stillExists) setCity("Alla");
+  }, [city, cityOptions]);
+
   const filtered = useMemo(() => {
     const rows = companies.filter((company) => {
       const haystack = [
@@ -158,6 +178,9 @@ export default function AdminImportedBusinesses() {
         .toLowerCase();
       const matchSearch = haystack.includes(search.toLowerCase());
       const matchCategory = category === "Alla" || matchesCategoryName(company.categoryNames, category);
+      const matchCity =
+        city === "Alla" ||
+        company.city.trim().localeCompare(city, "sv", { sensitivity: "base" }) === 0;
       const score = getImportConfidenceScore(company.importMetadata);
       const flagged = isAiFlaggedImport(company.importMetadata);
       const matchQuality =
@@ -166,7 +189,7 @@ export default function AdminImportedBusinesses() {
         (qualityFilter === "flagged" && flagged) ||
         (qualityFilter === "missing_score" && score == null) ||
         (qualityFilter === "scb_import" && hasScbBulkImport(company.importMetadata));
-      return matchSearch && matchCategory && matchQuality;
+      return matchSearch && matchCategory && matchCity && matchQuality;
     });
 
     rows.sort((left, right) => {
@@ -202,9 +225,10 @@ export default function AdminImportedBusinesses() {
     });
 
     return rows;
-  }, [companies, search, category, sortBy, qualityFilter]);
+  }, [companies, search, category, city, sortBy, qualityFilter]);
 
-  const hasActiveFilters = Boolean(search) || category !== "Alla" || qualityFilter !== "all";
+  const hasActiveFilters =
+    Boolean(search) || category !== "Alla" || city !== "Alla" || qualityFilter !== "all";
 
   const handleAction = async () => {
     if (!dialogState) return;
@@ -305,6 +329,20 @@ export default function AdminImportedBusinesses() {
             {categories.map((cat) => (
               <SelectItem key={cat} value={cat}>
                 {cat}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={city} onValueChange={setCity}>
+          <SelectTrigger className="w-full lg:w-[180px] bg-card border-border text-foreground">
+            <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />
+            <SelectValue placeholder="Ort" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover border-border">
+            <SelectItem value="Alla">Alla orter</SelectItem>
+            {cityOptions.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
               </SelectItem>
             ))}
           </SelectContent>
