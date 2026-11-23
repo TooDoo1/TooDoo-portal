@@ -70,6 +70,58 @@ type ImportedCompany = {
 };
 
 const HIGH_CONFIDENCE_THRESHOLD = 0.8;
+const IMPORTED_FILTERS_STORAGE_KEY = "toodoo.admin.imported.filters";
+
+const QUALITY_FILTER_VALUES = new Set<QualityFilter>([
+  "all",
+  "high_confidence",
+  "flagged",
+  "missing_score",
+  "scb_import",
+]);
+
+const SORT_VALUES = new Set<ImportedBusinessSort>(
+  IMPORTED_BUSINESS_SORT_OPTIONS.map((option) => option.value),
+);
+
+type StoredImportedFilters = {
+  search: string;
+  category: string;
+  city: string;
+  sortBy: ImportedBusinessSort;
+  qualityFilter: QualityFilter;
+};
+
+function readStoredImportedFilters(): StoredImportedFilters {
+  const defaults: StoredImportedFilters = {
+    search: "",
+    category: "Alla",
+    city: "Alla",
+    sortBy: "confidence_desc",
+    qualityFilter: "all",
+  };
+  try {
+    const raw = sessionStorage.getItem(IMPORTED_FILTERS_STORAGE_KEY);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw) as Partial<StoredImportedFilters>;
+    return {
+      search: typeof parsed.search === "string" ? parsed.search : defaults.search,
+      category: typeof parsed.category === "string" && parsed.category.trim() ? parsed.category : defaults.category,
+      city: typeof parsed.city === "string" && parsed.city.trim() ? parsed.city : defaults.city,
+      sortBy:
+        typeof parsed.sortBy === "string" && SORT_VALUES.has(parsed.sortBy as ImportedBusinessSort)
+          ? (parsed.sortBy as ImportedBusinessSort)
+          : defaults.sortBy,
+      qualityFilter:
+        typeof parsed.qualityFilter === "string" &&
+        QUALITY_FILTER_VALUES.has(parsed.qualityFilter as QualityFilter)
+          ? (parsed.qualityFilter as QualityFilter)
+          : defaults.qualityFilter,
+    };
+  } catch {
+    return defaults;
+  }
+}
 
 function confidenceBadgeClass(score: number | null): string {
   if (score == null) return "border-border bg-muted/40 text-muted-foreground";
@@ -82,14 +134,24 @@ export default function AdminImportedBusinesses() {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<ImportedCompany[]>([]);
   const [categories, setCategories] = useState<string[]>(["Alla"]);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("Alla");
-  const [city, setCity] = useState("Alla");
-  const [sortBy, setSortBy] = useState<ImportedBusinessSort>("confidence_desc");
-  const [qualityFilter, setQualityFilter] = useState<QualityFilter>("all");
+  const [storedFilters] = useState(readStoredImportedFilters);
+  const [search, setSearch] = useState(storedFilters.search);
+  const [category, setCategory] = useState(storedFilters.category);
+  const [city, setCity] = useState(storedFilters.city);
+  const [sortBy, setSortBy] = useState<ImportedBusinessSort>(storedFilters.sortBy);
+  const [qualityFilter, setQualityFilter] = useState<QualityFilter>(storedFilters.qualityFilter);
   const [savingOrgNrId, setSavingOrgNrId] = useState<string | null>(null);
   const [dialogState, setDialogState] = useState<{ company: ImportedCompany; action: ActionType } | null>(null);
   const [detailTarget, setDetailTarget] = useState<ImportedCompany | null>(null);
+
+  useEffect(() => {
+    const next: StoredImportedFilters = { search, category, city, sortBy, qualityFilter };
+    try {
+      sessionStorage.setItem(IMPORTED_FILTERS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [search, category, city, sortBy, qualityFilter]);
 
   const load = useCallback(async () => {
     try {
@@ -163,6 +225,11 @@ export default function AdminImportedBusinesses() {
     );
     if (!stillExists) setCity("Alla");
   }, [city, cityOptions]);
+
+  useEffect(() => {
+    if (category === "Alla") return;
+    if (!categories.includes(category)) setCategory("Alla");
+  }, [category, categories]);
 
   const filtered = useMemo(() => {
     const rows = companies.filter((company) => {

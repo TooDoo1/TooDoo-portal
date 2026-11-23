@@ -235,7 +235,7 @@ const DEFAULT_IMPORT_CITY = "Helsingborg";
 const DEFAULT_IMPORT_LIMIT = "50";
 
 export function AdminStartImportPanel({ onCompleted }: Props) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [knownCities, setKnownCities] = useState<string[]>([]);
   const [importCategories, setImportCategories] = useState<string[]>([]);
   const [city, setCity] = useState(DEFAULT_IMPORT_CITY);
